@@ -2,15 +2,28 @@
  *  Squeezelite - lightweight headless squeezeplay emulator for linux
  *
  *  (c) Adrian Smith 2012, triode1@btinternet.com
- *  
- *  Unreleased - license details to be added here...
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
 #include "squeezelite.h"
 
-// logging functions
-log_level loglevel = DEBUG;
+#include <sys/ioctl.h>
+#include <net/if.h>
 
+// logging functions
 const char *logtime(void) {
 	static char buf[100];
 	struct timeval tv;
@@ -39,3 +52,35 @@ u32_t gettime_ms(void) {
 	}
 }
 
+// mac address - searches first 4 interfaces returned by IFCONF
+void get_mac(u8_t mac[]) {
+    struct ifconf ifc;
+    struct ifreq *ifr, *ifend;
+    struct ifreq ifreq;
+    struct ifreq ifs[4];
+
+    int s = socket(AF_INET, SOCK_DGRAM, 0);
+ 
+    ifc.ifc_len = sizeof(ifs);
+    ifc.ifc_req = ifs;
+
+    if (ioctl(s, SIOCGIFCONF, &ifc) == 0) {
+		ifend = ifs + (ifc.ifc_len / sizeof(struct ifreq));
+
+		for (ifr = ifc.ifc_req; ifr < ifend; ifr++) {
+			if (ifr->ifr_addr.sa_family == AF_INET) {
+
+				strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+				if (ioctl (s, SIOCGIFHWADDR, &ifreq) == 0) {
+					memcpy(mac, ifreq.ifr_hwaddr.sa_data, 6);
+					if (mac[0]+mac[1]+mac[2] != 0) {
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	close(s);
+} 
+ 

@@ -2,8 +2,20 @@
  *  Squeezelite - lightweight headless squeezeplay emulator for linux
  *
  *  (c) Adrian Smith 2012, triode1@btinternet.com
- *  
- *  Unreleased - license details to be added here...
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
 #include "squeezelite.h"
@@ -114,8 +126,8 @@ static void pcm_close(void) {
 	buf_adjust(streambuf, 1);
 }
 
-struct codec register_pcm(void) {
-	struct codec ret = { 
+struct codec *register_pcm(void) {
+	static struct codec ret = { 
 		.id    = 'p',
 		.types = "pcm,aif",
 		.open  = pcm_open,
@@ -124,5 +136,7 @@ struct codec register_pcm(void) {
 		.min_space = 102400,
 		.min_read_bytes = 4096,
 	};
-	return ret;
+
+	LOG_INFO("using pcm");
+	return &ret;
 }

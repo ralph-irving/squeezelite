@@ -3,7 +3,19 @@
  *
  *  (c) Adrian Smith 2012, triode1@btinternet.com
  *  
- *  Unreleased - license details to be added here...
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
 #include <stdio.h>
@@ -21,7 +33,9 @@
 #include <sys/socket.h>
 #include <sys/eventfd.h>
 #include <sys/types.h>
-#include <alsa/asoundlib.h>
+#include <poll.h>
+
+#define VERSION "v0.1"
 
 #define STREAMBUF_SIZE (2 * 1024 * 1024)
 #define OUTPUTBUF_SIZE (44100 * 8 * 10)
@@ -59,6 +73,10 @@ void logprint(const char *fmt, ...);
 #define LOG_DEBUG(fmt, ...) if (loglevel >= DEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_SDEBUG(fmt, ...) if (loglevel >= SDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
+// utils.c (non logging)
+u32_t gettime_ms(void);
+void get_mac(u8_t *mac);
+
 // buffer.c
 struct buffer {
 	u8_t *buf;
@@ -83,10 +101,11 @@ void buf_init(struct buffer *buf, size_t size);
 void buf_destroy(struct buffer *buf);
 
 // slimproto.c
-void slimproto(log_level level, const char *addr);
+void slimproto(log_level level, const char *addr, u8_t mac[6]);
+void wake_controller(void);
 
 // stream.c
-typedef enum { STOPPED = 0, DISCONNECT, STREAMING_FILE, STREAMING_HTTP, SEND_HEADERS, RECV_HEADERS } stream_state;
+typedef enum { STOPPED = 0, DISCONNECT, STREAMING_BUFFERING, STREAMING_FILE, STREAMING_HTTP, SEND_HEADERS, RECV_HEADERS } stream_state;
 typedef enum { DISCONNECT_OK = 0, LOCAL_DISCONNECT = 1, REMOTE_DISCONNECT = 2, UNREACHABLE = 3, TIMEOUT = 4 } disconnect_code;
 
 struct streamstate {
@@ -96,12 +115,13 @@ struct streamstate {
 	size_t header_len;
 	bool sent_headers;
 	u64_t bytes;
+	unsigned threshold;
 };
 
 void stream_init(log_level level, unsigned stream_buf_size);
 void stream_close(void);
 void stream_local(const char *filename);
-void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len);
+void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold);
 
 // decode.c
 typedef enum { DECODE_STOPPED = 0, DECODE_RUNNING, DECODE_COMPLETE } decode_state;
@@ -123,12 +143,13 @@ struct codec {
 
 #define MAX_CODECS 5
 
-void decode_init(log_level level);
+void decode_init(log_level level, const char *opt);
 void decode_close(void);
 void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t endianness);
 
 // output.c
-typedef enum { OUTPUT_STOPPED = 0, OUTPUT_RUNNING } output_state;
+typedef enum { OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNING, 
+			   OUTPUT_PAUSE_FRAMES, OUTPUT_SKIP_FRAMES, OUTPUT_START_AT } output_state;
 
 struct outputstate {
 	output_state state;
@@ -139,21 +160,29 @@ struct outputstate {
 	unsigned frames_played;
 	unsigned current_sample_rate;
 	unsigned max_sample_rate;
+	unsigned alsa_frames;
+	u32_t updated;
+	u32_t current_replay_gain;
+	union {
+		u32_t pause_frames;
+		u32_t skip_frames;
+		u32_t start_at;
+	};
 	unsigned next_sample_rate; // set in decode thread
 	u8_t  *track_start;        // set in decode thread
 	u32_t gainL;               // set by slimproto
 	u32_t gainR;               // set by slimproto
+	u32_t next_replay_gain;    // set by slimproto
+	unsigned threshold;        // set by slimproto
 };
 
+void alsa_list_pcm(void);
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned period_time, unsigned period_count);
 void output_flush(void);
 void output_close(void);
 void stream_disconnect(void);
 
-// utils.c
-u32_t gettime_ms(void);
-
 // codecs
-struct codec register_flac(void);
-struct codec register_pcm(void);
-struct codec register_mad(void);
+struct codec *register_flac(void);
+struct codec *register_pcm(void);
+struct codec *register_mad(void);

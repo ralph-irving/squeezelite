@@ -3,7 +3,19 @@
  *
  *  (c) Adrian Smith 2012, triode1@btinternet.com
  *  
- *  Unreleased - license details to be added here...
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
 #include "squeezelite.h"
@@ -15,6 +27,7 @@ static log_level loglevel;
 #define MAXBUF 4096
 
 static int sock;
+static int efd;
 static in_addr_t slimproto_ip;
 
 extern struct buffer *streambuf;
@@ -24,7 +37,7 @@ extern struct streamstate stream;
 extern struct outputstate output;
 extern struct decodestate decode;
 
-extern struct codec codecs[];
+extern struct codec *codecs[];
 
 #define LOCK_S   pthread_mutex_lock(&streambuf->mutex)
 #define UNLOCK_S pthread_mutex_unlock(&streambuf->mutex)
@@ -32,24 +45,28 @@ extern struct codec codecs[];
 #define UNLOCK_O pthread_mutex_unlock(&outputbuf->mutex)
 
 static struct {
-	u32_t jiffies;
+	u32_t updated;
+	u32_t stream_start;
 	u32_t stream_full;
 	u32_t stream_size;
 	u64_t stream_bytes;
 	u32_t output_full;
 	u32_t output_size;
 	u32_t frames_played;
+	u32_t alsa_frames;
 	u32_t current_sample_rate;
 	u32_t last;
 	stream_state stream_state;
 } status;
 
 int autostart;
+bool sentSTMu, sentSTMo, sentSTMl;
 
 void send_packet(u8_t *packet, size_t len) {
 	u8_t *ptr = packet;
 	size_t n;
-	
+
+	// may block
 	while (len) {
 		n = send(sock, ptr, len, 0);
 		if (n < 0) {
@@ -61,6 +78,7 @@ void send_packet(u8_t *packet, size_t len) {
 	}
 }
 
+/*
 void hexdump(u8_t *pack, int len) {
 	char buf1[1024];
 	char buf2[1024];
@@ -78,6 +96,7 @@ void hexdump(u8_t *pack, int len) {
 	LOG_INFO("hex: %s", buf1);
 	LOG_INFO("str: %s", buf2);
 }
+*/
 
 inline void packN(u32_t *dest, u32_t val) {
 	u8_t *ptr = (u8_t *)dest;
@@ -99,19 +118,21 @@ inline u16_t unpackn(u16_t *src) {
 	return *(ptr) << 8 | *(ptr+1);
 } 
 
-static void sendHELO(bool reconnect, const char *cap) {
-	const char *capbase = "Model=squeezelite,ModelName=SqueezeLite,";
-
+static void sendHELO(bool reconnect, const char *cap, u8_t mac[6]) {
+	const char *capbase = "Model=squeezelite,ModelName=SqueezeLite,AccuratePlayPoints=1";
+	
 	struct HELO_packet pkt = {
 		.opcode = "HELO",
 		.length = htonl(sizeof(struct HELO_packet) - 8 + strlen(capbase) + strlen(cap)),
 		.deviceid = 12, // squeezeplay
 		.revision = 0, 
-		.lang   = "EN", // FIXME - is this right?
 	};
 	packn(&pkt.wlan_channellist, reconnect ? 0x4000 : 0x0000);
 	packN(&pkt.bytes_received_H, (u64_t)status.stream_bytes >> 32);
 	packN(&pkt.bytes_received_L, (u64_t)status.stream_bytes & 0xffffffff);
+	memcpy(pkt.mac, mac, 6);
+
+	LOG_INFO("mac: %02x:%02x:%02x:%02x:%02x:%02x", pkt.mac[0], pkt.mac[1], pkt.mac[2], pkt.mac[3], pkt.mac[4], pkt.mac[5]);
 
 	send_packet((u8_t *)&pkt, sizeof(pkt));
 	send_packet((u8_t *)capbase, strlen(capbase));
@@ -119,9 +140,17 @@ static void sendHELO(bool reconnect, const char *cap) {
 }
 
 static void sendSTAT(const char *event, u32_t server_timestamp) {
-	assert(strlen(event) == 4);
 	struct STAT_packet pkt;
+	u32_t now = gettime_ms();
+	u32_t ms_played;
 
+	if (status.current_sample_rate) {
+		ms_played = (((u64_t)(status.frames_played + status.alsa_frames) * (u64_t)1000) / (u64_t)status.current_sample_rate);
+		if (now > status.updated) ms_played += (now - status.updated);
+	} else {
+		ms_played = 0;
+	}
+	
 	memset(&pkt, 0, sizeof(struct STAT_packet));
 	memcpy(&pkt.opcode, "STAT", 4);
 	pkt.length = htonl(sizeof(struct STAT_packet) - 8);
@@ -133,17 +162,21 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 	packN(&pkt.bytes_received_H, (u64_t)status.stream_bytes >> 32);
 	packN(&pkt.bytes_received_L, (u64_t)status.stream_bytes & 0xffffffff);
 	pkt.signal_strength = 0xffff;
-	packN(&pkt.jiffies, status.jiffies);
+	packN(&pkt.jiffies, now);
 	packN(&pkt.output_buffer_size, status.output_size);
 	packN(&pkt.output_buffer_fullness, status.output_full);
-	packN(&pkt.elapsed_seconds, status.current_sample_rate ? status.frames_played / status.current_sample_rate : 0);
+	packN(&pkt.elapsed_seconds, ms_played / 1000);
 	// voltage;
-	packN(&pkt.elapsed_milliseconds, 
-		  status.current_sample_rate ? (u32_t)((u64_t)status.frames_played * (u64_t)1000 / (u64_t)status.current_sample_rate) : 0);
+	packN(&pkt.elapsed_milliseconds, ms_played);
 	pkt.server_timestamp = server_timestamp; // keep this is server format - don't unpack/pack
 	// error_code;
 
 	LOG_INFO("STAT: %s", event);
+
+	if (loglevel == SDEBUG) {
+		LOG_SDEBUG("received bytesL: %u streambuf: %u outputbuf: %u calc elapsed: %u real elapsed: %u (diff: %u)", (u32_t)status.stream_bytes, status.stream_full, status.output_full, ms_played, now - status.stream_start, ms_played - now + status.stream_start);
+
+	}
 
 	send_packet((u8_t *)&pkt, sizeof(pkt));
 }
@@ -193,45 +226,63 @@ static void process_strm(u8_t *pkt, int len) {
 		buf_flush(streambuf);
 		buf_flush(outputbuf);
 		break;
-		// FIXME - should output buf be flushed here?
 	case 'p':
-		LOCK_O;
-		output.state = OUTPUT_STOPPED;
-		UNLOCK_O;
+		{
+			unsigned interval = unpackN(&strm->replay_gain);
+			LOCK_O;
+			output.pause_frames = interval * status.current_sample_rate / 1000;
+			output.state = interval ? OUTPUT_PAUSE_FRAMES : OUTPUT_STOPPED;				
+			UNLOCK_O;
+			if (!interval) sendSTAT("STMp", 0);
+			LOG_INFO("pause interval: %u", interval);
+		}
 		break;
-		// FIXME - implement jiffies delay?
 	case 'a':
-		// FIXME - implement ahead
+		{
+			unsigned interval = unpackN(&strm->replay_gain);
+			LOCK_O;
+			output.skip_frames = interval * status.current_sample_rate / 1000;
+			output.state = OUTPUT_SKIP_FRAMES;				
+			UNLOCK_O;
+			LOG_INFO("skip ahead interval: %u", interval);
+		}
 		break;
 	case 'u':
-		LOCK_O;
-		output.state = OUTPUT_RUNNING;
-		decode.state = DECODE_RUNNING;
-		UNLOCK_O;
-		sendSTAT("STMr", 0);
+		{
+			unsigned jiffies = unpackN(&strm->replay_gain);
+			LOCK_O;
+			output.state = jiffies ? OUTPUT_START_AT : OUTPUT_RUNNING;
+			output.start_at = jiffies;
+			decode.state = DECODE_RUNNING;
+			UNLOCK_O;
+			LOG_INFO("unpause at: %u now: %u", jiffies, gettime_ms());
+			sendSTAT("STMr", 0);
+		}
 		break;
-		// FIXME - implement jiffies delay?
 	case 's':
-		LOG_INFO("strm s autostart: %c", strm->autostart);
+		{
+			unsigned header_len = len - sizeof(struct strm_packet);
+			char *header = (char *)(pkt + sizeof(struct strm_packet));
+			in_addr_t ip = strm->server_ip; // keep in network byte order
+			u16_t port = strm->server_port; // keep in network byte order
+			if (ip == 0) ip = slimproto_ip; 
 
-		unsigned header_len = len - sizeof(struct strm_packet);
-		char *header = (char *)(pkt + sizeof(struct strm_packet));
-		in_addr_t ip = strm->server_ip; // keep in network byte order
-		u16_t port = strm->server_port; // keep in network byte order
-		if (ip == 0) ip = slimproto_ip; 
+			LOG_INFO("strm s autostart: %c", strm->autostart);
 
-		LOCK_O;
-		output.state = OUTPUT_RUNNING;
-		UNLOCK_O;
-		sendSTAT("STMf", 0);
-		codec_open(strm->format, strm->pcm_sample_size, strm->pcm_sample_rate, strm->pcm_channels, strm->pcm_endianness);
-		stream_sock(ip, port, header, header_len);
-		status.jiffies = gettime_ms();
-		sendSTAT("STMc", 0);
-		autostart = strm->autostart - '0';
+			sendSTAT("STMf", 0);
+			codec_open(strm->format, strm->pcm_sample_size, strm->pcm_sample_rate, strm->pcm_channels, strm->pcm_endianness);
+			stream_sock(ip, port, header, header_len, strm->threshold * 1024);
+			sendSTAT("STMc", 0);
+			autostart = strm->autostart - '0';
+			sentSTMu = sentSTMo = sentSTMl = false;
+			LOCK_O;
+			output.threshold = strm->output_threshold;
+			output.next_replay_gain = unpackN(&strm->replay_gain);
+			UNLOCK_O;
+		}
 		break;
 	default:
-		LOG_INFO("************** Unhandled strm command %c", strm->command);
+		LOG_INFO("unhandled strm %c", strm->command);
 		break;
 	}
 }
@@ -240,6 +291,7 @@ static void process_cont(u8_t *pkt, int len) {
 	// ignore any params from cont as we don't yet suport icy meta
 	if (autostart > 1) {
 		autostart -= 2;
+		wake_controller();
 	}
 }
 
@@ -283,23 +335,24 @@ static void process(u8_t *pack, int len) {
 }
 
 static void slimproto_run() {
-	struct pollfd pollinfo = { .fd = sock, .events = POLLIN };
+	struct pollfd pollinfo[2] = { { .fd = sock, .events = POLLIN }, { .fd = efd, .events = POLLIN } };
 	static u8_t buffer[MAXBUF];
 	int  expect = 0;
 	int  got    = 0;
 
 	while (true) {
 
-		// timeout of 100ms to ensure the playback state machine is run at this frequency
-		if (poll(&pollinfo, 1, 100)) {
+		bool wake = false;
 
-			if (pollinfo.revents) {
+		if (poll(pollinfo, 2, 1000)) {
+
+			if (pollinfo[0].revents) {
 
 				if (expect > 0) {
 					int n = recv(sock, buffer + got, expect, 0);
 					if (n <= 0) {
 						LOG_WARN("error reading from socket: %s", n ? strerror(errno) : "closed");
-						break;
+						return;
 					}
 					expect -= n;
 					got += n;
@@ -311,7 +364,7 @@ static void slimproto_run() {
 					int n = recv(sock, buffer + got, 2 - got, 0);
 					if (n <= 0) {
 						LOG_WARN("error reading from socket: %s", n ? strerror(errno) : "closed");
-						break;
+						return;
 					}
 					got += n;
 					if (got == 2) {
@@ -319,23 +372,29 @@ static void slimproto_run() {
 						got = 0;
 						if (expect > MAXBUF) {
 							LOG_ERROR("FATAL: slimproto packet too big: %d > %d", expect, MAXBUF);
-							break;
+							return;
 						}
 					}
 				} else {
 					LOG_ERROR("FATAL: negative expect");
-					break;
+					return;
 				}
 
 			}
+
+			if (pollinfo[1].revents) {
+				eventfd_t val;
+				eventfd_read(efd, &val);
+				wake = true;
+			}
 		}
 
-		// update playback state every 100ms
-		u32_t now  = gettime_ms();
+		// update playback state when woken or every 100ms
+		u32_t now = gettime_ms();
+		static u32_t last = 0;
 
-		if (now - status.jiffies > 100) {
-
-			status.jiffies = now;
+		if (wake || now - last > 100 || last > now) {
+			last = now;
 
 			bool _sendSTMs = false;
 			bool _sendDSCO = false;
@@ -360,7 +419,7 @@ static void slimproto_run() {
 				stream.state = STOPPED;
 				_sendDSCO = true;
 			}
-			if (stream.state == STREAMING_HTTP && !stream.sent_headers) {
+			if ((stream.state == STREAMING_HTTP || stream.state == STREAMING_BUFFERING) && !stream.sent_headers) {
 				header_len = stream.header_len;
 				memcpy(header, stream.header, header_len);
 				_sendRESP = true;
@@ -373,31 +432,42 @@ static void slimproto_run() {
 			status.output_size = outputbuf->size;
 			status.frames_played = output.frames_played;
 			status.current_sample_rate = output.current_sample_rate;
+			status.updated = output.updated;
+			status.alsa_frames = output.alsa_frames;
 			
 			if (output.track_started) {
 				_sendSTMs = true;
 				output.track_started = false;
+				status.stream_start = output.updated;
 			}
 			if (decode.state == DECODE_COMPLETE) {
 				_sendSTMd = true;
 				decode.state = DECODE_STOPPED;
 			}
-			if (status.stream_state == STREAMING_HTTP && decode.state == DECODE_STOPPED) {
-				// FIXME check buffer threshold...
+			if (status.stream_state == STREAMING_HTTP && !sentSTMl && decode.state == DECODE_STOPPED) {
 				if (autostart == 0) {
 					_sendSTMl = true;
+					sentSTMl = true;
 				} else if (autostart == 1) {
 					decode.state = DECODE_RUNNING;
+					if (output.state == OUTPUT_STOPPED) {
+						output.state = OUTPUT_BUFFER;
+					}
 				}
 				// autostart 2 and 3 require cont to be received first
+			}
+			if (output.state == OUTPUT_RUNNING && !sentSTMu && status.output_full == 0 && status.stream_state <= DISCONNECT) {
+				_sendSTMu = true;
+				sentSTMu = true;
+			}
+			if (output.state == OUTPUT_RUNNING && !sentSTMo && status.output_full == 0 && status.stream_state == STREAMING_HTTP) {
+				_sendSTMo = true;
+				sentSTMo = true;
 			}
 			if (decode.state == DECODE_RUNNING && now - status.last > 1000) {
 				_sendSTMt = true;
 				status.last = now;
 			}
-
-			// FIXME - need to send STMu or STMo on underrun
-
 			UNLOCK_O;
 		
 			// send packets once locks released as packet sending can block
@@ -408,11 +478,14 @@ static void slimproto_run() {
 			if (_sendSTMl) sendSTAT("STMl", 0);
 			if (_sendSTMu) sendSTAT("STMu", 0);
 			if (_sendSTMo) sendSTAT("STMo", 0);
-			if (_sendRESP) {
-				sendRESP(header, header_len);
-			}
+			if (_sendRESP) sendRESP(header, header_len);
 		}
 	}
+}
+
+// called from other threads to wake state machine above
+void wake_controller(void) {
+	eventfd_write(efd, 1);
 }
 
 in_addr_t discover_server(void) {
@@ -456,26 +529,24 @@ in_addr_t discover_server(void) {
 	return s.sin_addr.s_addr;
 }
 
-void slimproto(log_level level, const char *addr) {
+void slimproto(log_level level, const char *addr, u8_t mac[6]) {
     struct sockaddr_in serv_addr;
 	static char buf[128];
 	bool reconnect = false;
 
-	loglevel = level;
+	efd = eventfd(0, 0);
 
-	if (addr) {
-		slimproto_ip = inet_addr(addr);
-	} else {
-		slimproto_ip = discover_server();
-	}
+	loglevel = level;
+	slimproto_ip = addr ? inet_addr(addr) : discover_server();
 
 	LOCK_O;
 	sprintf(buf, "MaxSampleRate=%u", output.max_sample_rate); 
-	int i = 0;
-	while (codecs[i].id && strlen(buf) < 128 - 10) {
-		strcat(buf, ",");
-		strcat(buf, codecs[i].types);
-		i++;
+	int i;
+	for (i = 0; i < MAX_CODECS; i++) {
+		if (codecs[i] && codecs[i]->id && strlen(buf) < 128 - 10) {
+			strcat(buf, ",");
+			strcat(buf, codecs[i]->types);
+		}
 	}
 	UNLOCK_O;
 
@@ -500,12 +571,16 @@ void slimproto(log_level level, const char *addr) {
 		
 			LOG_INFO("connected");
 
-			sendHELO(reconnect, buf);
+			sendHELO(reconnect, buf, mac);
 			reconnect = true;
 
 			slimproto_run();
+
+			usleep(100000);
 		}
 
 		close(sock);
 	}
+
+	close(efd);
 }

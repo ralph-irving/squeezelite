@@ -2,13 +2,48 @@
  *  Squeezelite - lightweight headless squeezeplay emulator for linux
  *
  *  (c) Adrian Smith 2012, triode1@btinternet.com
- *  
- *  Unreleased - license details to be added here...
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
 #include "squeezelite.h"
 
 #include <FLAC/stream_decoder.h>
+#include <dlfcn.h>
+
+// FLAC symbols to be dynamically loaded
+FLAC_API const char **f__StreamDecoderErrorStatusString;
+FLAC_API const char **f__StreamDecoderStateString;
+FLAC_API FLAC__StreamDecoder * (* f__stream_decoder_new)(void);
+FLAC_API FLAC__bool (* f__stream_decoder_reset)(FLAC__StreamDecoder *decoder);
+FLAC_API void (* f__stream_decoder_delete)(FLAC__StreamDecoder *decoder);
+FLAC_API FLAC__StreamDecoderInitStatus (* f__stream_decoder_init_stream)(
+	FLAC__StreamDecoder *decoder,
+	FLAC__StreamDecoderReadCallback read_callback,
+	FLAC__StreamDecoderSeekCallback seek_callback,
+	FLAC__StreamDecoderTellCallback tell_callback,
+	FLAC__StreamDecoderLengthCallback length_callback,
+	FLAC__StreamDecoderEofCallback eof_callback,
+	FLAC__StreamDecoderWriteCallback write_callback,
+	FLAC__StreamDecoderMetadataCallback metadata_callback,
+	FLAC__StreamDecoderErrorCallback error_callback,
+	void *client_data
+);
+FLAC_API FLAC__bool (* f__stream_decoder_process_single)(FLAC__StreamDecoder *decoder);
+FLAC_API FLAC__StreamDecoderState (* f__stream_decoder_get_state)(const FLAC__StreamDecoder *decoder);
+// end of FLAC symbols
 
 extern log_level loglevel;
 
@@ -25,6 +60,7 @@ struct decodestate decode;
 #define UNLOCK_O pthread_mutex_unlock(&outputbuf->mutex)
 
 typedef u_int32_t frames_t;
+
 
 static FLAC__StreamDecoder *decoder = NULL;
 
@@ -92,32 +128,60 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 }
 
 static void error_cb(const FLAC__StreamDecoder *decoder, FLAC__StreamDecoderErrorStatus status, void *client_data) {
-	LOG_INFO("flac error: %s", FLAC__StreamDecoderErrorStatusString[status]);
+	LOG_INFO("flac error: %s", f__StreamDecoderErrorStatusString[status]);
 }
 
 static void flac_open(u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t endianness) {
 	if (decoder) {
-		FLAC__stream_decoder_reset(decoder);
+		f__stream_decoder_reset(decoder);
 	} else {
-		decoder = FLAC__stream_decoder_new();
+		decoder = f__stream_decoder_new();
 	}
-	FLAC__stream_decoder_init_stream(decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
+	f__stream_decoder_init_stream(decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
 }
 
 static void flac_close(void) {
-	FLAC__stream_decoder_delete(decoder);
+	f__stream_decoder_delete(decoder);
 	decoder = NULL;
 }
 
 static void flac_decode(void) {
-	if (!FLAC__stream_decoder_process_single(decoder)) {
-		FLAC__StreamDecoderState state = FLAC__stream_decoder_get_state(decoder);
-		LOG_ERROR("flac error: %s", FLAC__StreamDecoderStateString[state]);
+	if (!f__stream_decoder_process_single(decoder)) {
+		FLAC__StreamDecoderState state = f__stream_decoder_get_state(decoder);
+		LOG_ERROR("flac error: %s", f__StreamDecoderStateString[state]);
 	};
 }
 
-struct codec register_flac(void) {
-	struct codec ret = { 
+static bool load_flac() {
+	void *handle = dlopen("libFLAC.so", RTLD_NOW);
+	if (!handle) {
+		LOG_WARN("dlerror: %s", dlerror());
+		return false;
+	}
+	
+	f__StreamDecoderErrorStatusString = dlsym(handle, "FLAC__StreamDecoderErrorStatusString");
+	f__StreamDecoderStateString = dlsym(handle, "FLAC__StreamDecoderStateString");
+
+	f__stream_decoder_new = dlsym(handle, "FLAC__stream_decoder_new");
+	f__stream_decoder_reset = dlsym(handle, "FLAC__stream_decoder_reset");
+	f__stream_decoder_delete = dlsym(handle, "FLAC__stream_decoder_delete");
+
+	f__stream_decoder_init_stream = dlsym(handle, "FLAC__stream_decoder_init_stream");
+	f__stream_decoder_process_single = dlsym(handle, "FLAC__stream_decoder_process_single");
+	f__stream_decoder_get_state = dlsym(handle, "FLAC__stream_decoder_get_state");
+
+	char *err;
+	if ((err = dlerror()) != NULL) {
+		LOG_WARN("dlerror: %s", err);		
+		return false;
+	}
+
+	LOG_INFO("loaded libFLAC");
+	return true;
+}
+
+struct codec *register_flac(void) {
+	static struct codec ret = { 
 		.id    = 'f',
 		.types = "flc",
 		.open  = flac_open,
@@ -126,5 +190,10 @@ struct codec register_flac(void) {
 		.min_space = 102400,
 		.min_read_bytes = 8192,
 	};
-	return ret;
+
+	if (!load_flac()) {
+		return NULL;
+	}
+
+	return &ret;
 }

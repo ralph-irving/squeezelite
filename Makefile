@@ -1,7 +1,7 @@
-CFLAGS32  = -g -Wall -fPIC
-CFLAGS64  = -g -Wall -fPIC -m64
+CFLAGS32  = -Wall -fPIC -O2
+CFLAGS64  = -Wall -fPIC -m64
 
-LDFLAGS32 = -lasound -lpthread -lFLAC -lmad
+LDFLAGS32 = -lasound -lpthread
 
 all: squeezelite
 

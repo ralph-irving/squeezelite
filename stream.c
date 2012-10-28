@@ -3,7 +3,19 @@
  *
  *  (c) Adrian Smith 2012, triode1@btinternet.com
  *  
- *  Unreleased - license details to be added here...
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
 // stream thread
@@ -41,6 +53,7 @@ static void send_header(void) {
 			LOG_WARN("failed writing to socket: %s", strerror(errno));
 			stream.disconnect = LOCAL_DISCONNECT;
 			stream.state = DISCONNECT;
+			wake_controller();
 			return;
 		}
 		LOG_SDEBUG("wrote %d bytes to socket", n);
@@ -53,7 +66,7 @@ static bool running = true;
 
 static void *stream_thread() {
 
-	size_t header_len;
+	size_t header_len = 0;
 
 	while (running) {
 
@@ -104,6 +117,7 @@ static void *stream_thread() {
 						stream.disconnect = LOCAL_DISCONNECT;
 						close(fd);
 						fd = -1;
+						wake_controller();
 						UNLOCK;
 						continue;
 					}
@@ -117,6 +131,7 @@ static void *stream_thread() {
 						stream.disconnect = LOCAL_DISCONNECT;
 						close(fd);
 						fd = -1;
+						wake_controller();
 					}
 
 					if (header_len > 1 && (c == '\r' || c == '\n')) {
@@ -125,7 +140,8 @@ static void *stream_thread() {
 							*(stream.header + header_len) = '\0';
 							stream.header_len = header_len;
 							LOG_INFO("headers: len: %d\n%s", header_len, stream.header);
-							stream.state = STREAMING_HTTP;
+							stream.state = STREAMING_BUFFERING;
+							wake_controller();
 						}
 					} else {
 						endtok = 0;
@@ -147,6 +163,7 @@ static void *stream_thread() {
 					stream.disconnect = DISCONNECT_OK;
 					close(fd);
 					fd = -1;
+					wake_controller();
 				}
 				if (n < 0) {
 					LOG_WARN("error reading: %s", strerror(errno));
@@ -154,11 +171,16 @@ static void *stream_thread() {
 					stream.disconnect = REMOTE_DISCONNECT;
 					close(fd);
 					fd = -1;
+					wake_controller();
 				}
 				
 				if (n > 0) {
 					_buf_inc_writep(streambuf, n);
 					stream.bytes += n;
+					if (stream.state == STREAMING_BUFFERING && stream.bytes > stream.threshold) {
+						stream.state = STREAMING_HTTP;
+						wake_controller();
+					}
 				}
 				
 				UNLOCK;
@@ -218,7 +240,7 @@ void stream_local(const char *filename) {
 	UNLOCK;
 }
 
-void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len) {
+void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold) {
     struct sockaddr_in addr;
 
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -277,6 +299,7 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len) {
 
 	stream.sent_headers = false;
 	stream.bytes = 0;
+	stream.threshold = threshold;
 
 	UNLOCK;
 }

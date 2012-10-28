@@ -2,13 +2,38 @@
  *  Squeezelite - lightweight headless squeezeplay emulator for linux
  *
  *  (c) Adrian Smith 2012, triode1@btinternet.com
- *  
- *  Unreleased - license details to be added here...
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
 #include "squeezelite.h"
 
 #include <mad.h>
+#include <dlfcn.h>
+
+// mad symbols to be dynamically loaded
+void (* m_stream_init)(struct mad_stream *);
+void (* m_frame_init)(struct mad_frame *);
+void (* m_synth_init)(struct mad_synth *);
+void (* m_frame_finish)(struct mad_frame *);
+void (* m_stream_finish)(struct mad_stream *);
+void (* m_stream_buffer)(struct mad_stream *, unsigned char const *, unsigned long);
+int  (* m_frame_decode)(struct mad_frame *, struct mad_stream *);
+void (* m_synth_frame)(struct mad_synth *, struct mad_frame const *);
+char const *(* m_stream_errorstr)(struct mad_stream const *);
+// end of mad symbols
 
 extern log_level loglevel;
 
@@ -65,27 +90,27 @@ static void mad_decode(void) {
 	}
 	UNLOCK_S;
 
-	mad_stream_buffer(&mad_stream, readbuf, readbuf_len);
+	m_stream_buffer(&mad_stream, readbuf, readbuf_len);
 
 	while (true) {
 
-		if (mad_frame_decode(&mad_frame, &mad_stream) == -1) {
+		if (m_frame_decode(&mad_frame, &mad_stream) == -1) {
 			if (mad_stream.error == MAD_ERROR_BUFLEN) {
 				return;
 			}
 			if (!MAD_RECOVERABLE(mad_stream.error)) {
-				LOG_WARN("mad_frame_decode error: %s", mad_stream_errorstr(&mad_stream));
+				LOG_WARN("mad_frame_decode error: %s", m_stream_errorstr(&mad_stream));
 				LOG_INFO("unrecoverable - stopping decoder");
 				LOCK_O;
 				decode.state = DECODE_COMPLETE;
 				UNLOCK_O;
 			} else {
-				LOG_DEBUG("mad_frame_decode error: %s", mad_stream_errorstr(&mad_stream));
+				LOG_DEBUG("mad_frame_decode error: %s", m_stream_errorstr(&mad_stream));
 			}
 			return;
 		};
 
-		mad_synth_frame(&mad_synth, &mad_frame);
+		m_synth_frame(&mad_synth, &mad_frame);
 
 		LOCK_O;
 		
@@ -125,19 +150,46 @@ static void mad_decode(void) {
 
 static void mad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	readbuf_len = 0;
-	mad_stream_init(&mad_stream);
-	mad_frame_init(&mad_frame);
-	mad_synth_init(&mad_synth);
+	m_stream_init(&mad_stream);
+	m_frame_init(&mad_frame);
+	m_synth_init(&mad_synth);
 }
 
 static void mad_close(void) {
 	mad_synth_finish(&mad_synth);
-	mad_frame_finish(&mad_frame);
-	mad_stream_finish(&mad_stream);
+	m_frame_finish(&mad_frame);
+	m_stream_finish(&mad_stream);
 }
 
-struct codec register_mad(void) {
-	struct codec ret = { 
+static bool load_mad() {
+	void *handle = dlopen("libmad.so", RTLD_NOW);
+	if (!handle) {
+		LOG_WARN("dlerror: %s", dlerror());
+		return false;
+	}
+
+	m_stream_init = dlsym(handle, "mad_stream_init");
+	m_frame_init = dlsym(handle, "mad_frame_init");
+	m_synth_init = dlsym(handle, "mad_synth_init");
+	m_frame_finish = dlsym(handle, "mad_frame_finish");
+	m_stream_finish = dlsym(handle, "mad_stream_finish");
+	m_stream_buffer = dlsym(handle, "mad_stream_buffer");
+	m_frame_decode = dlsym(handle, "mad_frame_decode");
+	m_synth_frame = dlsym(handle, "mad_synth_frame");
+	m_stream_errorstr = dlsym(handle, "mad_stream_errorstr");
+
+	char *err;
+	if ((err = dlerror()) != NULL) {
+		LOG_WARN("dlerror: %s", err);		
+		return false;
+	}
+
+	LOG_INFO("loaded libmad");
+	return true;
+}
+
+struct codec *register_mad(void) {
+	static struct codec ret = { 
 		.id    = 'm',
 		.types = "mp3",
 		.open  = mad_open,
@@ -146,5 +198,10 @@ struct codec register_mad(void) {
 		.min_space = 102400,
 		.min_read_bytes = READBUF_SIZE,
 	};
-	return ret;
+
+	if (!load_mad()) {
+		return NULL;
+	}
+
+	return &ret;
 }

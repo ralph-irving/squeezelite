@@ -2,8 +2,20 @@
  *  Squeezelite - lightweight headless squeezeplay emulator for linux
  *
  *  (c) Adrian Smith 2012, triode1@btinternet.com
- *  
- *  Unreleased - license details to be added here...
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
 // decode thread
@@ -23,7 +35,7 @@ extern struct outputstate output;
 #define UNLOCK_O pthread_mutex_unlock(&outputbuf->mutex)
 
 struct decodestate decode;
-struct codec codecs[MAX_CODECS];
+struct codec *codecs[MAX_CODECS];
 static struct codec *codec;
 static bool running = true;
 
@@ -54,6 +66,7 @@ static void *decode_thread() {
 				LOCK_O;
 				decode.state = DECODE_COMPLETE;
 				UNLOCK_O;
+				wake_controller();
 
 			} else {
 				usleep(100000);
@@ -70,16 +83,15 @@ static void *decode_thread() {
 
 static pthread_t thread;
 
-void decode_init(log_level level) {
+void decode_init(log_level level, const char *opt) {
 	loglevel = level;
 
 	LOG_INFO("init decode");
 
 	// register codecs
-	memset(codecs, 0, sizeof(codecs));
-	codecs[0] = register_flac();
-	codecs[1] = register_pcm();
-	codecs[2] = register_mad();
+	if (!opt || !strcmp(opt, "flac")) codecs[0] = register_flac();
+	if (!opt || !strcmp(opt, "pcm"))  codecs[1] = register_pcm();
+	if (!opt || !strcmp(opt, "mp3"))  codecs[2] = register_mad();
 
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
@@ -109,23 +121,23 @@ void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, 
 	UNLOCK_O;
 
 	// find the required codec
-	int i = 0;
-	while (codecs[i].id && codecs[i].id != format) {
-		i++;
-	}
-	
-	if (codecs[i].id) {
+	int i;
+	for (i = 0; i < MAX_CODECS; ++i) {
 
-		if (codec && codec != &codecs[i]) {
-			LOG_INFO("closing codec");
-			codec->close();
+		if (codecs[i] && codecs[i]->id == format) {
+
+			if (codec && codec != codecs[i]) {
+				LOG_INFO("closing codec");
+				codec->close();
+			}
+			
+			codec = codecs[i];
+			
+			codec->open(sample_size, sample_rate, channels, endianness);
+			
+			return;
 		}
-
-		codec = &codecs[i];
-	
-		codec->open(sample_size, sample_rate, channels, endianness);
-
-	} else {
-		LOG_ERROR("codec not found");
 	}
+
+	LOG_ERROR("codec not found");
 }
