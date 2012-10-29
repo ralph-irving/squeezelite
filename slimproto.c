@@ -145,7 +145,7 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 	u32_t ms_played;
 
 	if (status.current_sample_rate) {
-		ms_played = (((u64_t)(status.frames_played + status.alsa_frames) * (u64_t)1000) / (u64_t)status.current_sample_rate);
+		ms_played = (u32_t)(((u64_t)(status.frames_played - status.alsa_frames) * (u64_t)1000) / (u64_t)status.current_sample_rate);
 		if (now > status.updated) ms_played += (now - status.updated);
 	} else {
 		ms_played = 0;
@@ -174,8 +174,9 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 	LOG_INFO("STAT: %s", event);
 
 	if (loglevel == SDEBUG) {
-		LOG_SDEBUG("received bytesL: %u streambuf: %u outputbuf: %u calc elapsed: %u real elapsed: %u (diff: %u)", (u32_t)status.stream_bytes, status.stream_full, status.output_full, ms_played, now - status.stream_start, ms_played - now + status.stream_start);
-
+		LOG_SDEBUG("received bytesL: %u streambuf: %u outputbuf: %u calc elapsed: %u real elapsed: %u (diff: %u) alsa: %u delay: %d",
+				   (u32_t)status.stream_bytes, status.stream_full, status.output_full, ms_played, now - status.stream_start,
+				   ms_played - now + status.stream_start, status.alsa_frames * 1000 / status.current_sample_rate, now - status.updated);
 	}
 
 	send_packet((u8_t *)&pkt, sizeof(pkt));

@@ -332,7 +332,7 @@ static void *output_thread() {
 		// start at - play slience until jiffies reached
 		if (output.state == OUTPUT_START_AT) {
 			u32_t now = gettime_ms();
-			if (now >= output.start_at) {
+			if (now >= output.start_at || output.start_at > now + 10000) {
 				output.state = OUTPUT_RUNNING;
 			} else {
 				u32_t delta_frames = (output.start_at - now) * output.current_sample_rate / 1000;
@@ -351,6 +351,11 @@ static void *output_thread() {
 		LOG_SDEBUG("avail: %d frames: %d silence: %d", avail, frames, silence);
 		frames = min(frames, avail);
 		snd_pcm_sframes_t size = frames;
+
+		snd_pcm_sframes_t delay;
+		snd_pcm_delay(pcmp, &delay);
+		output.alsa_frames = delay;
+		output.updated = gettime_ms();
 
 		while (size > 0) {
 			snd_pcm_uframes_t alsa_frames;
@@ -481,11 +486,6 @@ static void *output_thread() {
 				_buf_inc_readp(outputbuf, alsa_frames * BYTES_PER_FRAME);
 				output.frames_played += alsa_frames;
 			}
-
-			snd_pcm_sframes_t delay;
-			snd_pcm_delay(pcmp, &delay);
-			output.alsa_frames = delay;
-			output.updated = gettime_ms();
 		}
 		
 		LOG_SDEBUG("wrote %u frames", frames);
