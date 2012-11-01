@@ -72,7 +72,6 @@ static inline u32_t scale(mad_fixed_t sample) {
 static void mad_decode(void) {
 	LOCK_S;
 	size_t bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
-	bool end = (stream.state <= DISCONNECT && bytes == 0);
 
 	if (mad_stream.next_frame && readbuf_len) {
 		readbuf_len -= mad_stream.next_frame - readbuf;
@@ -84,7 +83,7 @@ static void mad_decode(void) {
 	readbuf_len += bytes;
 	_buf_inc_readp(streambuf, bytes);
 
-	if (end) {
+	if (stream.state <= DISCONNECT && _buf_used(streambuf) == 0) {
 		memset(readbuf + readbuf_len, 0, MAD_BUFFER_GUARD);
 		readbuf_len += MAD_BUFFER_GUARD;
 	}
@@ -121,9 +120,9 @@ static void mad_decode(void) {
 			decode.new_stream = false;
 		}
 		
-		if (mad_synth.pcm.length > _buf_space(outputbuf)) {
+		if (mad_synth.pcm.length > _buf_space(outputbuf) / BYTES_PER_FRAME) {
 			LOG_WARN("too many samples - dropping samples");
-			mad_synth.pcm.length = _buf_space(outputbuf);
+			mad_synth.pcm.length = _buf_space(outputbuf) / BYTES_PER_FRAME;
 		}
 		
 		size_t frames = mad_synth.pcm.length;
@@ -195,7 +194,7 @@ struct codec *register_mad(void) {
 		.open  = mad_open,
 		.close = mad_close,
 		.decode= mad_decode,
-		.min_space = 102400,
+		.min_space = 204800,
 		.min_read_bytes = READBUF_SIZE,
 	};
 
