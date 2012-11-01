@@ -1,4 +1,4 @@
-/* 
+/*
  *  Squeezelite - lightweight headless squeezeplay emulator for linux
  *
  *  (c) Adrian Smith 2012, triode1@btinternet.com
@@ -7,7 +7,7 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -28,10 +28,12 @@ static log_level loglevel;
 
 #define MAX_SILENCE_FRAMES 1024
 
-static snd_pcm_format_t fmts_mmap[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S24_LE, SND_PCM_FORMAT_S24_3LE, SND_PCM_FORMAT_S16_LE,
+static snd_pcm_format_t fmts_mmap[] = { SND_PCM_FORMAT_S32_LE,
+SND_PCM_FORMAT_S24_LE, SND_PCM_FORMAT_S24_3LE, SND_PCM_FORMAT_S16_LE,
 										SND_PCM_FORMAT_UNKNOWN };
 
-static snd_pcm_format_t fmts_writei[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_UNKNOWN };
+static snd_pcm_format_t fmts_writei[] = { SND_PCM_FORMAT_S32_LE,
+SND_PCM_FORMAT_UNKNOWN };
 
 typedef unsigned frames_t;
 
@@ -122,7 +124,8 @@ bool alsa_testopen(const char *device, u32_t *max_rate) {
 	return true;
 }
 
-static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate, unsigned buffer_time, unsigned period_count) {
+static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned
+sample_rate, unsigned buffer_time, unsigned period_count) {
 	int err;
 	snd_pcm_hw_params_t *hw_params;
 	hw_params = (snd_pcm_hw_params_t *) alloca(snd_pcm_hw_params_sizeof());
@@ -153,10 +156,12 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 		return err;
 	}
 
-	// set access 
-	if ((err = snd_pcm_hw_params_set_access(*pcmp, hw_params, SND_PCM_ACCESS_MMAP_INTERLEAVED)) < 0) {
+	// set access
+	if ((err = snd_pcm_hw_params_set_access(*pcmp, hw_params,
+SND_PCM_ACCESS_MMAP_INTERLEAVED)) < 0) {
 		LOG_INFO("alsa mmap not available trying non mmap access");
-		if ((err = snd_pcm_hw_params_set_access(*pcmp, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
+		if ((err = snd_pcm_hw_params_set_access(*pcmp, hw_params,
+SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
 			LOG_ERROR("access type not available: %s", snd_strerror(err));
 			return err;
 		}
@@ -166,7 +171,8 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	}
 
 	// set sample rate
-	if ((err = snd_pcm_hw_params_set_rate(*pcmp, hw_params, sample_rate, 0)) < 0) {
+	if ((err = snd_pcm_hw_params_set_rate(*pcmp, hw_params, sample_rate, 0)) <
+0) {
 		LOG_ERROR("sample rate not available: %s", snd_strerror(err));
 		return err;
 	}
@@ -179,10 +185,12 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	}
 
 	// set the sample format
-	snd_pcm_format_t *fmt = alsa.mmap ? (snd_pcm_format_t *)fmts_mmap : (snd_pcm_format_t *)fmts_writei;
+	snd_pcm_format_t *fmt = alsa.mmap ? (snd_pcm_format_t *)fmts_mmap :
+(snd_pcm_format_t *)fmts_writei;
 	while (*fmt != SND_PCM_FORMAT_UNKNOWN) {
 		if (snd_pcm_hw_params_set_format(*pcmp, hw_params, *fmt) >= 0) {
-			LOG_INFO("opened device %s using format: %s sample rate: %u", device, snd_pcm_format_name(*fmt), sample_rate);
+			LOG_INFO("opened device %s using format: %s sample rate: %u", device,
+snd_pcm_format_name(*fmt), sample_rate);
 			alsa.format = *fmt;
 			break;
 		}
@@ -195,14 +203,16 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 
 	// set buffer time and period count
 	unsigned count = period_count;
-	if ((err = snd_pcm_hw_params_set_periods_near(*pcmp, hw_params, &count, 0)) < 0) {
+	if ((err = snd_pcm_hw_params_set_periods_near(*pcmp, hw_params, &count, 0))
+< 0) {
 		LOG_ERROR("Unable to set period size %s", snd_strerror(err));
 		return err;
 	}
 
 	unsigned time = buffer_time;
 	int dir = 1;
-	if ((err = snd_pcm_hw_params_set_buffer_time_near(*pcmp, hw_params, &time, &dir)) < 0) {
+	if ((err = snd_pcm_hw_params_set_buffer_time_near(*pcmp, hw_params, &time,
+&dir)) < 0) {
 		LOG_ERROR("Unable to set  buffer time %s", snd_strerror(err));
 		return err;
 	}
@@ -216,17 +226,19 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	}
 
 	// get period_size
-	if ((err = snd_pcm_hw_params_get_period_size(hw_params, &alsa.period_size, 0)) < 0) {
+	if ((err = snd_pcm_hw_params_get_period_size(hw_params, &alsa.period_size,
+0)) < 0) {
 		LOG_ERROR("unable to get period size: %s", snd_strerror(err));
 		return err;
 	}
 
 	// prepare for use
 	if ((err = snd_pcm_prepare (*pcmp)) < 0) {
-		LOG_ERROR("cannot prepare audio interface for use: %s", snd_strerror (err));
+		LOG_ERROR("cannot prepare audio interface for use: %s", snd_strerror
+(err));
 		return err;
 	}
-	
+
 	// dump info
 	if (loglevel == SDEBUG) {
 		static snd_output_t *debug_output;
@@ -238,7 +250,7 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 }
 
 
-// output thread 
+// output thread
 
 static struct buffer buf;
 
@@ -254,13 +266,17 @@ static bool running = true;
 static void *output_thread() {
 	static snd_pcm_t *pcmp = NULL;
 	static bool start = true;
+	snd_pcm_status_t *status;
 	int err;
+
+	snd_pcm_status_alloca(&status);
 
 	while (running) {
 
 		if (!pcmp || alsa.rate != output.current_sample_rate) {
 			LOG_INFO("open output device: %s", output.device);
-			alsa_open(&pcmp, output.device, output.current_sample_rate, output.buffer_time, output.period_count);
+			alsa_open(&pcmp, output.device, output.current_sample_rate,
+output.buffer_time, output.period_count);
 			start = true;
 		}
 
@@ -278,7 +294,7 @@ static void *output_thread() {
 		}
 
 		snd_pcm_state_t state = snd_pcm_state(pcmp);
-	
+
 		if (state == SND_PCM_STATE_XRUN) {
 			LOG_INFO("XRUN");
 			if ((err = snd_pcm_recover(pcmp, -EPIPE, 1)) < 0) {
@@ -286,16 +302,39 @@ static void *output_thread() {
 			}
 			start = true;
 			continue;
+		} else if (state == SND_PCM_STATE_SUSPENDED) {
+			if ((err = snd_pcm_recover(pcmp, -ESTRPIPE, 1)) < 0) {
+				LOG_WARN("SUSPEND recover failed: %s", snd_strerror(err));
+			}
+		}
+
+		snd_pcm_sframes_t avail = snd_pcm_avail_update(pcmp);
+
+		if (avail < 0) {
+			if ((err = snd_pcm_recover(pcmp, avail, 1)) < 0) {
+				LOG_ERROR("recover failed: %s", snd_strerror(err));
+				if (err == -ENODEV) {
+					LOG_WARN("Device %s no longer available", output.device);
+					// FIXME so something here
+				}
+			}
+			start = true;
+			continue;
+		}
+
+		// Duane - is this call needed to recover from sleep - I don't see why it is...?
+		if ((err = snd_pcm_status(pcmp, status)) < 0) {
+			LOG_WARN("snd_pcm_status error: %s", snd_strerror(err));
 		}
 
 		LOCK;
 
 		snd_pcm_sframes_t frames = _buf_used(outputbuf) / BYTES_PER_FRAME;
-		snd_pcm_sframes_t avail = snd_pcm_avail_update(pcmp);
 		bool silence = false;
 
 		// start when threashold met, note: avail * 4 may need tuning
-		if (output.state == OUTPUT_BUFFER && frames > avail * 4 && frames > output.threshold * output.next_sample_rate / 100) {
+		if (output.state == OUTPUT_BUFFER && frames > avail * 4 && frames >
+output.threshold * output.next_sample_rate / 100) {
 			output.state = OUTPUT_RUNNING;
 			wake_controller();
 		}
@@ -308,7 +347,8 @@ static void *output_thread() {
 				frames -= skip;
 				output.frames_played += skip;
 				while (skip > 0) {
-					frames_t cont_frames = min(skip, _buf_cont_read(outputbuf) / BYTES_PER_FRAME);
+					frames_t cont_frames = min(skip, _buf_cont_read(outputbuf) /
+BYTES_PER_FRAME);
 					skip -= cont_frames;
 					_buf_inc_readp(outputbuf, cont_frames * BYTES_PER_FRAME);
 				}
@@ -335,7 +375,8 @@ static void *output_thread() {
 			if (now >= output.start_at || output.start_at > now + 10000) {
 				output.state = OUTPUT_RUNNING;
 			} else {
-				u32_t delta_frames = (output.start_at - now) * output.current_sample_rate / 1000;
+				u32_t delta_frames = (output.start_at - now) *
+output.current_sample_rate / 1000;
 				silence = true;
 				frames = min(avail, delta_frames);
 				frames = min(frames, MAX_SILENCE_FRAMES);
@@ -359,12 +400,13 @@ static void *output_thread() {
 
 		while (size > 0) {
 			snd_pcm_uframes_t alsa_frames;
-			
+
 			frames_t cont_frames = _buf_cont_read(outputbuf) / BYTES_PER_FRAME;
-			
+
 			if (output.track_start && !silence) {
 				if (output.track_start == outputbuf->readp) {
-					LOG_INFO("track start sample rate: %u replay_gain: %u", output.next_sample_rate, output.next_replay_gain);
+					LOG_INFO("track start sample rate: %u replay_gain: %u",
+output.next_sample_rate, output.next_replay_gain);
 					if (output.next_sample_rate != alsa.rate) {
 						LOG_ERROR("change RATE NOW");
 					}
@@ -376,7 +418,8 @@ static void *output_thread() {
 					break;
 				} else if (output.track_start > outputbuf->readp) {
 					// reduce cont_frames so we find the next track start at beginning of next chunk
-					cont_frames = min(cont_frames, (output.track_start - outputbuf->readp) / BYTES_PER_FRAME);
+					cont_frames = min(cont_frames, (output.track_start - outputbuf->readp)
+/ BYTES_PER_FRAME);
 				}
 			}
 
@@ -385,7 +428,8 @@ static void *output_thread() {
 			avail = snd_pcm_avail_update(pcmp);
 
 			// apply gain to samples in the output buffer if required
-			if (!silence && (output.gainL != FIXED_ONE || output.gainR != FIXED_ONE || output.current_replay_gain)) {
+			if (!silence && (output.gainL != FIXED_ONE || output.gainR != FIXED_ONE
+|| output.current_replay_gain)) {
 				unsigned count = alsa_frames;
 				u32_t *ptrL = (u32_t *)outputbuf->readp;
 				u32_t *ptrR = (u32_t *)outputbuf->readp + 1;
@@ -407,21 +451,23 @@ static void *output_thread() {
 					}
 				}
 			}
-			
+
 			if (alsa.mmap) {
 
 				const snd_pcm_channel_area_t *areas;
 				snd_pcm_uframes_t offset;
 
-				if ((err = snd_pcm_mmap_begin(pcmp, &areas, &offset, &alsa_frames)) < 0) {
+				if ((err = snd_pcm_mmap_begin(pcmp, &areas, &offset, &alsa_frames)) < 0)
+{
 					LOG_ERROR("error from mmap_begin: %s", snd_strerror(err));
 					break;
 				}
 
-				void  *outputptr = areas[0].addr + (areas[0].first + offset * areas[0].step) / 8;
+				void  *outputptr = areas[0].addr + (areas[0].first + offset *
+areas[0].step) / 8;
 				s32_t *inputptr  = (s32_t *) (silence ? silencebuf : outputbuf->readp);
 				size_t cnt = alsa_frames;
-				
+
 				switch(alsa.format) {
 				case SND_PCM_FORMAT_S16_LE:
 					{
@@ -432,7 +478,7 @@ static void *output_thread() {
 						}
 					}
 					break;
-				case SND_PCM_FORMAT_S24_LE: 
+				case SND_PCM_FORMAT_S24_LE:
 					{
 						s32_t *optr = (s32_t *)outputptr;
 						while (cnt--) {
@@ -462,7 +508,7 @@ static void *output_thread() {
 				default:
 					break;
 				}
-				
+
 				snd_pcm_sframes_t w = snd_pcm_mmap_commit(pcmp, offset, alsa_frames);
 				if (w < 0 || w != alsa_frames) {
 					LOG_ERROR("mmap_commit error");
@@ -471,7 +517,8 @@ static void *output_thread() {
 
 			} else {
 
-				snd_pcm_sframes_t w = snd_pcm_writei(pcmp, silence ? silencebuf : outputbuf->readp, alsa_frames);
+				snd_pcm_sframes_t w = snd_pcm_writei(pcmp, silence ? silencebuf :
+outputbuf->readp, alsa_frames);
 				if (w < 0) {
 					LOG_ERROR("writei error: %d", w);
 					break;
@@ -481,13 +528,13 @@ static void *output_thread() {
 			}
 
 			size -= alsa_frames;
-			
+
 			if (!silence) {
 				_buf_inc_readp(outputbuf, alsa_frames * BYTES_PER_FRAME);
 				output.frames_played += alsa_frames;
 			}
 		}
-		
+
 		LOG_SDEBUG("wrote %u frames", frames);
 
 		if (start) {
@@ -505,7 +552,8 @@ static void *output_thread() {
 
 static pthread_t thread;
 
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count) {
+void output_init(log_level level, const char *device, unsigned
+output_buf_size, unsigned buffer_time, unsigned period_count) {
 	loglevel = level;
 
 	LOG_INFO("init output");
