@@ -4,7 +4,7 @@ LDFLAGS = -lasound -lpthread
 all: squeezelite
 
 squeezelite: main.o slimproto.o utils.o output.o buffer.o stream.o decode.o flac.o pcm.o mad.o
-	$(CC) $(CFLAGS) main.o slimproto.o utils.o output.o buffer.o stream.o decode.o flac.o pcm.o mad.o -o squeezelite $(LDFLAGS32) 
+	$(CC) $(CFLAGS) main.o slimproto.o utils.o output.o buffer.o stream.o decode.o flac.o pcm.o mad.o -o squeezelite $(LDFLAGS) 
 
 main.o: main.c squeezelite.h
 	$(CC) $(CFLAGS) -c main.c -o main.o
