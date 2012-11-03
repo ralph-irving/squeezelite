@@ -109,13 +109,18 @@ int main(int argc, char **argv) {
 				char *l = strtok(optarg, "=");
 				char *v = strtok(NULL, "=");
 				log_level new = WARN;
-				if (!strcmp(v, "info"))   new = INFO;
-				if (!strcmp(v, "debug"))  new = DEBUG;
-				if (!strcmp(v, "sdebug")) new = SDEBUG;
-				if (!strcmp(l, "all") || !strcmp(l, "slimproto")) log_slimproto = new;
-				if (!strcmp(l, "all") || !strcmp(l, "stream"))    log_stream = new;
-				if (!strcmp(l, "all") || !strcmp(l, "decode"))    log_decode = new;
-				if (!strcmp(l, "all") || !strcmp(l, "output"))    log_output = new;
+				if (l && v) {
+					if (!strcmp(v, "info"))   new = INFO;
+					if (!strcmp(v, "debug"))  new = DEBUG;
+					if (!strcmp(v, "sdebug")) new = SDEBUG;
+					if (!strcmp(l, "all") || !strcmp(l, "slimproto")) log_slimproto = new;
+					if (!strcmp(l, "all") || !strcmp(l, "stream"))    log_stream = new;
+					if (!strcmp(l, "all") || !strcmp(l, "decode"))    log_decode = new;
+					if (!strcmp(l, "all") || !strcmp(l, "output"))    log_output = new;
+				} else {
+					usage(argv[0]);
+					exit(0);
+				}
 			}
             break;
 		case 'm':

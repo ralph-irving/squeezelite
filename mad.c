@@ -161,7 +161,7 @@ static void mad_close(void) {
 }
 
 static bool load_mad() {
-	void *handle = dlopen("libmad.so", RTLD_NOW);
+	void *handle = dlopen("libmad.so.0", RTLD_NOW);
 	if (!handle) {
 		LOG_WARN("dlerror: %s", dlerror());
 		return false;

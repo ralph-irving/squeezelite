@@ -154,7 +154,7 @@ static void flac_decode(void) {
 }
 
 static bool load_flac() {
-	void *handle = dlopen("libFLAC.so", RTLD_NOW);
+	void *handle = dlopen("libFLAC.so.8", RTLD_NOW);
 	if (!handle) {
 		LOG_WARN("dlerror: %s", dlerror());
 		return false;
