@@ -119,7 +119,7 @@ inline u16_t unpackn(u16_t *src) {
 } 
 
 static void sendHELO(bool reconnect, const char *cap, u8_t mac[6]) {
-	const char *capbase = "Model=squeezelite,ModelName=SqueezeLite,AccuratePlayPoints=1";
+	const char *capbase = "Model=squeezelite,ModelName=SqueezeLite,AccuratePlayPoints=1,";
 	
 	struct HELO_packet pkt = {
 		.opcode = "HELO",

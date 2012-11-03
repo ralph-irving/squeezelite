@@ -127,7 +127,7 @@ static void mad_decode(void) {
 		
 		size_t frames = mad_synth.pcm.length;
 		s32_t *iptrl = mad_synth.pcm.samples[0];
-		s32_t *iptrr = mad_synth.pcm.samples[1];
+		s32_t *iptrr = mad_synth.pcm.samples[ mad_synth.pcm.channels - 1 ];
 
 		while (frames > 0) {
 			size_t f = min(frames, _buf_cont_write(outputbuf) / BYTES_PER_FRAME);

@@ -20,6 +20,8 @@
 
 #include "squeezelite.h"
 
+#include <signal.h>
+
 //static log_level loglevel = INFO;
 
 #define TITLE "Squeezelite " VERSION ", Copyright 2012 Adrian Smith."
@@ -69,6 +71,10 @@ int main(int argc, char **argv) {
 	log_level log_stream = WARN;
 	log_level log_decode = WARN;
 	log_level log_slimproto = WARN;
+
+#if defined(SIGHUP)
+	signal(SIGHUP, SIG_IGN);
+#endif
 
 	get_mac(mac);
 

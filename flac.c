@@ -84,9 +84,10 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 
 	size_t frames = frame->header.blocksize;
 	unsigned bits_per_sample = frame->header.bits_per_sample;
+	unsigned channels = frame->header.channels;
 
 	FLAC__int32 *lptr = (FLAC__int32 *)buffer[0];
-	FLAC__int32 *rptr = (FLAC__int32 *)buffer[1];
+	FLAC__int32 *rptr = (FLAC__int32 *)buffer[channels > 1 ? 1 : 0];
 	
 	LOCK_O;
 
