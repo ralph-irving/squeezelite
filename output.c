@@ -327,9 +327,22 @@ static void *output_thread() {
 
 		if (avail < 0) {
 			if ((err = snd_pcm_recover(pcmp, avail, 1)) < 0) {
+				if (err == -ENODEV) {
+					LOG_WARN("Device %s no longer available", output.device);
+					alsa_close(pcmp);
+					pcmp = NULL;
+					probe_device = true;
+					continue;
+				}
 				LOG_WARN("recover failed: %s", snd_strerror(err));
 			}
 			start = true;
+			continue;
+		}
+
+		// avoid spinning in cases where wait returns but no bytes available (seen with pulse audio)
+		if (avail == 0) {
+			usleep(10000);
 			continue;
 		}
 
@@ -425,30 +438,9 @@ static void *output_thread() {
 
 			avail = snd_pcm_avail_update(pcmp);
 
-			// apply gain to samples in the output buffer if required
-			if (!silence && (output.gainL != FIXED_ONE || output.gainR != FIXED_ONE || output.current_replay_gain)) {
-				unsigned count = alsa_frames;
-				u32_t *ptrL = (u32_t *)outputbuf->readp;
-				u32_t *ptrR = (u32_t *)outputbuf->readp + 1;
-				if (!output.current_replay_gain) {
-					while (count--) {
-						*ptrL = gain(output.gainL, *ptrL);
-						*ptrR = gain(output.gainR, *ptrR);
-						ptrL += 2;
-						ptrR += 2;
-					}
-				} else {
-					while (count--) {
-						*ptrL = gain(output.current_replay_gain, *ptrL);
-						*ptrR = gain(output.current_replay_gain, *ptrR);
-						*ptrL = gain(output.gainL, *ptrL);
-						*ptrR = gain(output.gainR, *ptrR);
-						ptrL += 2;
-						ptrR += 2;
-					}
-				}
-			}
-			
+			s32_t gainL = output.current_replay_gain ? gain(output.gainL, output.current_replay_gain) : output.gainL;
+			s32_t gainR = output.current_replay_gain ? gain(output.gainR, output.current_replay_gain) : output.gainR;
+
 			if (alsa.mmap) {
 
 				const snd_pcm_channel_area_t *areas;
@@ -467,38 +459,75 @@ static void *output_thread() {
 				case SND_PCM_FORMAT_S16_LE:
 					{
 						s16_t *optr = (s16_t *)outputptr;
-						while (cnt--) {
-							*(optr++) = *(inputptr++) >> 16;
-							*(optr++) = *(inputptr++) >> 16;
+						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
+							while (cnt--) {
+								*(optr++) = *(inputptr++) >> 16;
+								*(optr++) = *(inputptr++) >> 16;
+							}
+						} else {
+							while (cnt--) {
+								*(optr++) = gain(gainL, *(inputptr++)) >> 16;
+								*(optr++) = gain(gainR, *(inputptr++)) >> 16;
+							}
 						}
 					}
 					break;
 				case SND_PCM_FORMAT_S24_LE: 
 					{
 						s32_t *optr = (s32_t *)outputptr;
-						while (cnt--) {
-							*(optr++) = *(inputptr++) >> 8;
-							*(optr++) = *(inputptr++) >> 8;
+						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
+							while (cnt--) {
+								*(optr++) = *(inputptr++) >> 8;
+								*(optr++) = *(inputptr++) >> 8;
+							}
+						} else {
+							while (cnt--) {
+								*(optr++) = gain(gainL, *(inputptr++)) >> 8;
+								*(optr++) = gain(gainR, *(inputptr++)) >> 8;
+							}
 						}
 					}
 					break;
 				case SND_PCM_FORMAT_S24_3LE:
 					{
-						u8_t *optr = (u8_t *)outputptr;
-						while (cnt--) {
-							s32_t lsample = *(inputptr++);
-							s32_t rsample = *(inputptr++);
-							*(optr++) = (lsample & 0x0000ff00) >>  8;
-							*(optr++) = (lsample & 0x00ff0000) >> 16;
-							*(optr++) = (lsample & 0xff000000) >> 24;
-							*(optr++) = (rsample & 0x0000ff00) >>  8;
-							*(optr++) = (rsample & 0x00ff0000) >> 16;
-							*(optr++) = (rsample & 0xff000000) >> 24;
+						u8_t *optr = (u8_t *)(void *)outputptr;
+						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
+							while (cnt--) {
+								s32_t lsample = *(inputptr++);
+								s32_t rsample = *(inputptr++);
+								*(optr++) = (lsample & 0x0000ff00) >>  8;
+								*(optr++) = (lsample & 0x00ff0000) >> 16;
+								*(optr++) = (lsample & 0xff000000) >> 24;
+								*(optr++) = (rsample & 0x0000ff00) >>  8;
+								*(optr++) = (rsample & 0x00ff0000) >> 16;
+								*(optr++) = (rsample & 0xff000000) >> 24;
+							}
+						} else {
+							while (cnt--) {
+								s32_t lsample = gain(output.gainL, *(inputptr++));
+								s32_t rsample = gain(output.gainR, *(inputptr++));
+								*(optr++) = (lsample & 0x0000ff00) >>  8;
+								*(optr++) = (lsample & 0x00ff0000) >> 16;
+								*(optr++) = (lsample & 0xff000000) >> 24;
+								*(optr++) = (rsample & 0x0000ff00) >>  8;
+								*(optr++) = (rsample & 0x00ff0000) >> 16;
+								*(optr++) = (rsample & 0xff000000) >> 24;
+							}
 						}
 					}
 					break;
 				case SND_PCM_FORMAT_S32_LE:
-					memcpy(outputptr, inputptr, cnt * BYTES_PER_FRAME);
+					{
+						s32_t *optr = (s32_t *)outputptr;
+						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
+							memcpy(outputptr, inputptr, cnt * BYTES_PER_FRAME);
+						} else {
+							while (cnt--) {
+								*(optr++) = gain(gainL, *(inputptr++));
+								*(optr++) = gain(gainR, *(inputptr++));
+							}
+						}
+					}
 					break;
 				default:
 					break;
@@ -512,11 +541,26 @@ static void *output_thread() {
 
 			} else {
 
+				if (!silence && (gainL != FIXED_ONE || gainR!= FIXED_ONE)) {
+					unsigned count = alsa_frames;
+					s32_t *ptrL = (s32_t *)outputbuf->readp;
+					s32_t *ptrR = (s32_t *)outputbuf->readp + 1;
+					while (count--) {
+						*ptrL = gain(output.gainL, *ptrL);
+						*ptrR = gain(output.gainR, *ptrR);
+						ptrL += 2;
+						ptrR += 2;
+					}
+				}
+				
 				snd_pcm_sframes_t w = snd_pcm_writei(pcmp, silence ? silencebuf : outputbuf->readp, alsa_frames);
 				if (w < 0) {
 					LOG_WARN("writei error: %d", w);
 					break;
 				} else {
+					if (w != alsa_frames) {
+						LOG_WARN("writei only wrote %u of %u", w, alsa_frames);
+					}						
 					alsa_frames = w;
 				}
 			}
