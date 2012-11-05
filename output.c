@@ -342,6 +342,7 @@ static void *output_thread() {
 
 		// avoid spinning in cases where wait returns but no bytes available (seen with pulse audio)
 		if (avail == 0) {
+			LOG_INFO("avail 0 - sleeping");
 			usleep(10000);
 			continue;
 		}
@@ -458,7 +459,7 @@ static void *output_thread() {
 				switch(alsa.format) {
 				case SND_PCM_FORMAT_S16_LE:
 					{
-						s16_t *optr = (s16_t *)outputptr;
+						s16_t *optr = (s16_t *)(void *)outputptr;
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							while (cnt--) {
 								*(optr++) = *(inputptr++) >> 16;
@@ -474,7 +475,7 @@ static void *output_thread() {
 					break;
 				case SND_PCM_FORMAT_S24_LE: 
 					{
-						s32_t *optr = (s32_t *)outputptr;
+						s32_t *optr = (s32_t *)(void *)outputptr;
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							while (cnt--) {
 								*(optr++) = *(inputptr++) >> 8;
@@ -492,33 +493,65 @@ static void *output_thread() {
 					{
 						u8_t *optr = (u8_t *)(void *)outputptr;
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
-							while (cnt--) {
-								s32_t lsample = *(inputptr++);
-								s32_t rsample = *(inputptr++);
-								*(optr++) = (lsample & 0x0000ff00) >>  8;
-								*(optr++) = (lsample & 0x00ff0000) >> 16;
-								*(optr++) = (lsample & 0xff000000) >> 24;
-								*(optr++) = (rsample & 0x0000ff00) >>  8;
-								*(optr++) = (rsample & 0x00ff0000) >> 16;
-								*(optr++) = (rsample & 0xff000000) >> 24;
+							while (cnt) {
+								// attempt to do 32 bit memory accesses - move 2 frames at once: 16 bytes -> 12 bytes
+								// falls through to exception case when not aligned or if less than 2 frames to move
+								if (((uintptr_t)optr & 0x3) == 0 && cnt >= 2) {
+									u32_t *o_ptr = (u32_t *)(void *)optr;
+									while (cnt >= 2) {
+										s32_t l1 = *(inputptr++); s32_t r1 = *(inputptr++);
+										s32_t l2 = *(inputptr++); s32_t r2 = *(inputptr++);
+										*(o_ptr++) = (l1 & 0xffffff00) >>  8 | (r1 & 0x0000ff00) << 16;
+										*(o_ptr++) = (r1 & 0xffff0000) >> 16 | (l2 & 0x00ffff00) <<  8;
+										*(o_ptr++) = (l2 & 0xff000000) >> 24 | (r2 & 0xffffff00);
+										optr += 12;
+										cnt  -=  2;
+									}
+								} else {
+									s32_t lsample = *(inputptr++);
+									s32_t rsample = *(inputptr++);
+									*(optr++) = (lsample & 0x0000ff00) >>  8;
+									*(optr++) = (lsample & 0x00ff0000) >> 16;
+									*(optr++) = (lsample & 0xff000000) >> 24;
+									*(optr++) = (rsample & 0x0000ff00) >>  8;
+									*(optr++) = (rsample & 0x00ff0000) >> 16;
+									*(optr++) = (rsample & 0xff000000) >> 24;
+									cnt--;
+								}
 							}
 						} else {
-							while (cnt--) {
-								s32_t lsample = gain(output.gainL, *(inputptr++));
-								s32_t rsample = gain(output.gainR, *(inputptr++));
-								*(optr++) = (lsample & 0x0000ff00) >>  8;
-								*(optr++) = (lsample & 0x00ff0000) >> 16;
-								*(optr++) = (lsample & 0xff000000) >> 24;
-								*(optr++) = (rsample & 0x0000ff00) >>  8;
-								*(optr++) = (rsample & 0x00ff0000) >> 16;
-								*(optr++) = (rsample & 0xff000000) >> 24;
+							while (cnt) {
+								// attempt to do 32 bit memory accesses - move 2 frames at once: 16 bytes -> 12 bytes
+								// falls through to exception case when not aligned or if less than 2 frames to move
+								if (((uintptr_t)optr & 0x3) == 0 && cnt >= 2) {
+									u32_t *o_ptr = (u32_t *)(void *)optr;
+									while (cnt >= 2) {
+										s32_t l1 = gain(gainL, *(inputptr++)); s32_t r1 = gain(gainR, *(inputptr++));
+										s32_t l2 = gain(gainL, *(inputptr++)); s32_t r2 = gain(gainR, *(inputptr++));
+										*(o_ptr++) = (l1 & 0xffffff00) >>  8 | (r1 & 0x0000ff00) << 16;
+										*(o_ptr++) = (r1 & 0xffff0000) >> 16 | (l2 & 0x00ffff00) <<  8;
+										*(o_ptr++) = (l2 & 0xff000000) >> 24 | (r2 & 0xffffff00);
+										optr += 12;
+										cnt  -=  2;
+									}
+								} else {
+									s32_t lsample = gain(gainL, *(inputptr++));
+									s32_t rsample = gain(gainR, *(inputptr++));
+									*(optr++) = (lsample & 0x0000ff00) >>  8;
+									*(optr++) = (lsample & 0x00ff0000) >> 16;
+									*(optr++) = (lsample & 0xff000000) >> 24;
+									*(optr++) = (rsample & 0x0000ff00) >>  8;
+									*(optr++) = (rsample & 0x00ff0000) >> 16;
+									*(optr++) = (rsample & 0xff000000) >> 24;
+									cnt--;
+								}
 							}
 						}
 					}
 					break;
 				case SND_PCM_FORMAT_S32_LE:
 					{
-						s32_t *optr = (s32_t *)outputptr;
+						s32_t *optr = (s32_t *)(void *)outputptr;
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							memcpy(outputptr, inputptr, cnt * BYTES_PER_FRAME);
 						} else {
@@ -543,8 +576,8 @@ static void *output_thread() {
 
 				if (!silence && (gainL != FIXED_ONE || gainR!= FIXED_ONE)) {
 					unsigned count = alsa_frames;
-					s32_t *ptrL = (s32_t *)outputbuf->readp;
-					s32_t *ptrR = (s32_t *)outputbuf->readp + 1;
+					s32_t *ptrL = (s32_t *)(void *)outputbuf->readp;
+					s32_t *ptrR = (s32_t *)(void *)outputbuf->readp + 1;
 					while (count--) {
 						*ptrL = gain(output.gainL, *ptrL);
 						*ptrR = gain(output.gainR, *ptrR);
@@ -618,7 +651,7 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 
 	// try to set this thread to real-time scheduler class, likely only works as root
 	struct sched_param param;
-	param.sched_priority = 1;
+	param.sched_priority = 40;
 	if (pthread_setschedparam(thread, SCHED_FIFO, &param) != 0) {
 		LOG_DEBUG("unable to set output sched fifo: %s", strerror(errno));
 	}

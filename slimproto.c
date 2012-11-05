@@ -301,7 +301,7 @@ static void process_audg(u8_t *pkt, int len) {
 	audg->gainL = unpackN(&audg->gainL);
 	audg->gainR = unpackN(&audg->gainR);
 
-	LOG_INFO("audg gainL: %u gainR: %u fixed: %u", audg->gainL, audg->gainR);
+	LOG_INFO("audg gainL: %u gainR: %u", audg->gainL, audg->gainR);
 
 	LOCK_O;
 	output.gainL = audg->gainL;

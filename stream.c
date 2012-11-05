@@ -45,11 +45,16 @@ static void send_header(void) {
 	char *ptr = stream.header;
 	int len = stream.header_len;
 
-	size_t n;
+	size_t n, try = 0;
 	
 	while (len) {
 		n = send(fd, ptr, len, 0);
 		if (n <= 0) {
+			if (n < 0 && errno == EAGAIN && try < 10) {
+				LOG_SDEBUG("retrying (%d) writing to socket", ++try);
+				usleep(100);
+				continue;
+			}
 			LOG_WARN("failed writing to socket: %s", strerror(errno));
 			stream.disconnect = LOCAL_DISCONNECT;
 			stream.state = DISCONNECT;
@@ -60,6 +65,7 @@ static void send_header(void) {
 		ptr += n;
 		len -= n;
 	}
+	LOG_SDEBUG("wrote header");
 }
 
 static bool running = true;
@@ -112,6 +118,9 @@ static void *stream_thread() {
 					LOCK;
 					int n = recv(fd, &c, 1, 0);
 					if (n <= 0) {
+						if (n < 0 && errno == EAGAIN) {
+							continue;
+						}
 						LOG_WARN("error reading headers: %s", n ? strerror(errno) : "closed");
 						stream.state = STOPPED;
 						stream.disconnect = LOCAL_DISCONNECT;
@@ -165,7 +174,7 @@ static void *stream_thread() {
 					fd = -1;
 					wake_controller();
 				}
-				if (n < 0) {
+				if (n < 0 && errno != EAGAIN) {
 					LOG_WARN("error reading: %s", strerror(errno));
 					stream.state = DISCONNECT;
 					stream.disconnect = REMOTE_DISCONNECT;
