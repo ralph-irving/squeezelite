@@ -71,6 +71,14 @@ struct RESP_header {
 	// char header[] - added in sendRESP
 } __attribute__((packed));
 
+// S:N:Slimproto _http_setting_handler
+struct SETD_header {
+	char  opcode[4];
+	u32_t length;
+	u8_t  id;
+	// data
+} __attribute__((packed));
+
 // from S:P:Squeezebox stream_s
 struct strm_packet {
 	char  opcode[4];
@@ -95,6 +103,13 @@ struct strm_packet {
 } __attribute__((packed));
 
 // S:P:Squeezebox2
+struct aude_packet {
+	char  opcode[4];
+	u8_t  enable_spdif;
+	u8_t  enable_dac;
+} __attribute__((packed));
+
+// S:P:Squeezebox2
 struct audg_packet {
 	char  opcode[4];
 	u32_t old_gainL;     // unused
@@ -105,4 +120,5 @@ struct audg_packet {
 	u32_t gainR;
 	// squence ids - unused
 } __attribute__((packed));
+
 

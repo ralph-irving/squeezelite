@@ -26,8 +26,7 @@ extern struct buffer *streambuf;
 extern struct buffer *outputbuf;
 extern struct streamstate stream;
 extern struct outputstate output;
-
-struct decodestate decode;
+extern struct decodestate decode;
 
 #define LOCK_S   pthread_mutex_lock(&streambuf->mutex)
 #define UNLOCK_S pthread_mutex_unlock(&streambuf->mutex)
@@ -129,7 +128,7 @@ static void pcm_close(void) {
 struct codec *register_pcm(void) {
 	static struct codec ret = { 
 		.id    = 'p',
-		.types = "pcm,aif",
+		.types = "aif,pcm",
 		.open  = pcm_open,
 		.close = pcm_close,
 		.decode= pcm_decode,

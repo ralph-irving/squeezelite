@@ -1,10 +1,10 @@
 CFLAGS  = -Wall -fPIC -O2
-LDFLAGS = -lasound -lpthread
+LDFLAGS = -lasound -lpthread -ldl -lrt
 
 all: squeezelite
 
-squeezelite: main.o slimproto.o utils.o output.o buffer.o stream.o decode.o flac.o pcm.o mad.o
-	$(CC) $(CFLAGS) main.o slimproto.o utils.o output.o buffer.o stream.o decode.o flac.o pcm.o mad.o -o squeezelite $(LDFLAGS) 
+squeezelite: main.o slimproto.o utils.o output.o buffer.o stream.o decode.o flac.o pcm.o mad.o vorbis.o faad.o
+	$(CC) $(CFLAGS) main.o slimproto.o utils.o output.o buffer.o stream.o decode.o flac.o pcm.o mad.o vorbis.o faad.o $(LDFLAGS) -o squeezelite
 
 main.o: main.c squeezelite.h
 	$(CC) $(CFLAGS) -c main.c -o main.o
@@ -36,3 +36,8 @@ pcm.o: pcm.c squeezelite.h
 mad.o: mad.c squeezelite.h
 	$(CC) $(CFLAGS) -c mad.c -o mad.o
 
+vorbis.o: vorbis.c squeezelite.h
+	$(CC) $(CFLAGS) -c vorbis.c -o vorbis.o
+
+faad.o: faad.c squeezelite.h
+	$(CC) $(CFLAGS) -c faad.c -o faad.o

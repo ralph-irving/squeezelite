@@ -35,7 +35,7 @@
 #include <sys/types.h>
 #include <poll.h>
 
-#define VERSION "v0.2beta1-164"
+#define VERSION "v0.4beta1-168"
 
 #define STREAMBUF_SIZE (2 * 1024 * 1024)
 #define OUTPUTBUF_SIZE (44100 * 8 * 10)
@@ -43,7 +43,7 @@
 #define MAX_HEADER 2048
 
 #define STREAM_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 4)
-#define DECODE_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 4)
+#define DECODE_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 8)
 #define OUTPUT_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 4)
 
 #define ALSA_BUFFER_TIME 20000
@@ -101,7 +101,7 @@ void buf_init(struct buffer *buf, size_t size);
 void buf_destroy(struct buffer *buf);
 
 // slimproto.c
-void slimproto(log_level level, const char *addr, u8_t mac[6]);
+void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name);
 void wake_controller(void);
 
 // stream.c
@@ -124,7 +124,7 @@ void stream_local(const char *filename);
 void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold);
 
 // decode.c
-typedef enum { DECODE_STOPPED = 0, DECODE_RUNNING, DECODE_COMPLETE } decode_state;
+typedef enum { DECODE_STOPPED = 0, DECODE_RUNNING, DECODE_COMPLETE, DECODE_ERROR } decode_state;
 
 struct decodestate {
 	decode_state state;
@@ -141,14 +141,12 @@ struct codec {
 	void (*decode)(void);
 };
 
-#define MAX_CODECS 5
-
 void decode_init(log_level level, const char *opt);
 void decode_close(void);
 void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t endianness);
 
 // output.c
-typedef enum { OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNING, 
+typedef enum { OUTPUT_OFF = -1, OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNING, 
 			   OUTPUT_PAUSE_FRAMES, OUTPUT_SKIP_FRAMES, OUTPUT_START_AT } output_state;
 
 struct outputstate {
@@ -183,6 +181,10 @@ void output_close(void);
 void stream_disconnect(void);
 
 // codecs
+#define MAX_CODECS 5
+
 struct codec *register_flac(void);
 struct codec *register_pcm(void);
 struct codec *register_mad(void);
+struct codec *register_vorbis(void);
+struct codec *register_faad(void);

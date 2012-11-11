@@ -34,9 +34,10 @@ static void usage(const char *argv0) {
 		   "  -l \t\t\tList ALSA output devices\n"
 		   "  -a <time>:<count>\tSpecify ALSA buffer_time and period_count\n"
 		   "  -b <stream>:<output>\tSpecify internal Stream and Output buffer sizes in Kbytes\n"
-		   "  -c <codec1>,<codec2>\tRestrict codecs those specified, otherwise loads all available codecs; known codecs: flac,pcm,mp3\n"
+		   "  -c <codec1>,<codec2>\tRestrict codecs those specified, otherwise loads all available codecs; known codecs: flac,pcm,mp3,ogg,aac\n"
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output, level: info|debug|sdebug\n"
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"
+		   "  -n <name>\t\tSet the player name\n"
 		   "  -t \t\t\tLicense terms\n"
 		   "\n",
 		   argv0);
@@ -61,6 +62,7 @@ int main(int argc, char **argv) {
 	char *server = NULL;
 	char *output_device = "default";
 	char *codecs = NULL;
+	char *name = NULL;
 	u8_t mac[6];
 	unsigned stream_buf_size = STREAMBUF_SIZE;
 	unsigned output_buf_size =  OUTPUTBUF_SIZE;
@@ -80,7 +82,7 @@ int main(int argc, char **argv) {
 
 	int opt;
 
-    while ((opt = getopt(argc, argv, "o:a:b:c:d:m:lt")) != -1) {
+    while ((opt = getopt(argc, argv, "o:a:b:c:d:m:n:lt")) != -1) {
         switch (opt) {
         case 'o':
             output_device = optarg;
@@ -134,6 +136,9 @@ int main(int argc, char **argv) {
 				}
 			}
 			break;
+		case 'n':
+			name = optarg;
+			break;
 		case 'l':
 			alsa_list_pcm();
 			exit(0);
@@ -156,7 +161,7 @@ int main(int argc, char **argv) {
 	stream_init(log_stream, stream_buf_size);
 	decode_init(log_decode, codecs);
 
-	slimproto(log_slimproto, server, mac);
+	slimproto(log_slimproto, server, mac, name);
 	
 	decode_close();
 	stream_close();
