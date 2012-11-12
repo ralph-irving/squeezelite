@@ -30,7 +30,8 @@
 // tremor's OggVorbis_File struct is normally smaller so this is ok, but padding added to malloc in case it is bigger
 #define OV_EXCLUDE_STATIC_CALLBACKS
 
-#include <tremor/ivorbisfile.h>
+// #include <tremor/ivorbisfile.h>
+#include <vorbis/vorbisfile.h>
 #include <dlfcn.h>
 
 struct vorbis {
