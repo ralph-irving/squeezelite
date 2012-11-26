@@ -70,33 +70,13 @@ void send_packet(u8_t *packet, size_t len) {
 	while (len) {
 		n = send(sock, ptr, len, 0);
 		if (n < 0) {
-			LOG_WARN("failed writing to socket: %s", strerror(errno));
+			LOG_INFO("failed writing to socket: %s", strerror(errno));
 			return;
 		}
 		ptr += n;
 		len -= n;
 	}
 }
-
-/*
-void hexdump(u8_t *pack, int len) {
-	char buf1[1024];
-	char buf2[1024];
-	char *ptr1 = buf1;
-	char *ptr2 = buf2;
-	len = min(1024/3 - 1, len);
-
-	while (len--) {
-		sprintf(ptr1, "%02X ", *pack);
-		sprintf(ptr2, "%c  ", *pack > 32 ? *pack : ' ');
-		ptr1 += 3;
-		ptr2 += 3;
-		pack++;
-	}
-	LOG_INFO("hex: %s", buf1);
-	LOG_INFO("str: %s", buf2);
-}
-*/
 
 inline void packN(u32_t *dest, u32_t val) {
 	u8_t *ptr = (u8_t *)dest;
@@ -382,7 +362,7 @@ static void slimproto_run() {
 				if (expect > 0) {
 					int n = recv(sock, buffer + got, expect, 0);
 					if (n <= 0) {
-						LOG_WARN("error reading from socket: %s", n ? strerror(errno) : "closed");
+						LOG_INFO("error reading from socket: %s", n ? strerror(errno) : "closed");
 						return;
 					}
 					expect -= n;
@@ -394,7 +374,7 @@ static void slimproto_run() {
 				} else if (expect == 0) {
 					int n = recv(sock, buffer + got, 2 - got, 0);
 					if (n <= 0) {
-						LOG_WARN("error reading from socket: %s", n ? strerror(errno) : "closed");
+						LOG_INFO("error reading from socket: %s", n ? strerror(errno) : "closed");
 						return;
 					}
 					got += n;
@@ -549,7 +529,7 @@ in_addr_t discover_server(void) {
 		memset(&s, 0, sizeof(s));
 
 		if (sendto(disc_sock, buf, 1, 0, (struct sockaddr *)&d, sizeof(d)) < 0) {
-			LOG_WARN("error sending disovery");
+			LOG_INFO("error sending disovery");
 		}
 
 		if (poll(&pollinfo, 1, 5000)) {

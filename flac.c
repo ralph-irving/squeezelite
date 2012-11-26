@@ -28,12 +28,12 @@
 struct flac {
 	FLAC__StreamDecoder *decoder;
 	// FLAC symbols to be dynamically loaded
-	FLAC_API const char **FLAC__StreamDecoderErrorStatusString;
-	FLAC_API const char **FLAC__StreamDecoderStateString;
-	FLAC_API FLAC__StreamDecoder * (* FLAC__stream_decoder_new)(void);
-	FLAC_API FLAC__bool (* FLAC__stream_decoder_reset)(FLAC__StreamDecoder *decoder);
-	FLAC_API void (* FLAC__stream_decoder_delete)(FLAC__StreamDecoder *decoder);
-	FLAC_API FLAC__StreamDecoderInitStatus (* FLAC__stream_decoder_init_stream)(
+	const char **FLAC__StreamDecoderErrorStatusString;
+	const char **FLAC__StreamDecoderStateString;
+	FLAC__StreamDecoder * (* FLAC__stream_decoder_new)(void);
+	FLAC__bool (* FLAC__stream_decoder_reset)(FLAC__StreamDecoder *decoder);
+	void (* FLAC__stream_decoder_delete)(FLAC__StreamDecoder *decoder);
+	FLAC__StreamDecoderInitStatus (* FLAC__stream_decoder_init_stream)(
 		FLAC__StreamDecoder *decoder,
 		FLAC__StreamDecoderReadCallback read_callback,
 		FLAC__StreamDecoderSeekCallback seek_callback,
@@ -45,8 +45,8 @@ struct flac {
 		FLAC__StreamDecoderErrorCallback error_callback,
 		void *client_data
 	);
-	FLAC_API FLAC__bool (* FLAC__stream_decoder_process_single)(FLAC__StreamDecoder *decoder);
-	FLAC_API FLAC__StreamDecoderState (* FLAC__stream_decoder_get_state)(const FLAC__StreamDecoder *decoder);
+	FLAC__bool (* FLAC__stream_decoder_process_single)(FLAC__StreamDecoder *decoder);
+	FLAC__StreamDecoderState (* FLAC__stream_decoder_get_state)(const FLAC__StreamDecoder *decoder);
 };
 
 static struct flac *f;
@@ -176,7 +176,7 @@ static bool load_flac() {
 
 	char *err;
 	if ((err = dlerror()) != NULL) {
-		LOG_WARN("dlerror: %s", err);		
+		LOG_INFO("dlerror: %s", err);		
 		return false;
 	}
 

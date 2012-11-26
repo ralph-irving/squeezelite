@@ -200,7 +200,7 @@ static bool load_vorbis() {
 	
 	char *err;
 	if ((err = dlerror()) != NULL) {
-		LOG_WARN("dlerror: %s", err);		
+		LOG_INFO("dlerror: %s", err);		
 		return false;
 	}
 	

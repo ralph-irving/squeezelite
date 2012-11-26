@@ -191,7 +191,7 @@ static bool load_mad() {
 
 	char *err;
 	if ((err = dlerror()) != NULL) {
-		LOG_WARN("dlerror: %s", err);		
+		LOG_INFO("dlerror: %s", err);		
 		return false;
 	}
 

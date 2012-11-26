@@ -140,8 +140,7 @@ static bool pcm_probe(const char *device) {
 static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate, unsigned buffer_time, unsigned period_count) {
 	int err;
 	snd_pcm_hw_params_t *hw_params;
-	hw_params = (snd_pcm_hw_params_t *) alloca(snd_pcm_hw_params_sizeof());
-	memset(hw_params, 0, snd_pcm_hw_params_sizeof());
+	snd_pcm_hw_params_alloca(&hw_params);
 
 	// close if already open
 	if (*pcmp) alsa_close(*pcmp);
@@ -180,19 +179,6 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 		alsa.mmap = true;
 	}
 
-	// set sample rate
-	if ((err = snd_pcm_hw_params_set_rate(*pcmp, hw_params, sample_rate, 0)) < 0) {
-		LOG_ERROR("sample rate not available: %s", snd_strerror(err));
-		return err;
-	}
-	alsa.rate = sample_rate;
-
-	// set channels
-	if ((err = snd_pcm_hw_params_set_channels (*pcmp, hw_params, 2)) < 0) {
-		LOG_ERROR("channel count not available: %s", snd_strerror(err));
-		return err;
-	}
-
 	// set the sample format
 	snd_pcm_format_t *fmt = alsa.mmap ? (snd_pcm_format_t *)fmts_mmap : (snd_pcm_format_t *)fmts_writei;
 	while (*fmt != SND_PCM_FORMAT_UNKNOWN) {
@@ -208,25 +194,30 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 		}
 	}
 
+	// set channels
+	if ((err = snd_pcm_hw_params_set_channels (*pcmp, hw_params, 2)) < 0) {
+		LOG_ERROR("channel count not available: %s", snd_strerror(err));
+		return err;
+	}
+
+	// set sample rate
+	if ((err = snd_pcm_hw_params_set_rate(*pcmp, hw_params, sample_rate, 0)) < 0) {
+		LOG_ERROR("sample rate not available: %s", snd_strerror(err));
+		return err;
+	}
+	alsa.rate = sample_rate;
+
 	// set buffer time and period count
 	unsigned count = period_count;
 	if ((err = snd_pcm_hw_params_set_periods_near(*pcmp, hw_params, &count, 0)) < 0) {
-		LOG_ERROR("Unable to set period size %s", snd_strerror(err));
+		LOG_ERROR("unable to set period size %s", snd_strerror(err));
 		return err;
 	}
 
 	unsigned time = buffer_time;
 	int dir = 1;
 	if ((err = snd_pcm_hw_params_set_buffer_time_near(*pcmp, hw_params, &time, &dir)) < 0) {
-		LOG_ERROR("Unable to set  buffer time %s", snd_strerror(err));
-		return err;
-	}
-
-	LOG_INFO("buffer time: %u period count: %u", time, count);
-
-	// set params
-	if ((err = snd_pcm_hw_params(*pcmp, hw_params)) < 0) {
-		LOG_ERROR("unable to set hw params: %s", snd_strerror(err));
+		LOG_ERROR("unable to set buffer time %s", snd_strerror(err));
 		return err;
 	}
 
@@ -236,12 +227,21 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 		return err;
 	}
 
-	// prepare for use
-	if ((err = snd_pcm_prepare (*pcmp)) < 0) {
-		LOG_ERROR("cannot prepare audio interface for use: %s", snd_strerror (err));
+	// get buffer_size
+	snd_pcm_uframes_t buffer_size;
+	if ((err = snd_pcm_hw_params_get_buffer_size(hw_params, &buffer_size)) < 0) {
+		LOG_ERROR("unable to get buffer size: %s", snd_strerror(err));
 		return err;
 	}
-	
+
+	LOG_INFO("buffer time: %u period count: %u buffer size: %u period size: %u", time, count, buffer_size, alsa.period_size);
+
+	// set params
+	if ((err = snd_pcm_hw_params(*pcmp, hw_params)) < 0) {
+		LOG_ERROR("unable to set hw params: %s", snd_strerror(err));
+		return err;
+	}
+
 	// dump info
 	if (loglevel == SDEBUG) {
 		static snd_output_t *debug_output;
@@ -297,19 +297,6 @@ static void *output_thread() {
 			start = true;
 		}
 
-		// only start now for mmap access as start before writing data causes EPIPE in non mmap case
-		if (!alsa.mmap && start) {
-			if ((err = snd_pcm_start(pcmp)) < 0) {
-				LOG_WARN("start error: %s", snd_strerror(err));
-			}
-			start = false;
-		}
-
-		err = snd_pcm_wait(pcmp, 1000);
-		if (err < 0) {
-			LOG_WARN("pcm wait error: %s", snd_strerror(err));
-		}
-
 		snd_pcm_state_t state = snd_pcm_state(pcmp);
 
 		if (state == SND_PCM_STATE_XRUN) {
@@ -324,11 +311,21 @@ static void *output_thread() {
 				LOG_WARN("SUSPEND recover failed: %s", snd_strerror(err));
 			}
 		} else if (state == SND_PCM_STATE_DISCONNECTED) {
-			LOG_WARN("Device %s no longer available", output.device);
+			LOG_INFO("Device %s no longer available", output.device);
 			alsa_close(pcmp);
 			pcmp = NULL;
 			probe_device = true;
 			continue;
+		}
+
+		if (start) {
+			if ((err = snd_pcm_start(pcmp)) < 0) {
+				if ((err = snd_pcm_recover(pcmp, err, 1)) < 0) {
+					LOG_WARN("start error: %s", snd_strerror(err));
+				}
+			} else {
+				start = false;
+			}
 		}
 
 		snd_pcm_sframes_t avail = snd_pcm_avail_update(pcmp);
@@ -336,7 +333,7 @@ static void *output_thread() {
 		if (avail < 0) {
 			if ((err = snd_pcm_recover(pcmp, avail, 1)) < 0) {
 				if (err == -ENODEV) {
-					LOG_WARN("Device %s no longer available", output.device);
+					LOG_INFO("Device %s no longer available", output.device);
 					alsa_close(pcmp);
 					pcmp = NULL;
 					probe_device = true;
@@ -348,9 +345,20 @@ static void *output_thread() {
 			continue;
 		}
 
+		if (avail < alsa.period_size) {
+			if ((err = snd_pcm_wait(pcmp, 1000)) < 0) {
+				if ((err = snd_pcm_recover(pcmp, err, 1)) < 0) {
+					LOG_WARN("pcm wait error: %s", snd_strerror(err));
+				}
+				start = true;
+				continue;
+			}
+			avail = snd_pcm_avail_update(pcmp);
+		}
+
 		// avoid spinning in cases where wait returns but no bytes available (seen with pulse audio)
 		if (avail == 0) {
-			LOG_INFO("avail 0 - sleeping");
+			LOG_SDEBUG("avail 0 - sleeping");
 			usleep(10000);
 			continue;
 		}
@@ -370,7 +378,7 @@ static void *output_thread() {
 			continue;
 		}
 
-		// start when threashold met, note: avail * 4 may need tuning
+		// start when threshold met, note: avail * 4 may need tuning
 		if (output.state == OUTPUT_BUFFER && frames > avail * 4 && frames > output.threshold * output.next_sample_rate / 100) {
 			output.state = OUTPUT_RUNNING;
 			wake_controller();
@@ -625,13 +633,6 @@ static void *output_thread() {
 		}
 		
 		LOG_SDEBUG("wrote %u frames", frames);
-
-		if (start) {
-			if ((err = snd_pcm_start(pcmp)) < 0) {
-				LOG_WARN("start error: %s", snd_strerror(err));
-			}
-			start = false;
-		}
 
 		UNLOCK;
 	}

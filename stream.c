@@ -135,7 +135,7 @@ static void *stream_thread() {
 					header_len++;
 
 					if (header_len > MAX_HEADER - 1) {
-						LOG_ERROR("received headers too long");
+						LOG_ERROR("received headers too long: %u", header_len);
 						stream.state = DISCONNECT;
 						stream.disconnect = LOCAL_DISCONNECT;
 						close(fd);
@@ -281,7 +281,7 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	buf_flush(streambuf);
 
 	if (header_len > MAX_HEADER - 1) {
-		LOG_WARN("request header too long");
+		LOG_WARN("request header too long: %u", header_len);
 		LOCK;
 		stream.state = DISCONNECT;
 		stream.disconnect = UNREACHABLE;

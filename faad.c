@@ -30,14 +30,14 @@
 struct faad {
 	NeAACDecHandle hAac;
 	// faad symbols to be dynamically loaded
-	unsigned long NEAACDECAPI (* NeAACDecGetCapabilities)(void);
-	NeAACDecConfigurationPtr NEAACDECAPI (* NeAACDecGetCurrentConfiguration)(NeAACDecHandle);
-	unsigned char NEAACDECAPI (* NeAACDecSetConfiguration)(NeAACDecHandle, NeAACDecConfigurationPtr);
-	NeAACDecHandle NEAACDECAPI (* NeAACDecOpen)(void);
-	void NEAACDECAPI (* NeAACDecClose)(NeAACDecHandle);
-	long NEAACDECAPI (* NeAACDecInit)(NeAACDecHandle, unsigned char *, unsigned long, unsigned long *, unsigned char *);
-	void* NEAACDECAPI (* NeAACDecDecode)(NeAACDecHandle, NeAACDecFrameInfo *, unsigned char *, unsigned long);
-	char* NEAACDECAPI (* NeAACDecGetErrorMessage)(unsigned char);
+	unsigned long (* NeAACDecGetCapabilities)(void);
+	NeAACDecConfigurationPtr (* NeAACDecGetCurrentConfiguration)(NeAACDecHandle);
+	unsigned char (* NeAACDecSetConfiguration)(NeAACDecHandle, NeAACDecConfigurationPtr);
+	NeAACDecHandle (* NeAACDecOpen)(void);
+	void (* NeAACDecClose)(NeAACDecHandle);
+	long (* NeAACDecInit)(NeAACDecHandle, unsigned char *, unsigned long, unsigned long *, unsigned char *);
+	void *(* NeAACDecDecode)(NeAACDecHandle, NeAACDecFrameInfo *, unsigned char *, unsigned long);
+	char *(* NeAACDecGetErrorMessage)(unsigned char);
 };
 
 static struct faad *a;
@@ -209,7 +209,7 @@ static bool load_faad() {
 
 	char *err;
 	if ((err = dlerror()) != NULL) {
-		LOG_WARN("dlerror: %s", err);		
+		LOG_INFO("dlerror: %s", err);		
 		return false;
 	}
 
