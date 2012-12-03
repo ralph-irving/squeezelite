@@ -114,7 +114,7 @@ struct audg_packet {
 	char  opcode[4];
 	u32_t old_gainL;     // unused
 	u32_t old_gainR;     // unused
-	u8_t  fixed_digital; // unused
+	u8_t  adjust;
 	u8_t  preamp;        // unused
 	u32_t gainL;
 	u32_t gainR;

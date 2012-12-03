@@ -171,7 +171,7 @@ static void mad_close(void) {
 static bool load_mad() {
 	void *handle = dlopen(LIBMAD, RTLD_NOW);
 	if (!handle) {
-		LOG_WARN("dlerror: %s", dlerror());
+		LOG_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 

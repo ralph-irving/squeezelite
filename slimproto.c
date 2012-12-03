@@ -78,28 +78,8 @@ void send_packet(u8_t *packet, size_t len) {
 	}
 }
 
-inline void packN(u32_t *dest, u32_t val) {
-	u8_t *ptr = (u8_t *)dest;
-	*(ptr)   = (val >> 24) & 0xFF; *(ptr+1) = (val >> 16) & 0xFF; *(ptr+2) = (val >> 8) & 0xFF;	*(ptr+3) = val & 0xFF;
-}
-
-inline void packn(u16_t *dest, u16_t val) {
-	u8_t *ptr = (u8_t *)dest;
-	*(ptr) = (val >> 8) & 0xFF; *(ptr+1) = val & 0xFF;
-}
-
-inline u32_t unpackN(u32_t *src) {
-	u8_t *ptr = (u8_t *)src;
-	return *(ptr) << 24 | *(ptr+1) << 16 | *(ptr+2) << 8 | *(ptr+3);
-} 
-
-inline u16_t unpackn(u16_t *src) {
-	u8_t *ptr = (u8_t *)src;
-	return *(ptr) << 8 | *(ptr+1);
-} 
-
 static void sendHELO(bool reconnect, const char *cap, u8_t mac[6]) {
-	const char *capbase = "Model=squeezelite,ModelName=SqueezeLite,AccuratePlayPoints=1,";
+	const char *capbase = "Model=squeezelite,ModelName=SqueezeLite,AccuratePlayPoints=1,HasDigitalOut=1,";
 	
 	struct HELO_packet pkt = {
 		.opcode = "HELO",
@@ -311,11 +291,11 @@ static void process_audg(u8_t *pkt, int len) {
 	audg->gainL = unpackN(&audg->gainL);
 	audg->gainR = unpackN(&audg->gainR);
 
-	LOG_INFO("audg gainL: %u gainR: %u", audg->gainL, audg->gainR);
+	LOG_INFO("audg gainL: %u gainR: %u adjust: %u", audg->gainL, audg->gainR, audg->adjust);
 
 	LOCK_O;
-	output.gainL = audg->gainL;
-	output.gainR = audg->gainR;
+	output.gainL = audg->adjust ? audg->gainL : FIXED_ONE;
+	output.gainR = audg->adjust ? audg->gainR : FIXED_ONE;
 	UNLOCK_O;
 }
 
@@ -394,8 +374,8 @@ static void slimproto_run() {
 			}
 
 			if (pollinfo[1].revents) {
-				eventfd_t val;
-				eventfd_read(efd, &val);
+				uint64_t u;
+				u = read(efd, &u, sizeof(uint64_t));
 				wake = true;
 			}
 		}
@@ -502,7 +482,8 @@ static void slimproto_run() {
 
 // called from other threads to wake state machine above
 void wake_controller(void) {
-	eventfd_write(efd, 1);
+	uint64_t u = 1;
+	u = write(efd, &u, sizeof(uint64_t));
 }
 
 in_addr_t discover_server(void) {

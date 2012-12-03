@@ -84,3 +84,23 @@ void get_mac(u8_t mac[]) {
 	close(s);
 } 
  
+// pack/unpack to network byte order
+inline void packN(u32_t *dest, u32_t val) {
+	u8_t *ptr = (u8_t *)dest;
+	*(ptr)   = (val >> 24) & 0xFF; *(ptr+1) = (val >> 16) & 0xFF; *(ptr+2) = (val >> 8) & 0xFF;	*(ptr+3) = val & 0xFF;
+}
+
+inline void packn(u16_t *dest, u16_t val) {
+	u8_t *ptr = (u8_t *)dest;
+	*(ptr) = (val >> 8) & 0xFF; *(ptr+1) = val & 0xFF;
+}
+
+inline u32_t unpackN(u32_t *src) {
+	u8_t *ptr = (u8_t *)src;
+	return *(ptr) << 24 | *(ptr+1) << 16 | *(ptr+2) << 8 | *(ptr+3);
+} 
+
+inline u16_t unpackn(u16_t *src) {
+	u8_t *ptr = (u8_t *)src;
+	return *(ptr) << 8 | *(ptr+1);
+} 

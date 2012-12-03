@@ -28,10 +28,18 @@ static log_level loglevel;
 
 #define MAX_SILENCE_FRAMES 1024
 
+// for mmap ouput we convert to LE formats on BE devices as it is likely hardware requires LE
 static snd_pcm_format_t fmts_mmap[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S24_LE, SND_PCM_FORMAT_S24_3LE, SND_PCM_FORMAT_S16_LE,
 										SND_PCM_FORMAT_UNKNOWN };
 
-static snd_pcm_format_t fmts_writei[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_UNKNOWN };
+// for non mmap output we rely on ALSA to do the conversion and just open the device in native 32bit native endian
+static snd_pcm_format_t fmts_writei[] = {
+#if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+	SND_PCM_FORMAT_S32_LE,
+#else
+	SND_PCM_FORMAT_S32_BE,
+#endif
+	SND_PCM_FORMAT_UNKNOWN };
 
 typedef unsigned frames_t;
 
@@ -45,8 +53,6 @@ static struct {
 } alsa;
 
 struct outputstate output;
-
-#define FIXED_ONE 0x10000
 
 static inline s32_t gain(s32_t gain, s32_t sample) {
 	s64_t res = (s64_t)gain * (s64_t)sample;
@@ -485,6 +491,7 @@ static void *output_thread() {
 				switch(alsa.format) {
 				case SND_PCM_FORMAT_S16_LE:
 					{
+#if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 						s16_t *optr = (s16_t *)(void *)outputptr;
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							while (cnt--) {
@@ -497,10 +504,31 @@ static void *output_thread() {
 								*(optr++) = gain(gainR, *(inputptr++)) >> 16;
 							}
 						}
+#else
+						u8_t *optr = (u8_t *)(void *)outputptr;
+						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
+							while (cnt--) {
+								*(optr++) = (*(inputptr)   & 0x00ff0000) >> 16;
+								*(optr++) = (*(inputptr++) & 0xff000000) >> 24;
+								*(optr++) = (*(inputptr)   & 0x00ff0000) >> 16;
+								*(optr++) = (*(inputptr++) & 0xff000000) >> 24;
+							}
+						} else {
+							while (cnt--) {
+								s32_t lsample = gain(gainL, *(inputptr++));
+								s32_t rsample = gain(gainR, *(inputptr++));
+								*(optr++) = (lsample & 0x00ff0000) >> 16;
+								*(optr++) = (lsample & 0xff000000) >> 24;
+								*(optr++) = (rsample & 0x00ff0000) >> 16;
+								*(optr++) = (rsample & 0xff000000) >> 24;
+							}
+						}
+#endif
 					}
 					break;
 				case SND_PCM_FORMAT_S24_LE: 
 					{
+#if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 						s32_t *optr = (s32_t *)(void *)outputptr;
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							while (cnt--) {
@@ -513,6 +541,34 @@ static void *output_thread() {
 								*(optr++) = gain(gainR, *(inputptr++)) >> 8;
 							}
 						}
+#else
+						u8_t *optr = (u8_t *)(void *)outputptr;
+						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
+							while (cnt--) {
+								*(optr++) = (*(inputptr)   & 0x0000ff00) >>  8;
+								*(optr++) = (*(inputptr)   & 0x00ff0000) >> 16;
+								*(optr++) = (*(inputptr++) & 0xff000000) >> 24;
+								*(optr++) = 0;
+								*(optr++) = (*(inputptr)   & 0x0000ff00) >>  8;
+								*(optr++) = (*(inputptr)   & 0x00ff0000) >> 16;
+								*(optr++) = (*(inputptr++) & 0xff000000) >> 24;
+								*(optr++) = 0;
+							}
+						} else {
+							while (cnt--) {
+								s32_t lsample = gain(gainL, *(inputptr++));
+								s32_t rsample = gain(gainR, *(inputptr++));
+								*(optr++) = (lsample & 0x0000ff00) >>  8;
+								*(optr++) = (lsample & 0x00ff0000) >> 16;
+								*(optr++) = (lsample & 0xff000000) >> 24;
+								*(optr++) = 0;
+								*(optr++) = (rsample & 0x0000ff00) >>  8;
+								*(optr++) = (rsample & 0x00ff0000) >> 16;
+								*(optr++) = (rsample & 0xff000000) >> 24;
+								*(optr++) = 0;
+							}
+						}
+#endif
 					}
 					break;
 				case SND_PCM_FORMAT_S24_3LE:
@@ -527,9 +583,18 @@ static void *output_thread() {
 									while (cnt >= 2) {
 										s32_t l1 = *(inputptr++); s32_t r1 = *(inputptr++);
 										s32_t l2 = *(inputptr++); s32_t r2 = *(inputptr++);
+#if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 										*(o_ptr++) = (l1 & 0xffffff00) >>  8 | (r1 & 0x0000ff00) << 16;
 										*(o_ptr++) = (r1 & 0xffff0000) >> 16 | (l2 & 0x00ffff00) <<  8;
 										*(o_ptr++) = (l2 & 0xff000000) >> 24 | (r2 & 0xffffff00);
+#else
+										*(o_ptr++) = (l1 & 0x0000ff00) << 16 | (l1 & 0x00ff0000) | (l1 & 0xff000000) >> 16 |
+											(r1 & 0x0000ff00) >> 8; 
+										*(o_ptr++) = (r1 & 0x00ff0000) <<  8 | (r1 & 0xff000000) >> 8 | (l2 & 0x0000ff00) |
+											(l2 & 0x00ff0000) >> 16;
+										*(o_ptr++) = (l2 & 0xff000000) | (r2 & 0x0000ff00) << 8 | (r2 & 0x00ff0000) >> 8 |
+											(r2 & 0xff000000) >> 24;
+#endif
 										optr += 12;
 										cnt  -=  2;
 									}
@@ -554,9 +619,18 @@ static void *output_thread() {
 									while (cnt >= 2) {
 										s32_t l1 = gain(gainL, *(inputptr++)); s32_t r1 = gain(gainR, *(inputptr++));
 										s32_t l2 = gain(gainL, *(inputptr++)); s32_t r2 = gain(gainR, *(inputptr++));
+#if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 										*(o_ptr++) = (l1 & 0xffffff00) >>  8 | (r1 & 0x0000ff00) << 16;
 										*(o_ptr++) = (r1 & 0xffff0000) >> 16 | (l2 & 0x00ffff00) <<  8;
 										*(o_ptr++) = (l2 & 0xff000000) >> 24 | (r2 & 0xffffff00);
+#else
+										*(o_ptr++) = (l1 & 0x0000ff00) << 16 | (l1 & 0x00ff0000) | (l1 & 0xff000000) >> 16 |
+											(r1 & 0x0000ff00) >> 8; 
+										*(o_ptr++) = (r1 & 0x00ff0000) <<  8 | (r1 & 0xff000000) >> 8 | (l2 & 0x0000ff00) |
+											(l2 & 0x00ff0000) >> 16;
+										*(o_ptr++) = (l2 & 0xff000000) | (r2 & 0x0000ff00) << 8 | (r2 & 0x00ff0000) >> 8 |
+											(r2 & 0xff000000) >> 24;
+#endif
 										optr += 12;
 										cnt  -=  2;
 									}
@@ -577,6 +651,7 @@ static void *output_thread() {
 					break;
 				case SND_PCM_FORMAT_S32_LE:
 					{
+#if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 						s32_t *optr = (s32_t *)(void *)outputptr;
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							memcpy(outputptr, inputptr, cnt * BYTES_PER_FRAME);
@@ -586,6 +661,34 @@ static void *output_thread() {
 								*(optr++) = gain(gainR, *(inputptr++));
 							}
 						}
+#else
+						u8_t *optr = (u8_t *)(void *)outputptr;
+						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
+							while (cnt--) {
+								*(optr++) = (*(inputptr)   & 0x000000ff);
+								*(optr++) = (*(inputptr)   & 0x0000ff00) >>  8;
+								*(optr++) = (*(inputptr)   & 0x00ff0000) >> 16;
+								*(optr++) = (*(inputptr++) & 0xff000000) >> 24;
+								*(optr++) = (*(inputptr)   & 0x000000ff);
+								*(optr++) = (*(inputptr)   & 0x0000ff00) >>  8;
+								*(optr++) = (*(inputptr)   & 0x00ff0000) >> 16;
+								*(optr++) = (*(inputptr++) & 0xff000000) >> 24;
+							}
+						} else {
+							while (cnt--) {
+								s32_t lsample = gain(gainL, *(inputptr++));
+								s32_t rsample = gain(gainR, *(inputptr++));
+								*(optr++) = (lsample & 0x000000ff);
+								*(optr++) = (lsample & 0x0000ff00) >>  8;
+								*(optr++) = (lsample & 0x00ff0000) >> 16;
+								*(optr++) = (lsample & 0xff000000) >> 24;
+								*(optr++) = (rsample & 0x000000ff);
+								*(optr++) = (rsample & 0x0000ff00) >>  8;
+								*(optr++) = (rsample & 0x00ff0000) >> 16;
+								*(optr++) = (rsample & 0xff000000) >> 24;
+							}
+						}
+#endif
 					}
 					break;
 				default:

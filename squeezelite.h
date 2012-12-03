@@ -35,7 +35,7 @@
 #include <sys/types.h>
 #include <poll.h>
 
-#define VERSION "v0.4beta2-177"
+#define VERSION "v0.5beta1-182"
 
 #define STREAMBUF_SIZE (2 * 1024 * 1024)
 #define OUTPUTBUF_SIZE (44100 * 8 * 10)
@@ -48,6 +48,8 @@
 
 #define ALSA_BUFFER_TIME 20000
 #define ALSA_PERIOD_COUNT 4
+
+#define FIXED_ONE 0x10000
 
 typedef u_int8_t  u8_t;
 typedef u_int16_t u16_t;
@@ -76,6 +78,10 @@ void logprint(const char *fmt, ...);
 // utils.c (non logging)
 u32_t gettime_ms(void);
 void get_mac(u8_t *mac);
+inline void packN(u32_t *dest, u32_t val);
+inline void packn(u16_t *dest, u16_t val);
+inline u32_t unpackN(u32_t *src);
+inline u16_t unpackn(u16_t *src);
 
 // buffer.c
 struct buffer {

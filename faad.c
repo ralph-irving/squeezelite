@@ -29,6 +29,7 @@
 
 struct faad {
 	NeAACDecHandle hAac;
+	u8_t type;
 	// faad symbols to be dynamically loaded
 	unsigned long (* NeAACDecGetCapabilities)(void);
 	NeAACDecConfigurationPtr (* NeAACDecGetCurrentConfiguration)(NeAACDecHandle);
@@ -36,6 +37,7 @@ struct faad {
 	NeAACDecHandle (* NeAACDecOpen)(void);
 	void (* NeAACDecClose)(NeAACDecHandle);
 	long (* NeAACDecInit)(NeAACDecHandle, unsigned char *, unsigned long, unsigned long *, unsigned char *);
+	char (* NeAACDecInit2)(NeAACDecHandle, unsigned char *pBuffer, unsigned long, unsigned long *, unsigned char *);
 	void *(* NeAACDecDecode)(NeAACDecHandle, NeAACDecFrameInfo *, unsigned char *, unsigned long);
 	char *(* NeAACDecGetErrorMessage)(unsigned char);
 };
@@ -57,45 +59,154 @@ extern struct decodestate decode;
 
 typedef u_int32_t frames_t;
 
+// minimal code for mp4 file parsing to extract audio config and find media data
+
+// adapted from faad2/common/mp4ff
+u32_t mp4_desc_length(u8_t **buf) {
+	u8_t b;
+	u8_t num_bytes = 0;
+	u32_t length = 0;
+
+	do {
+		b = **buf;
+		*buf += 1;
+		num_bytes++;
+		length = (length << 7) | (b & 0x7f);
+	} while ((b & 0x80) && num_bytes < 4);
+
+	return length;
+}
+
+// read mp4 header to extract config data - assume this occurs at start of streambuf
+static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_p) {
+	size_t bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
+	char type[5];
+	u32_t len;
+
+	while (bytes >= 8) {
+		len = unpackN((u32_t *)streambuf->readp);
+		memcpy(type, streambuf->readp + 4, 4);
+		type[4] = '\0';
+
+		// extract audio config from within esds and pass to DecInit2
+		if (!strcmp(type, "esds") && bytes > len) {
+			u8_t *ptr = streambuf->readp + 12;
+			if (*ptr++ == 0x03) {
+				mp4_desc_length(&ptr);
+				ptr += 4;
+			} else {
+				ptr += 3;
+			}
+			mp4_desc_length(&ptr);
+			ptr += 13;
+			if (*ptr++ != 0x05) {
+				LOG_WARN("error parsing esds");
+				return -1;
+			}
+			unsigned config_len = mp4_desc_length(&ptr);
+			if (a->NeAACDecInit2(a->hAac, ptr, config_len, samplerate_p, channels_p) != 0) {
+				LOG_WARN("bad audio config");
+				return -1;
+			}
+		}
+		
+		// found media data, advance past header and return
+		// currently assume audio samples are packed with no gaps into mdat from this point - we don't use stsz, stsc to find them
+		if (!strcmp(type, "mdat")) {
+			LOG_DEBUG("type: mdat");
+			_buf_inc_readp(streambuf, 8);
+			if (len == 1) {
+				_buf_inc_readp(streambuf, 8);
+			}
+			return 1;
+		}
+
+		// default to consuming entire box
+		u32_t consume = len;
+
+		// read into these boxes so reduce consume
+		if (!strcmp(type, "moov") || !strcmp(type, "trak") || !strcmp(type, "mdia") || !strcmp(type, "minf") || !strcmp(type, "stbl")) {
+			consume = 8;
+		}
+		if (!strcmp(type, "stsd")) consume = 16;
+		if (!strcmp(type, "mp4a")) consume = 36;
+
+		if (bytes > len) {
+			LOG_DEBUG("type: %s len: %u consume: %u", type, len, consume);
+			_buf_inc_readp(streambuf, consume);
+			bytes -= consume;
+		} else if (len > streambuf->size / 2) {
+			LOG_WARN("type: %s len: %u - excessive length can't parse", type, len);
+			return -1;
+		} else {
+			break;
+		}
+	}
+
+	return 0;
+}
+
 static void faad_decode(void) {
 	LOCK_S;
 	size_t bytes_total = _buf_used(streambuf);
 	size_t bytes_wrap  = min(bytes_total, _buf_cont_read(streambuf));
 
 	if (decode.new_stream) {
+		int found = 0;
+		static unsigned char channels;
+		static unsigned long samplerate;
 
-		// find adts sync at start of header
-		while (bytes_wrap >= 2 && (*(streambuf->readp) != 0xFF || (*(streambuf->readp + 1) & 0xF6) != 0xF0)) {
-			_buf_inc_readp(streambuf, 1);
-			bytes_total--;
-			bytes_wrap--;
+		if (a->type == '2') {
+
+			LOG_INFO("opening atds stream");
+
+			while (bytes_wrap >= 2 && (*(streambuf->readp) != 0xFF || (*(streambuf->readp + 1) & 0xF6) != 0xF0)) {
+				_buf_inc_readp(streambuf, 1);
+				bytes_total--;
+				bytes_wrap--;
+			}
+
+			long n = a->NeAACDecInit(a->hAac, streambuf->readp, bytes_wrap, &samplerate, &channels);
+			if (n < 0) {
+				found = -1;
+			} else {
+				_buf_inc_readp(streambuf, n);
+				found = 1;
+			}
+
+		} else {
+
+			LOG_INFO("opening mp4 stream");
+
+			found = read_mp4_header(&samplerate, &channels);
 		}
 
-		unsigned char channels;
-		unsigned long samplerate;
+		if (found == 1) {
 
-		long n = a->NeAACDecInit(a->hAac, streambuf->readp, bytes_wrap, &samplerate, &channels);
-		if (n < 0) {
-			LOG_WARN("error initialising - ending stream");
+			LOG_INFO("samplerate: %u channels: %u", samplerate, channels);
+			bytes_total = _buf_used(streambuf);
+			bytes_wrap  = min(bytes_total, _buf_cont_read(streambuf));
+
+			LOCK_O;
+			LOG_INFO("setting track_start");
+			output.next_sample_rate = samplerate; 
+			output.track_start = outputbuf->writep;
+			decode.new_stream = false;
+			UNLOCK_O;
+		}
+
+		if (found == -1) {
+
+			LOG_WARN("error reading stream header");
 			UNLOCK_S;
 			LOCK_O;
 			decode.state = DECODE_ERROR;
 			UNLOCK_O;
 			return;
 		}
-
-		_buf_inc_readp(streambuf, n);
-		bytes_total = _buf_used(streambuf);
-		bytes_wrap  = min(bytes_total, _buf_cont_read(streambuf));
-
-		LOG_INFO("setting track_start");
-		output.next_sample_rate = samplerate; 
-		output.track_start = outputbuf->writep;
-		decode.new_stream = false;
 	}
 
 	NeAACDecFrameInfo info;
-
 	s32_t *iptr;
 
 	if (bytes_wrap < WRAPBUF_LEN && bytes_total > WRAPBUF_LEN) {
@@ -136,13 +247,13 @@ static void faad_decode(void) {
 
 		if (info.channels == 2) {
 			while (count--) {
-				*optr++ = *iptr++;
-				*optr++ = *iptr++;
+				*optr++ = *iptr++ << 8;
+				*optr++ = *iptr++ << 8;
 			}
 		} else if (info.channels == 1) {
 			while (count--) {
-				*optr++ = *iptr;
-				*optr++ = *iptr++;
+				*optr++ = *iptr << 8;
+				*optr++ = *iptr++ << 8;
 			}
 		} else {
 			LOG_WARN("unsupported number of channels");
@@ -154,19 +265,11 @@ static void faad_decode(void) {
 
 	UNLOCK_O;
 
-	LOG_SDEBUG("wrote %u frames", info.samples);
+	LOG_SDEBUG("wrote %u frames", info.samples / info.channels);
 }
 
 static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
-	if (size == '2') {
-		LOG_INFO("opening adts stream");
-	} else {
-		LOG_ERROR("aac stream type %c not supported", size);
-		LOCK_O;
-		decode.state = DECODE_ERROR;
-		UNLOCK_O;
-		return;
-	}
+	a->type = size;
 
 	if (a->hAac) {
 		a->NeAACDecClose(a->hAac);
@@ -175,7 +278,7 @@ static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 
 	NeAACDecConfigurationPtr conf = a->NeAACDecGetCurrentConfiguration(a->hAac);
 
-	conf->outputFormat = FAAD_FMT_32BIT;
+	conf->outputFormat = FAAD_FMT_24BIT;
 	conf->downMatrix = 1;
 
 	if (!a->NeAACDecSetConfiguration(a->hAac, conf)) {
@@ -191,7 +294,7 @@ static void faad_close(void) {
 static bool load_faad() {
 	void *handle = dlopen(LIBFAAD, RTLD_NOW);
 	if (!handle) {
-		LOG_WARN("dlerror: %s", dlerror());
+		LOG_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 
@@ -204,6 +307,7 @@ static bool load_faad() {
 	a->NeAACDecOpen = dlsym(handle, "NeAACDecOpen");
 	a->NeAACDecClose = dlsym(handle, "NeAACDecClose");
 	a->NeAACDecInit = dlsym(handle, "NeAACDecInit");
+	a->NeAACDecInit2 = dlsym(handle, "NeAACDecInit2");
 	a->NeAACDecDecode = dlsym(handle, "NeAACDecDecode");
 	a->NeAACDecGetErrorMessage = dlsym(handle, "NeAACDecGetErrorMessage");
 

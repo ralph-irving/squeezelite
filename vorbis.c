@@ -185,7 +185,7 @@ static bool load_vorbis() {
 		if (handle) {
 			tremor = true;
 		} else {
-			LOG_WARN("dlerror: %s", dlerror());
+			LOG_INFO("dlerror: %s", dlerror());
 			return false;
 		}
 	}
