@@ -27,9 +27,20 @@
 
 #define WRAPBUF_LEN 2048
 
+struct chunk_table {
+	u32_t sample, offset;
+};
+
 struct faad {
 	NeAACDecHandle hAac;
 	u8_t type;
+	// following used for mp4 only
+	u32_t consume;
+	u32_t pos;
+	u32_t sample;
+	u32_t nextchunk;
+	void *stsc;
+	struct chunk_table *chunkinfo;
 	// faad symbols to be dynamically loaded
 	unsigned long (* NeAACDecGetCapabilities)(void);
 	NeAACDecConfigurationPtr (* NeAACDecGetCurrentConfiguration)(NeAACDecHandle);
@@ -77,7 +88,7 @@ u32_t mp4_desc_length(u8_t **buf) {
 	return length;
 }
 
-// read mp4 header to extract config data - assume this occurs at start of streambuf
+// read mp4 header to extract config data
 static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_p) {
 	size_t bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
 	char type[5];
@@ -87,6 +98,17 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 		len = unpackN((u32_t *)streambuf->readp);
 		memcpy(type, streambuf->readp + 4, 4);
 		type[4] = '\0';
+
+		// count trak to find the first playable one
+		static unsigned trak, play;
+
+		if (!strcmp(type, "moov")) {
+			trak = 0;
+			play = 0;
+		}
+		if (!strcmp(type, "trak")) {
+			trak++;
+		}
 
 		// extract audio config from within esds and pass to DecInit2
 		if (!strcmp(type, "esds") && bytes > len) {
@@ -104,21 +126,94 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				return -1;
 			}
 			unsigned config_len = mp4_desc_length(&ptr);
-			if (a->NeAACDecInit2(a->hAac, ptr, config_len, samplerate_p, channels_p) != 0) {
-				LOG_WARN("bad audio config");
-				return -1;
+			if (a->NeAACDecInit2(a->hAac, ptr, config_len, samplerate_p, channels_p) == 0) {
+				LOG_DEBUG("playable aac track: %u", trak);
+				play = trak;
 			}
 		}
-		
-		// found media data, advance past header and return
-		// currently assume audio samples are packed with no gaps into mdat from this point - we don't use stsz, stsc to find them
-		if (!strcmp(type, "mdat")) {
-			LOG_DEBUG("type: mdat");
-			_buf_inc_readp(streambuf, 8);
-			if (len == 1) {
-				_buf_inc_readp(streambuf, 8);
+
+		// stash sample to chunk info, assume it comes before stco
+		if (!strcmp(type, "stsc") && bytes > len && !a->chunkinfo) {
+			a->stsc = malloc(len - 12);
+			if (a->stsc == NULL) {
+				LOG_WARN("malloc fail");
+				return -1;
 			}
-			return 1;
+			memcpy(a->stsc, streambuf->readp + 12, len - 12);
+		}
+
+		// build offsets table from stco and stored stsc
+		if (!strcmp(type, "stco") && bytes > len && play == trak) {
+			// extract chunk offsets
+			u8_t *ptr = streambuf->readp + 12;
+			u32_t entries = unpackN((u32_t *)ptr);
+			ptr += 4;
+			a->chunkinfo = malloc(sizeof(struct chunk_table) * (entries + 1));
+			if (a->chunkinfo == NULL) {
+				LOG_WARN("malloc fail");
+				return -1;
+			}
+			u32_t i;
+			for (i = 0; i < entries; ++i) {
+				a->chunkinfo[i].offset = unpackN((u32_t *)ptr);
+				a->chunkinfo[i].sample = 0;
+				ptr += 4;
+			}
+			a->chunkinfo[i].sample = 0;
+			a->chunkinfo[i].offset = 0;
+			// fill in first sample id for each chunk from stored stsc
+			if (a->stsc) {
+				u32_t stsc_entries = unpackN((u32_t *)a->stsc);
+				u32_t sample = 0;
+				u32_t last = 0, last_samples = 0;
+				void *ptr = a->stsc + 4;
+				while (stsc_entries--) {
+					u32_t first = unpackN((u32_t *)ptr);
+					u32_t samples = unpackN((u32_t *)(ptr + 4));
+					if (last) {
+						for (i = last - 1; i < first - 1; ++i) {
+							a->chunkinfo[i].sample = sample;
+							sample += last_samples;
+						}
+					}
+					if (stsc_entries == 0) {
+						for (i = first - 1; i < entries; ++i) {
+							a->chunkinfo[i].sample = sample;
+							sample += samples;
+						}
+					}
+					last = first;
+					last_samples = samples;
+					ptr += 12;
+				}
+				free(a->stsc);
+				a->stsc = NULL;
+			}
+		}
+
+		// found media data, advance to start of first chunk and return
+		if (!strcmp(type, "mdat")) {
+ 			_buf_inc_readp(streambuf, 8);
+			a->pos += 8;
+			bytes  -= 8;
+			if (play) {
+				LOG_DEBUG("type: mdat len: %u pos: %u", len, a->pos);
+				if (a->chunkinfo && a->chunkinfo[0].offset > a->pos) {
+					u32_t skip = a->chunkinfo[0].offset - a->pos; 	
+					LOG_DEBUG("skipping: %u", skip);
+					if (skip <= bytes) {
+						_buf_inc_readp(streambuf, skip);
+						a->pos += skip;
+					} else {
+						a->consume = skip;
+					}
+				}
+				a->sample = a->nextchunk = 1;
+				return 1;
+			} else {
+				LOG_DEBUG("type: mdat len: %u, no playable track found", len);
+				return -1;
+			}
 		}
 
 		// default to consuming entire box
@@ -131,13 +226,18 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 		if (!strcmp(type, "stsd")) consume = 16;
 		if (!strcmp(type, "mp4a")) consume = 36;
 
-		if (bytes > len) {
+		// consume rest of box if it has been parsed (all in the buffer) or is not one we want to parse
+		if (bytes >= consume) {
 			LOG_DEBUG("type: %s len: %u consume: %u", type, len, consume);
 			_buf_inc_readp(streambuf, consume);
+			a->pos += consume;
 			bytes -= consume;
-		} else if (len > streambuf->size / 2) {
-			LOG_WARN("type: %s len: %u - excessive length can't parse", type, len);
-			return -1;
+		} else if (!(!strcmp(type, "esds") || !strcmp(type, "stsc") || !strcmp(type, "stco"))) {
+			LOG_DEBUG("type: %s len: %u consume: %u - partial consume: %u", type, len, consume, bytes);
+			_buf_inc_readp(streambuf, bytes);
+			a->pos += bytes;
+			a->consume = consume - bytes;
+			break;
 		} else {
 			break;
 		}
@@ -151,6 +251,16 @@ static void faad_decode(void) {
 	size_t bytes_total = _buf_used(streambuf);
 	size_t bytes_wrap  = min(bytes_total, _buf_cont_read(streambuf));
 
+	if (a->consume) {
+		u32_t consume = min(a->consume, bytes_wrap);
+		LOG_DEBUG("consume: %u of %u", consume, a->consume);
+		_buf_inc_readp(streambuf, consume);
+		a->pos += consume;
+		a->consume -= consume;
+		UNLOCK_S;
+		return;
+	}
+
 	if (decode.new_stream) {
 		int found = 0;
 		static unsigned char channels;
@@ -158,26 +268,26 @@ static void faad_decode(void) {
 
 		if (a->type == '2') {
 
-			LOG_INFO("opening atds stream");
-
+			// adts stream - seek for header
 			while (bytes_wrap >= 2 && (*(streambuf->readp) != 0xFF || (*(streambuf->readp + 1) & 0xF6) != 0xF0)) {
 				_buf_inc_readp(streambuf, 1);
 				bytes_total--;
 				bytes_wrap--;
 			}
-
-			long n = a->NeAACDecInit(a->hAac, streambuf->readp, bytes_wrap, &samplerate, &channels);
-			if (n < 0) {
-				found = -1;
-			} else {
-				_buf_inc_readp(streambuf, n);
-				found = 1;
+			
+			if (bytes_wrap >= 2) {
+				long n = a->NeAACDecInit(a->hAac, streambuf->readp, bytes_wrap, &samplerate, &channels);
+				if (n < 0) {
+					found = -1;
+				} else {
+					_buf_inc_readp(streambuf, n);
+					found = 1;
+				}
 			}
 
 		} else {
 
-			LOG_INFO("opening mp4 stream");
-
+			// mp4 - read header
 			found = read_mp4_header(&samplerate, &channels);
 		}
 
@@ -193,15 +303,20 @@ static void faad_decode(void) {
 			output.track_start = outputbuf->writep;
 			decode.new_stream = false;
 			UNLOCK_O;
-		}
 
-		if (found == -1) {
+		} else if (found == -1) {
 
 			LOG_WARN("error reading stream header");
 			UNLOCK_S;
 			LOCK_O;
 			decode.state = DECODE_ERROR;
 			UNLOCK_O;
+			return;
+
+		} else {
+
+			// not finished header parsing come back next time
+			UNLOCK_S;
 			return;
 		}
 	}
@@ -223,12 +338,51 @@ static void faad_decode(void) {
 		iptr = a->NeAACDecDecode(a->hAac, &info, streambuf->readp, bytes_wrap);
 	}
 
-	_buf_inc_readp(streambuf, info.bytesconsumed);
+	if (info.error) {
+		LOG_WARN("error: %u %s", info.error, a->NeAACDecGetErrorMessage(info.error));
+	}
+
+	bool endstream = false;
+
+	// mp4 end of chunk - skip to next offset
+	if (a->chunkinfo && a->chunkinfo[a->nextchunk].offset && a->sample++ == a->chunkinfo[a->nextchunk].sample) {
+
+		if (a->chunkinfo[a->nextchunk].offset > a->pos) {
+			u32_t skip = a->chunkinfo[a->nextchunk].offset - a->pos;
+			if (skip != info.bytesconsumed) {
+				LOG_DEBUG("skipping to next chunk pos: %u consumed: %u != skip: %u", a->pos, info.bytesconsumed, skip);
+			}
+			if (bytes_total >= skip) {
+				_buf_inc_readp(streambuf, skip);
+				a->pos += skip;
+			} else {
+				a->consume = skip;
+			}
+			a->nextchunk++;
+		} else {
+			LOG_ERROR("error: need to skip backwards!");
+			endstream = true;
+		}
+
+	// adts and mp4 when not at end of chunk 
+	} else if (info.bytesconsumed != 0) {
+
+		_buf_inc_readp(streambuf, info.bytesconsumed);
+		a->pos += info.bytesconsumed;
+
+	// error which doesn't advance streambuf - end
+	} else {
+		endstream = true;
+	}
 
 	UNLOCK_S;
 
-	if (info.error) {
-		LOG_WARN("error: %u %s", info.error, a->NeAACDecGetErrorMessage(info.error));
+	if (endstream) {
+		LOG_WARN("unable to decode further");
+		LOCK_O;
+		decode.state = DECODE_ERROR;
+		UNLOCK_O;
+		return;
 	}
 
 	if (!info.samples) {
@@ -269,7 +423,19 @@ static void faad_decode(void) {
 }
 
 static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
+	LOG_INFO("opening %s stream", size == '2' ? "adts" : "mp4");
+
 	a->type = size;
+	a->pos = a->consume = a->sample = a->nextchunk = 0;
+
+	if (a->chunkinfo) {
+		free(a->chunkinfo);
+	}
+	if (a->stsc) {
+		free(a->stsc);
+	}
+	a->chunkinfo = NULL;
+	a->stsc = NULL;
 
 	if (a->hAac) {
 		a->NeAACDecClose(a->hAac);
@@ -289,6 +455,14 @@ static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 static void faad_close(void) {
 	a->NeAACDecClose(a->hAac);
 	a->hAac = NULL;
+	if (a->chunkinfo) {
+		free(a->chunkinfo);
+		a->chunkinfo = NULL;
+	}
+	if (a->stsc) {
+		free(a->stsc);
+		a->stsc = NULL;
+	}
 }
 
 static bool load_faad() {
@@ -301,6 +475,8 @@ static bool load_faad() {
 	a = malloc(sizeof(struct faad));
 
 	a->hAac = NULL;
+	a->chunkinfo = NULL;
+	a->stsc = NULL;
 	a->NeAACDecGetCapabilities = dlsym(handle, "NeAACDecGetCapabilities");
 	a->NeAACDecGetCurrentConfiguration = dlsym(handle, "NeAACDecGetCurrentConfiguration");
 	a->NeAACDecSetConfiguration = dlsym(handle, "NeAACDecSetConfiguration");

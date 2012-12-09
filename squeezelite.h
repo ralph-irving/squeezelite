@@ -35,7 +35,7 @@
 #include <sys/types.h>
 #include <poll.h>
 
-#define VERSION "v0.5beta1-182"
+#define VERSION "v0.5beta2-183"
 
 #define STREAMBUF_SIZE (2 * 1024 * 1024)
 #define OUTPUTBUF_SIZE (44100 * 8 * 10)
