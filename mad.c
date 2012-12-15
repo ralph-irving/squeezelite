@@ -23,6 +23,8 @@
 #include <mad.h>
 #include <dlfcn.h>
 
+#define MAD_DELAY 529
+
 #define READBUF_SIZE 2048 // local buffer used by decoder: FIXME merge with any other decoders needing one?
 
 #define LIBMAD "libmad.so.0"
@@ -33,6 +35,10 @@ struct mad {
 	struct mad_stream stream;
 	struct mad_frame frame;
 	struct mad_synth synth;
+	// for lame gapless processing
+	bool checkgapless;
+	u32_t skip;
+	u64_t samples;
 	// mad symbols to be dynamically loaded
 	void (* mad_stream_init)(struct mad_stream *);
 	void (* mad_frame_init)(struct mad_frame *);
@@ -72,9 +78,60 @@ static inline u32_t scale(mad_fixed_t sample) {
 	return (s32_t)(sample >> (MAD_F_FRACBITS + 1 - 24)) << 8;
 }
 
-static void mad_decode(void) {
+// check for lame gapless params, don't advance streambuf
+static void _check_lame_header(size_t bytes) {
+	u8_t *ptr = streambuf->readp;
+
+	if (*ptr == 0xff && (*(ptr+1) & 0xf0) == 0xf0 && bytes > 180) {
+
+		// 2 channels
+		if (!memcmp(ptr + 36, "Xing", 4) || !memcmp(ptr + 36, "Info", 4)) {
+			ptr += 36 + 7;
+		// mono	
+		} else if (!memcmp(ptr + 21, "Xing", 4) || !memcmp(ptr + 21, "Info", 4)) {
+			ptr += 21 + 7;
+		}
+
+		u32_t frame_count = 0, enc_delay = 0, enc_padding = 0;
+		u8_t flags = *ptr;
+
+		if (flags & 0x01) {
+			frame_count = unpackN((u32_t *)(ptr + 1));
+			ptr += 4;
+		}
+		if (flags & 0x02) ptr += 4;
+		if (flags & 0x04) ptr += 100;
+		if (flags & 0x08) ptr += 4;
+
+		if (!!memcmp(ptr+1, "LAME", 4)) {
+			return;
+		}
+
+		ptr += 22;
+
+		enc_delay   = (*ptr << 4 | *(ptr + 1) >> 4) + MAD_DELAY;
+		enc_padding = (*(ptr + 1) & 0xF) << 8 | *(ptr + 2);
+		enc_padding = enc_padding > MAD_DELAY ? enc_padding - MAD_DELAY : 0;
+
+		// add one frame to initial skip for this (empty) frame
+		m->skip    = enc_delay + 1152;
+		m->samples = frame_count * 1152 - enc_delay - enc_padding;
+		
+		LOG_INFO("gapless: skip: %u samples: " FMT_u64 " delay: %u padding: %u", m->skip, m->samples, enc_delay, enc_padding);
+	}
+}
+
+static decode_state mad_decode(void) {
 	LOCK_S;
 	size_t bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
+	bool eos = false;
+
+	if (m->checkgapless) {
+		m->checkgapless = false;
+		if (!stream.meta_interval) {
+			_check_lame_header(bytes);
+		}
+	}
 
 	if (m->stream.next_frame && m->readbuf_len) {
 		m->readbuf_len -= m->stream.next_frame - m->readbuf;
@@ -87,9 +144,12 @@ static void mad_decode(void) {
 	_buf_inc_readp(streambuf, bytes);
 
 	if (stream.state <= DISCONNECT && _buf_used(streambuf) == 0) {
+		eos = true;
+		LOG_DEBUG("end of stream");
 		memset(m->readbuf + m->readbuf_len, 0, MAD_BUFFER_GUARD);
 		m->readbuf_len += MAD_BUFFER_GUARD;
 	}
+
 	UNLOCK_S;
 
 	m->mad_stream_buffer(&m->stream, m->readbuf, m->readbuf_len);
@@ -97,19 +157,18 @@ static void mad_decode(void) {
 	while (true) {
 
 		if (m->mad_frame_decode(&m->frame, &m->stream) == -1) {
-			if (m->stream.error == MAD_ERROR_BUFLEN) {
-				return;
+			if (m->stream.error == MAD_ERROR_BUFLEN && !eos) {
+				return DECODE_RUNNING;
 			}
 			if (!MAD_RECOVERABLE(m->stream.error)) {
-				LOG_WARN("mad_frame_decode error: %s", m->mad_stream_errorstr(&m->stream));
-				LOG_INFO("unrecoverable - stopping decoder");
-				LOCK_O;
-				decode.state = DECODE_COMPLETE;
-				UNLOCK_O;
+				LOG_INFO("mad_frame_decode error: %s - stopping decoder", m->mad_stream_errorstr(&m->stream));
+				return DECODE_ERROR;
+			} if (m->stream.error == MAD_ERROR_LOSTSYNC && eos) {
+				return DECODE_COMPLETE;
 			} else {
 				LOG_DEBUG("mad_frame_decode error: %s", m->mad_stream_errorstr(&m->stream));
+				return DECODE_RUNNING;
 			}
-			return;
 		};
 
 		m->mad_synth_frame(&m->synth, &m->frame);
@@ -132,6 +191,25 @@ static void mad_decode(void) {
 		s32_t *iptrl = m->synth.pcm.samples[0];
 		s32_t *iptrr = m->synth.pcm.samples[ m->synth.pcm.channels - 1 ];
 
+		if (m->skip) {
+			u32_t skip = min(m->skip, frames);
+			LOG_DEBUG("gapless: skipping %u frames at start", skip);
+			frames -= skip;
+			m->skip -= skip;
+			iptrl += skip;
+			iptrr += skip;
+		}
+
+		if (m->samples) {
+			if (m->samples < frames) {
+				LOG_DEBUG("gapless: trimming %u frames from end", frames - m->samples);
+				frames = m->samples;
+			}
+			m->samples -= frames;
+		}
+
+		LOG_SDEBUG("write %u frames", frames);
+
 		while (frames > 0) {
 			size_t f = min(frames, _buf_cont_write(outputbuf) / BYTES_PER_FRAME);
 			s32_t *optr = (s32_t *)outputbuf->writep;
@@ -144,16 +222,19 @@ static void mad_decode(void) {
 			_buf_inc_writep(outputbuf, f * BYTES_PER_FRAME);
 		}
 
-		LOG_SDEBUG("write %u frames", m->synth.pcm.length);
-
 		UNLOCK_O;
 	}
+
+	return eos ? DECODE_COMPLETE : DECODE_RUNNING;
 }
 
 static void mad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	if (!m->readbuf) {
 		m->readbuf = malloc(READBUF_SIZE + MAD_BUFFER_GUARD);
 	}
+	m->checkgapless = true;
+	m->skip = MAD_DELAY;
+	m->samples = 0;
 	m->readbuf_len = 0;
 	m->mad_stream_init(&m->stream);
 	m->mad_frame_init(&m->frame);

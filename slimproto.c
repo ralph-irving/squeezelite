@@ -168,6 +168,19 @@ static void sendRESP(const char *header, size_t len) {
 	send_packet((u8_t *)header, len);
 }
 
+static void sendMETA(const char *meta, size_t len) {
+	struct META_header pkt_header;
+
+	memset(&pkt_header, 0, sizeof(pkt_header));
+	memcpy(&pkt_header.opcode, "META", 4);
+	pkt_header.length = htonl(sizeof(pkt_header) + len - 8);
+
+	LOG_INFO("META");
+
+	send_packet((u8_t *)&pkt_header, sizeof(pkt_header));
+	send_packet((u8_t *)meta, len);
+}
+
 static void sendSETDName(const char *name) {
 	struct SETD_header pkt_header;
 
@@ -245,11 +258,11 @@ static void process_strm(u8_t *pkt, int len) {
 
 			LOG_INFO("strm s autostart: %c", strm->autostart);
 
+			autostart = strm->autostart - '0';
 			sendSTAT("STMf", 0);
 			codec_open(strm->format, strm->pcm_sample_size, strm->pcm_sample_rate, strm->pcm_channels, strm->pcm_endianness);
-			stream_sock(ip, port, header, header_len, strm->threshold * 1024);
+			stream_sock(ip, port, header, header_len, strm->threshold * 1024, autostart >= 2);
 			sendSTAT("STMc", 0);
-			autostart = strm->autostart - '0';
 			sentSTMu = sentSTMo = sentSTMl = false;
 			LOCK_O;
 			output.threshold = strm->output_threshold;
@@ -264,9 +277,19 @@ static void process_strm(u8_t *pkt, int len) {
 }
 
 static void process_cont(u8_t *pkt, int len) {
-	// ignore any params from cont as we don't yet suport icy meta
+	struct cont_packet *cont = (struct cont_packet *)pkt;
+	cont->metaint = unpackN(&cont->metaint);
+
+	LOG_INFO("cont metaint: %u loop: %u", cont->metaint, cont->loop);
+
 	if (autostart > 1) {
 		autostart -= 2;
+		LOCK_S;
+		if (stream.state == STREAMING_WAIT) {
+			stream.state = STREAMING_BUFFERING;
+			stream.meta_interval = stream.meta_next = cont->metaint;
+		}
+		UNLOCK_S;
 		wake_controller();
 	}
 }
@@ -390,6 +413,7 @@ static void slimproto_run() {
 			bool _sendSTMs = false;
 			bool _sendDSCO = false;
 			bool _sendRESP = false;
+			bool _sendMETA = false;
 			bool _sendSTMd = false;
 			bool _sendSTMt = false;
 			bool _sendSTMl = false;
@@ -398,7 +422,7 @@ static void slimproto_run() {
 			bool _sendSTMn = false;
 			disconnect_code disconnect;
 			static char header[MAX_HEADER];
-			size_t header_len;
+			size_t header_len = 0;
 
 			LOCK_S;
 			status.stream_full = _buf_used(streambuf);
@@ -411,11 +435,18 @@ static void slimproto_run() {
 				stream.state = STOPPED;
 				_sendDSCO = true;
 			}
-			if ((stream.state == STREAMING_HTTP || stream.state == STREAMING_BUFFERING) && !stream.sent_headers) {
+			if (!stream.sent_headers && 
+				(stream.state == STREAMING_HTTP || stream.state == STREAMING_WAIT || stream.state == STREAMING_BUFFERING)) {
 				header_len = stream.header_len;
 				memcpy(header, stream.header, header_len);
 				_sendRESP = true;
 				stream.sent_headers = true;
+			}
+			if (stream.meta_send) {
+				header_len = stream.header_len;
+				memcpy(header, stream.header, header_len);
+				_sendMETA = true;
+				stream.meta_send = false;
 			}
 			UNLOCK_S;
 			
@@ -476,6 +507,7 @@ static void slimproto_run() {
 			if (_sendSTMo) sendSTAT("STMo", 0);
 			if (_sendSTMn) sendSTAT("STMn", 0);
 			if (_sendRESP) sendRESP(header, header_len);
+			if (_sendMETA) sendMETA(header, header_len);
 		}
 	}
 }

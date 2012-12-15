@@ -70,9 +70,15 @@ static void send_header(void) {
 
 static bool running = true;
 
-static void *stream_thread() {
+static void _disconnect(stream_state state, disconnect_code disconnect) {
+	stream.state = state;
+	stream.disconnect = disconnect;
+	close(fd);
+	fd = -1;
+	wake_controller();
+}
 
-	size_t header_len = 0;
+static void *stream_thread() {
 
 	while (running) {
 
@@ -86,7 +92,7 @@ static void *stream_thread() {
 		LOCK;
 		size_t space = min(_buf_space(streambuf), _buf_cont_write(streambuf));
 
-		if (stream.state > DISCONNECT && space) {
+		if (stream.state > STREAMING_WAIT && space) {
 			pollinfo.events = POLLIN;
 			if (stream.state == SEND_HEADERS) {
 				pollinfo.events |= POLLOUT;
@@ -97,17 +103,18 @@ static void *stream_thread() {
 		
 		if (poll(&pollinfo, 1, 100)) {
 
+			LOCK;
+
 			if ((pollinfo.revents & POLLOUT) && stream.state == SEND_HEADERS) {
 				send_header();
-				header_len = 0;
-				LOCK;
+				stream.header_len = 0;
 				stream.state = RECV_HEADERS;
 				UNLOCK;
 				continue;
 			}
 					
 			if (pollinfo.revents & POLLIN) {
-				
+
 				// get response headers
 				if (stream.state == RECV_HEADERS) {
 
@@ -115,41 +122,32 @@ static void *stream_thread() {
 					char c;
 					static int endtok;
 
-					LOCK;
 					int n = recv(fd, &c, 1, 0);
 					if (n <= 0) {
 						if (n < 0 && errno == EAGAIN) {
+							UNLOCK;
 							continue;
 						}
 						LOG_WARN("error reading headers: %s", n ? strerror(errno) : "closed");
-						stream.state = STOPPED;
-						stream.disconnect = LOCAL_DISCONNECT;
-						close(fd);
-						fd = -1;
-						wake_controller();
+						_disconnect(STOPPED, LOCAL_DISCONNECT);
 						UNLOCK;
 						continue;
 					}
 
-					*(stream.header + header_len) = c;
-					header_len++;
+					*(stream.header + stream.header_len) = c;
+					stream.header_len++;
 
-					if (header_len > MAX_HEADER - 1) {
-						LOG_ERROR("received headers too long: %u", header_len);
-						stream.state = DISCONNECT;
-						stream.disconnect = LOCAL_DISCONNECT;
-						close(fd);
-						fd = -1;
-						wake_controller();
+					if (stream.header_len > MAX_HEADER - 1) {
+						LOG_ERROR("received headers too long: %u", stream.header_len);
+						_disconnect(DISCONNECT, LOCAL_DISCONNECT);
 					}
 
-					if (header_len > 1 && (c == '\r' || c == '\n')) {
+					if (stream.header_len > 1 && (c == '\r' || c == '\n')) {
 						endtok++;
 						if (endtok == 4) {
-							*(stream.header + header_len) = '\0';
-							stream.header_len = header_len;
-							LOG_INFO("headers: len: %d\n%s", header_len, stream.header);
-							stream.state = STREAMING_BUFFERING;
+							*(stream.header + stream.header_len) = '\0';
+							LOG_INFO("headers: len: %d\n%s", stream.header_len, stream.header);
+							stream.state = stream.cont_wait ? STREAMING_WAIT : STREAMING_BUFFERING;
 							wake_controller();
 						}
 					} else {
@@ -160,42 +158,92 @@ static void *stream_thread() {
 					continue;
 				}
 				
+				// receive icy meta data
+				if (stream.meta_interval && stream.meta_next == 0) {
+
+					if (stream.meta_left == 0) {
+						// read meta length
+						u8_t c;
+						int n = recv(fd, &c, 1, 0);
+						if (n <= 0) {
+							if (n < 0 && errno == EAGAIN) {
+								UNLOCK;
+								continue;
+							}
+							LOG_WARN("error reading icy meta: %s", n ? strerror(errno) : "closed");
+							_disconnect(STOPPED, LOCAL_DISCONNECT);
+							UNLOCK;
+							continue;
+						}
+						stream.meta_left = 16 * c;
+						stream.header_len = 0; // amount of received meta data
+						// MAX_HEADER must be more than meta max of 16 * 255
+					}
+
+					if (stream.meta_left) {
+						int n = recv(fd, stream.header + stream.header_len, stream.meta_left, 0);
+						if (n <= 0) {
+							if (n < 0 && errno == EAGAIN) {
+								UNLOCK;
+								continue;
+							}
+							LOG_WARN("error reading icy meta: %s", n ? strerror(errno) : "closed");
+							_disconnect(STOPPED, LOCAL_DISCONNECT);
+							UNLOCK;
+							continue;
+						}
+						stream.meta_left -= n;
+						stream.header_len += n;
+					}
+					
+					if (stream.meta_left == 0) {
+						if (stream.header_len) {
+							*(stream.header + stream.header_len) = '\0';
+							LOG_INFO("icy meta: len: %u\n%s", stream.header_len, stream.header);
+							stream.meta_send = true;
+							wake_controller();
+						}
+						stream.meta_next = stream.meta_interval;
+						UNLOCK;
+						continue;
+					}
+
 				// stream body into streambuf
-				LOCK;
-				
-				space = min(_buf_space(streambuf), _buf_cont_write(streambuf));
-				
-				int n = stream.state == STREAMING_FILE ? read(fd, streambuf->writep, space) : recv(fd, streambuf->writep, space, 0);
-				if (n == 0) {
-					LOG_INFO("end of stream");
-					stream.state = DISCONNECT;
-					stream.disconnect = DISCONNECT_OK;
-					close(fd);
-					fd = -1;
-					wake_controller();
-				}
-				if (n < 0 && errno != EAGAIN) {
-					LOG_WARN("error reading: %s", strerror(errno));
-					stream.state = DISCONNECT;
-					stream.disconnect = REMOTE_DISCONNECT;
-					close(fd);
-					fd = -1;
-					wake_controller();
-				}
-				
-				if (n > 0) {
-					_buf_inc_writep(streambuf, n);
-					stream.bytes += n;
+				} else {
+					
+					space = min(_buf_space(streambuf), _buf_cont_write(streambuf));
+					if (stream.meta_interval) {
+						space = min(space, stream.meta_next);
+					}
+					
+					int n = stream.state == STREAMING_FILE ? read(fd, streambuf->writep, space) : recv(fd, streambuf->writep, space, 0);
+					if (n == 0) {
+						LOG_INFO("end of stream");
+						_disconnect(DISCONNECT, DISCONNECT_OK);
+					}
+					if (n < 0 && errno != EAGAIN) {
+						LOG_WARN("error reading: %s", strerror(errno));
+						_disconnect(DISCONNECT, REMOTE_DISCONNECT);
+					}
+					
+					if (n > 0) {
+						_buf_inc_writep(streambuf, n);
+						stream.bytes += n;
+						if (stream.meta_interval) {
+							stream.meta_next -= n;
+						}
+					}
+
 					if (stream.state == STREAMING_BUFFERING && stream.bytes > stream.threshold) {
 						stream.state = STREAMING_HTTP;
 						wake_controller();
 					}
+				
+					LOG_SDEBUG("streambuf read %d bytes", n);
 				}
-				
-				UNLOCK;
-				
-				LOG_SDEBUG("streambuf read %d bytes", n);
 			}
+
+			UNLOCK;
 			
 		} else {
 			
@@ -249,7 +297,7 @@ void stream_local(const char *filename) {
 	UNLOCK;
 }
 
-void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold) {
+void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold, bool cont_wait) {
     struct sockaddr_in addr;
 
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -289,20 +337,18 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 		return;
 	}
 
-
 	LOCK;
 
 	fd = sock;
 	stream.state = SEND_HEADERS;
+	stream.cont_wait = cont_wait;
+	stream.meta_interval = 0;
+	stream.meta_next = 0;
+	stream.meta_left = 0;
+	stream.meta_send = false;
 	stream.header_len = header_len;
 	memcpy(stream.header, header, header_len);
 	*(stream.header+header_len) = '\0';
-
-	char *tok;
-	if ((tok = strstr(stream.header, "Icy-Metadata: 1"))) {
-		LOG_INFO("adjusting icy meta request - not supported");
-		*(tok+14) = '0';
-	}
 
 	LOG_INFO("header: %s", stream.header);
 

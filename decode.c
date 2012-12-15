@@ -56,17 +56,20 @@ static void *decode_thread() {
 		
 			LOG_SDEBUG("streambuf bytes: %u outputbuf space: %u", bytes, space);
 			
-			if (space > codec->min_space && bytes && (bytes > codec->min_read_bytes || toend)) {
+			if (space > codec->min_space && (bytes > codec->min_read_bytes || toend)) {
 				
-				codec->decode();
+				state = codec->decode();
 
-			} else if (toend && bytes == 0) {
+				if (state != DECODE_RUNNING) {
 
-				LOG_INFO("decode complete");
-				LOCK_O;
-				decode.state = DECODE_COMPLETE;
-				UNLOCK_O;
-				wake_controller();
+					LOG_INFO("decode %s", state == DECODE_COMPLETE ? "complete" : "error");
+
+					LOCK_O;
+					decode.state = state;
+					UNLOCK_O;
+
+					wake_controller();
+				}
 
 			} else {
 				usleep(100000);
@@ -91,7 +94,7 @@ void decode_init(log_level level, const char *opt) {
 	// register codecs
 	// alc,wma,wmap,wmal,aac,spt,ogg,ogf,flc,aif,pcm,mp3
 	int i = 0;
-	// if (!opt || !strcmp(opt, "aac"))  codecs[i++] = register_faad();
+	if (!opt || !strcmp(opt, "aac"))  codecs[i++] = register_faad();
 	if (!opt || !strcmp(opt, "ogg"))  codecs[i++] = register_vorbis();
 	if (!opt || !strcmp(opt, "flac")) codecs[i++] = register_flac();
 	if (!opt || !strcmp(opt, "pcm"))  codecs[i++] = register_pcm();

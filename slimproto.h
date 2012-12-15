@@ -71,6 +71,13 @@ struct RESP_header {
 	// char header[] - added in sendRESP
 } __attribute__((packed));
 
+// S:N:Slimproto _http_metadata_handler
+struct META_header {
+	char  opcode[4];
+	u32_t length;
+	// char metadata[]
+} __attribute__((packed));
+
 // S:N:Slimproto _http_setting_handler
 struct SETD_header {
 	char  opcode[4];
@@ -121,4 +128,11 @@ struct audg_packet {
 	// squence ids - unused
 } __attribute__((packed));
 
+// S:P:Squeezebox2
+struct cont_packet {
+	char  opcode[4];
+	u32_t metaint;
+	u8_t  loop;
+	// guids we don't use
+} __attribute__((packed));
 

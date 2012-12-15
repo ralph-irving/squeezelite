@@ -35,12 +35,12 @@
 #include <sys/types.h>
 #include <poll.h>
 
-#define VERSION "v0.5beta2-183"
+#define VERSION "v0.6beta1-184"
 
 #define STREAMBUF_SIZE (2 * 1024 * 1024)
 #define OUTPUTBUF_SIZE (44100 * 8 * 10)
 
-#define MAX_HEADER 2048
+#define MAX_HEADER 4096 // do not reduce as icy-meta max is 4080
 
 #define STREAM_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 4)
 #define DECODE_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 8)
@@ -58,6 +58,17 @@ typedef u_int64_t u64_t;
 typedef int16_t   s16_t;
 typedef int32_t   s32_t;
 typedef int64_t   s64_t;
+
+// printf/scanf formats for u64_t
+#if __WORDSIZE == 64
+#define FMT_u64 "%lu"
+#define FMT_x64 "%lx"
+#elif __GLIBC_HAVE_LONG_LONG || defined __GNUC__
+#define FMT_u64 "%llu"
+#define FMT_x64 "%llx"
+#else
+#error can not support u64_t
+#endif
 
 #define BYTES_PER_FRAME 8
 
@@ -111,7 +122,8 @@ void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name)
 void wake_controller(void);
 
 // stream.c
-typedef enum { STOPPED = 0, DISCONNECT, STREAMING_BUFFERING, STREAMING_FILE, STREAMING_HTTP, SEND_HEADERS, RECV_HEADERS } stream_state;
+typedef enum { STOPPED = 0, DISCONNECT, STREAMING_WAIT,
+			   STREAMING_BUFFERING, STREAMING_FILE, STREAMING_HTTP, SEND_HEADERS, RECV_HEADERS } stream_state;
 typedef enum { DISCONNECT_OK = 0, LOCAL_DISCONNECT = 1, REMOTE_DISCONNECT = 2, UNREACHABLE = 3, TIMEOUT = 4 } disconnect_code;
 
 struct streamstate {
@@ -120,14 +132,19 @@ struct streamstate {
 	char *header;
 	size_t header_len;
 	bool sent_headers;
+	bool cont_wait;
 	u64_t bytes;
 	unsigned threshold;
+	u32_t meta_interval;
+	u32_t meta_next;
+	u32_t meta_left;
+	bool  meta_send;
 };
 
 void stream_init(log_level level, unsigned stream_buf_size);
 void stream_close(void);
 void stream_local(const char *filename);
-void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold);
+void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
 
 // decode.c
 typedef enum { DECODE_STOPPED = 0, DECODE_RUNNING, DECODE_COMPLETE, DECODE_ERROR } decode_state;
@@ -144,7 +161,7 @@ struct codec {
 	unsigned min_space;
 	void (*open)(u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t endianness);
 	void (*close)(void);
-	void (*decode)(void);
+	decode_state (*decode)(void);
 };
 
 void decode_init(log_level level, const char *opt);

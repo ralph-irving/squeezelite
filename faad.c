@@ -40,6 +40,9 @@ struct faad {
 	u32_t sample;
 	u32_t nextchunk;
 	void *stsc;
+	u32_t skip;
+	u64_t samples;
+	bool  empty;
 	struct chunk_table *chunkinfo;
 	// faad symbols to be dynamically loaded
 	unsigned long (* NeAACDecGetCapabilities)(void);
@@ -216,15 +219,39 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 			}
 		}
 
+		// parse key-value atoms within ilst ---- entries to get encoder padding within iTunSMPB entry for gapless
+		if (!strcmp(type, "----") && bytes > len) {
+			u8_t *ptr = streambuf->readp + 8;
+			u32_t remain = len - 8, size;
+			if (!memcmp(ptr + 4, "mean", 4) && (size = unpackN((u32_t *)ptr)) < remain) {
+				ptr += size; remain -= size;
+			}
+			if (!memcmp(ptr + 4, "name", 4) && (size = unpackN((u32_t *)ptr)) < remain && !memcmp(ptr + 12, "iTunSMPB", 8)) {
+				ptr += size; remain -= size;
+			}
+			if (!memcmp(ptr + 4, "data", 4) && remain > 16 + 48) {
+				// data is stored as hex strings: 0 start end samples
+				u32_t b, c; u64_t d;
+				if (sscanf((const char *)(ptr + 16), "%x %x %x " FMT_x64, &b, &b, &c, &d) == 4) {
+					LOG_DEBUG("iTunSMPB start: %u end: %u samples: " FMT_u64, b, c, d);
+					a->skip = b;
+					a->samples = d;
+				}
+			}
+		}
+
 		// default to consuming entire box
 		u32_t consume = len;
 
 		// read into these boxes so reduce consume
-		if (!strcmp(type, "moov") || !strcmp(type, "trak") || !strcmp(type, "mdia") || !strcmp(type, "minf") || !strcmp(type, "stbl")) {
+		if (!strcmp(type, "moov") || !strcmp(type, "trak") || !strcmp(type, "mdia") || !strcmp(type, "minf") || !strcmp(type, "stbl") ||
+			!strcmp(type, "udta") || !strcmp(type, "ilst")) {
 			consume = 8;
 		}
+		// special cases which mix mix data in the enclosing box which we want to read into
 		if (!strcmp(type, "stsd")) consume = 16;
 		if (!strcmp(type, "mp4a")) consume = 36;
+		if (!strcmp(type, "meta")) consume = 12;
 
 		// consume rest of box if it has been parsed (all in the buffer) or is not one we want to parse
 		if (bytes >= consume) {
@@ -246,10 +273,15 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 	return 0;
 }
 
-static void faad_decode(void) {
+static decode_state faad_decode(void) {
 	LOCK_S;
 	size_t bytes_total = _buf_used(streambuf);
 	size_t bytes_wrap  = min(bytes_total, _buf_cont_read(streambuf));
+
+	if (stream.state <= DISCONNECT && !bytes_total) {
+		UNLOCK_S;
+		return DECODE_COMPLETE;
+	}
 
 	if (a->consume) {
 		u32_t consume = min(a->consume, bytes_wrap);
@@ -258,7 +290,7 @@ static void faad_decode(void) {
 		a->pos += consume;
 		a->consume -= consume;
 		UNLOCK_S;
-		return;
+		return DECODE_RUNNING;
 	}
 
 	if (decode.new_stream) {
@@ -308,16 +340,13 @@ static void faad_decode(void) {
 
 			LOG_WARN("error reading stream header");
 			UNLOCK_S;
-			LOCK_O;
-			decode.state = DECODE_ERROR;
-			UNLOCK_O;
-			return;
+			return DECODE_ERROR;
 
 		} else {
 
 			// not finished header parsing come back next time
 			UNLOCK_S;
-			return;
+			return DECODE_RUNNING;
 		}
 	}
 
@@ -379,19 +408,41 @@ static void faad_decode(void) {
 
 	if (endstream) {
 		LOG_WARN("unable to decode further");
-		LOCK_O;
-		decode.state = DECODE_ERROR;
-		UNLOCK_O;
-		return;
+		return DECODE_ERROR;
 	}
 
 	if (!info.samples) {
-		return;
+		a->empty = true;
+		return DECODE_RUNNING;
 	}
 
 	LOCK_O;
 
 	size_t frames = info.samples / info.channels;
+
+	if (a->skip) {
+		if (a->empty) {
+			a->empty = false;
+			a->skip -= frames;
+			LOG_DEBUG("gapless: first frame empty, skipped %u frames at start", frames);
+		}
+		u32_t skip = min(frames, a->skip);
+		LOG_DEBUG("gapless: skipping %u frames at start", skip);
+		frames -= skip;
+		a->skip -= skip;
+		iptr += skip * info.channels;
+	}
+
+	if (a->samples) {
+		if (a->samples < frames) {
+			LOG_DEBUG("gapless: trimming %u frames from end", frames - a->samples);
+			frames = a->samples;
+		}
+		a->samples -= frames;
+	}
+
+	LOG_SDEBUG("write %u frames", frames);
+
 	while (frames > 0) {
 		frames_t f = _buf_cont_write(outputbuf) / BYTES_PER_FRAME;
 		f = min(f, frames);
@@ -419,7 +470,7 @@ static void faad_decode(void) {
 
 	UNLOCK_O;
 
-	LOG_SDEBUG("wrote %u frames", info.samples / info.channels);
+	return DECODE_RUNNING;
 }
 
 static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
@@ -436,6 +487,9 @@ static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	}
 	a->chunkinfo = NULL;
 	a->stsc = NULL;
+	a->skip = 0;
+	a->samples = 0;
+	a->empty = false;
 
 	if (a->hAac) {
 		a->NeAACDecClose(a->hAac);

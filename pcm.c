@@ -46,9 +46,18 @@ static u32_t sample_size;
 static u32_t channels;
 static bool  bigendian;
 
-static void pcm_decode(void) {
+static decode_state pcm_decode(void) {
 	LOCK_S;
 	LOCK_O;
+
+	size_t in = min(_buf_used(streambuf), _buf_cont_read(streambuf)) / (channels * sample_size);
+	size_t out = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
+
+	if (stream.state <= DISCONNECT && in == 0) {
+		UNLOCK_O;
+		UNLOCK_S;
+		return DECODE_COMPLETE;
+	}
 
 	if (decode.new_stream) {
 		LOG_INFO("setting track_start");
@@ -56,9 +65,6 @@ static void pcm_decode(void) {
 		output.track_start = outputbuf->writep;
 		decode.new_stream = false;
 	}
-
-	size_t in = min(_buf_used(streambuf), _buf_cont_read(streambuf)) / (channels * sample_size);
-	size_t out = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
 
 	frames_t frames = min(in, out);
 	frames = min(frames, MAX_DECODE_FRAMES);
@@ -69,7 +75,7 @@ static void pcm_decode(void) {
 	frames_t count = frames * channels;
 
 	if (channels == 2) {
-		if (sample_size == 2) {
+ 		if (sample_size == 2) {
 			if (bigendian) {
 				while (count--) {
 					*optr++ = *(iptr) << 24 | *(iptr+1) << 16;
@@ -98,6 +104,46 @@ static void pcm_decode(void) {
 				*optr++ = *iptr++ << 24;
 			}
 		}
+	} else if (channels == 1) {
+ 		if (sample_size == 2) {
+			if (bigendian) {
+				while (count--) {
+					*optr = *(iptr) << 24 | *(iptr+1) << 16;
+					*(optr+1) = *optr;
+					iptr += 2;
+					optr += 2;
+				}
+			} else {
+				while (count--) {
+					*optr = *(iptr) << 16 | *(iptr+1) << 24;
+					*(optr+1) = *optr;
+					iptr += 2;
+					optr += 2;
+				}
+			}
+		} else if (sample_size == 3) {
+			if (bigendian) {
+				while (count--) {
+					*optr = *(iptr) << 24 | *(iptr+1) << 16 | *(iptr+2) << 8;
+					*(optr+1) = *optr;
+					iptr += 3;
+					optr += 2;
+				}
+			} else {
+				while (count--) {
+					*optr = *(iptr) << 8 | *(iptr+1) << 16 | *(iptr+2) << 24;
+					*(optr+1) = *optr;
+					iptr += 3;
+					optr += 2;
+				}
+			}
+		} else if (sample_size == 1) {
+			while (count--) {
+				*optr = *iptr++ << 24;
+				*(optr+1) = *optr;
+				optr += 2;
+			}
+		}
 	} else {
 		LOG_ERROR("unsupported channels");
 	}
@@ -109,6 +155,8 @@ static void pcm_decode(void) {
 
 	UNLOCK_O;
 	UNLOCK_S;
+
+	return DECODE_RUNNING;
 }
 
 static void pcm_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {

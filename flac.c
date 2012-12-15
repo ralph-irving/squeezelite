@@ -101,7 +101,7 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 	}
 
 	while (frames > 0) {
-		frames_t f = _buf_cont_write(outputbuf) / BYTES_PER_FRAME;
+		frames_t f = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
 		f = min(f, frames);
 
 		frames_t count = f;
@@ -148,11 +148,21 @@ static void flac_close(void) {
 	f->decoder = NULL;
 }
 
-static void flac_decode(void) {
-	if (!f->FLAC__stream_decoder_process_single(f->decoder)) {
-		FLAC__StreamDecoderState state = f->FLAC__stream_decoder_get_state(f->decoder);
-		LOG_ERROR("flac error: %s", f->FLAC__StreamDecoderStateString[state]);
+static decode_state flac_decode(void) {
+	bool ok = f->FLAC__stream_decoder_process_single(f->decoder);
+	FLAC__StreamDecoderState state = f->FLAC__stream_decoder_get_state(f->decoder);
+	
+	if (!ok && state != FLAC__STREAM_DECODER_END_OF_STREAM) {
+		LOG_INFO("flac error: %s", f->FLAC__StreamDecoderStateString[state]);
 	};
+	
+	if (state == FLAC__STREAM_DECODER_END_OF_STREAM) {
+		return DECODE_COMPLETE;
+	} else if (state > FLAC__STREAM_DECODER_END_OF_STREAM) {
+		return DECODE_ERROR;
+	} else {
+		return DECODE_RUNNING;
+	}
 }
 
 static bool load_flac() {

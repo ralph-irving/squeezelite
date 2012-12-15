@@ -78,10 +78,20 @@ static int _seek(void *datasource, ogg_int64_t offset, int whence) { return -1; 
 static int _close(void *datasource) { return 0; }
 static long _tell(void *datasource) { return 0; }
 
-static void vorbis_decode(void) {
+static decode_state vorbis_decode(void) {
 	static int channels;
 
+	LOCK_S;
+	bool end = (stream.state <= DISCONNECT);
+	UNLOCK_S;
+				  
 	LOCK_O;
+	frames_t frames = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
+
+	if (!frames && end) {
+		UNLOCK_O;
+		return DECODE_COMPLETE;
+	}
 
 	if (decode.new_stream) {
 		ov_callbacks cbs = { .read_func = _read, .seek_func = NULL, .close_func = NULL, .tell_func = NULL };
@@ -92,9 +102,8 @@ static void vorbis_decode(void) {
 		int err;
 		if ((err = v->ov_open_callbacks(streambuf, v->vf, NULL, 0, cbs)) < 0) {
 			LOG_WARN("open_callbacks error: %d", err);
-			decode.state = DECODE_COMPLETE;
 			UNLOCK_O;
-			return;
+			return DECODE_ERROR;
 		}
 
 		struct vorbis_info *info = v->ov_info(v->vf, -1);
@@ -108,13 +117,11 @@ static void vorbis_decode(void) {
 
 		if (channels > 2) {
 			LOG_WARN("too many channels: %d", channels);
-			decode.state = DECODE_COMPLETE;
 			UNLOCK_O;
-			return;
+			return DECODE_ERROR;
 		}
 	}
 
-	frames_t frames = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
 	int bytes = frames * 2 * channels; // samples returned are 16 bits
 
 	int stream, n;
@@ -152,15 +159,19 @@ static void vorbis_decode(void) {
 	} else if (n == 0) {
 
 		LOG_INFO("end of stream");
-		decode.state = DECODE_COMPLETE;
+		UNLOCK_O;
+		return DECODE_COMPLETE;
 	
 	} else {
 
 		LOG_INFO("ov_read error: %d", n);
-		decode.state = DECODE_COMPLETE;
+		UNLOCK_O;
+		return DECODE_ERROR;
 	}
 
 	UNLOCK_O;
+
+	return DECODE_RUNNING;
 }
 
 static void vorbis_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
