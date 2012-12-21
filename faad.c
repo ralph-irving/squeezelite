@@ -331,8 +331,9 @@ static decode_state faad_decode(void) {
 
 			LOCK_O;
 			LOG_INFO("setting track_start");
-			output.next_sample_rate = samplerate; 
+			output.next_sample_rate = samplerate;
 			output.track_start = outputbuf->writep;
+			if (output.fade_mode) _checkfade(true);
 			decode.new_stream = false;
 			UNLOCK_O;
 

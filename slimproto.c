@@ -256,7 +256,8 @@ static void process_strm(u8_t *pkt, int len) {
 			u16_t port = strm->server_port; // keep in network byte order
 			if (ip == 0) ip = slimproto_ip; 
 
-			LOG_INFO("strm s autostart: %c", strm->autostart);
+			LOG_INFO("strm s autostart: %c transition period: %u transition type: %u", 
+					 strm->autostart, strm->transition_period, strm->transition_type - '0');
 
 			autostart = strm->autostart - '0';
 			sendSTAT("STMf", 0);
@@ -267,6 +268,9 @@ static void process_strm(u8_t *pkt, int len) {
 			LOCK_O;
 			output.threshold = strm->output_threshold;
 			output.next_replay_gain = unpackN(&strm->replay_gain);
+			output.fade_mode = strm->transition_type - '0';
+			output.fade_secs = strm->transition_period;
+			LOG_INFO("set fade mode: %u", output.fade_mode);
 			UNLOCK_O;
 		}
 		break;

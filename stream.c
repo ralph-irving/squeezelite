@@ -263,6 +263,11 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 	LOG_DEBUG("streambuf size: %u", stream_buf_size);
 
 	buf_init(streambuf, stream_buf_size);
+	if (streambuf->buf == NULL) {
+		LOG_ERROR("unable to malloc buffer");
+		exit(0);
+	}
+	
 	stream.state = STOPPED;
 	stream.header = malloc(MAX_HEADER);
 

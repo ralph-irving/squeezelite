@@ -35,7 +35,7 @@
 #include <sys/types.h>
 #include <poll.h>
 
-#define VERSION "v0.6beta1-184"
+#define VERSION "v0.7alpha-fade2-185"
 
 #define STREAMBUF_SIZE (2 * 1024 * 1024)
 #define OUTPUTBUF_SIZE (44100 * 8 * 10)
@@ -145,6 +145,7 @@ void stream_init(log_level level, unsigned stream_buf_size);
 void stream_close(void);
 void stream_local(const char *filename);
 void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
+void stream_disconnect(void);
 
 // decode.c
 typedef enum { DECODE_STOPPED = 0, DECODE_RUNNING, DECODE_COMPLETE, DECODE_ERROR } decode_state;
@@ -172,6 +173,10 @@ void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, 
 typedef enum { OUTPUT_OFF = -1, OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNING, 
 			   OUTPUT_PAUSE_FRAMES, OUTPUT_SKIP_FRAMES, OUTPUT_START_AT } output_state;
 
+typedef enum { FADE_INACTIVE = 0, FADE_DUE, FADE_ACTIVE } fade_state;
+typedef enum { FADE_UP = 1, FADE_DOWN, FADE_CROSS } fade_dir;
+typedef enum { FADE_NONE = 0, FADE_CROSSFADE, FADE_IN, FADE_OUT, FADE_INOUT } fade_mode;
+
 struct outputstate {
 	output_state state;
 	const char *device;
@@ -195,13 +200,20 @@ struct outputstate {
 	u32_t gainR;               // set by slimproto
 	u32_t next_replay_gain;    // set by slimproto
 	unsigned threshold;        // set by slimproto
+	fade_state fade;
+	u8_t *fade_start;
+	u8_t *fade_end;
+	fade_dir fade_dir;
+	fade_mode fade_mode;       // set by slimproto
+	unsigned fade_secs;        // set by slimproto
 };
 
 void alsa_list_pcm(void);
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned period_time, unsigned period_count);
 void output_flush(void);
 void output_close(void);
-void stream_disconnect(void);
+// _* called with mutex locked
+void _checkfade(bool);
 
 // codecs
 #define MAX_CODECS 5

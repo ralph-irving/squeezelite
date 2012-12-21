@@ -111,6 +111,7 @@ static decode_state vorbis_decode(void) {
 		LOG_INFO("setting track_start");
 		output.next_sample_rate = info->rate; 
 		output.track_start = outputbuf->writep;
+		if (output.fade_mode) _checkfade(true);
 		decode.new_stream = false;
 
 		channels = info->channels;

@@ -63,6 +63,7 @@ static decode_state pcm_decode(void) {
 		LOG_INFO("setting track_start");
 		output.next_sample_rate = sample_rate; 
 		output.track_start = outputbuf->writep;
+		if (output.fade_mode) _checkfade(true);
 		decode.new_stream = false;
 	}
 

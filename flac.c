@@ -95,8 +95,9 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 
 	if (decode.new_stream) {
 		LOG_INFO("setting track_start");
-		output.next_sample_rate = frame->header.sample_rate; 
+		output.next_sample_rate = frame->header.sample_rate;
 		output.track_start = outputbuf->writep;
+		if (output.fade_mode) _checkfade(true);
 		decode.new_stream = false;
 	}
 

@@ -66,6 +66,7 @@ static void *decode_thread() {
 
 					LOCK_O;
 					decode.state = state;
+					if (output.fade_mode) _checkfade(false);
 					UNLOCK_O;
 
 					wake_controller();
