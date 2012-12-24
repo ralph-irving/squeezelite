@@ -35,10 +35,11 @@
 #include <sys/types.h>
 #include <poll.h>
 
-#define VERSION "v0.7alpha-fade2-185"
+#define VERSION "v0.7beta1-186"
 
 #define STREAMBUF_SIZE (2 * 1024 * 1024)
 #define OUTPUTBUF_SIZE (44100 * 8 * 10)
+#define OUTPUTBUF_SIZE_CROSSFADE (OUTPUTBUF_SIZE * 12 / 10)
 
 #define MAX_HEADER 4096 // do not reduce as icy-meta max is 4080
 
@@ -114,6 +115,7 @@ void _buf_inc_readp(struct buffer *buf, unsigned by);
 void _buf_inc_writep(struct buffer *buf, unsigned by);
 void buf_flush(struct buffer *buf);
 void buf_adjust(struct buffer *buf, size_t mod);
+void _buf_resize(struct buffer *buf, size_t size);
 void buf_init(struct buffer *buf, size_t size);
 void buf_destroy(struct buffer *buf);
 

@@ -24,6 +24,8 @@
 
 #include "squeezelite.h"
 
+// _* called with muxtex locked
+
 inline unsigned _buf_used(struct buffer *buf) {
 	return buf->writep >= buf->readp ? buf->writep - buf->readp : buf->size - (buf->readp - buf->writep);
 }
@@ -70,6 +72,20 @@ void buf_adjust(struct buffer *buf, size_t mod) {
 	buf->wrap   = buf->buf + size;
 	buf->size   = size;
 	pthread_mutex_unlock(&buf->mutex);
+}
+
+// called with mutex locked to resize, does not retain contents
+void _buf_resize(struct buffer *buf, size_t size) {
+	// use realloc so we can continue if resize failed at expense of copying useless data
+	u8_t *tmp = realloc(buf->buf, size);
+	if (tmp) {
+		buf->buf = tmp;
+		buf->readp  = buf->buf;
+		buf->writep = buf->buf;
+		buf->wrap   = buf->buf + size;
+		buf->size   = size;
+		buf->base_size = size;
+	}
 }
 
 void buf_init(struct buffer *buf, size_t size) {

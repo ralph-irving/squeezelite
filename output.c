@@ -36,7 +36,7 @@ static snd_pcm_format_t fmts_mmap[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S2
 
 // for non mmap output we rely on ALSA to do the conversion and just open the device in native 32bit native endian
 static snd_pcm_format_t fmts_writei[] = {
-#if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+#if IS_LITTLE_ENDIAN
 	SND_PCM_FORMAT_S32_LE,
 #else
 	SND_PCM_FORMAT_S32_BE,
@@ -163,21 +163,44 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	alsa.rate = 0;
 	alsa.period_size = 0;
 	alsa.format = SND_PCM_FORMAT_UNKNOWN;
-
-	// open device
-	if ((err = snd_pcm_open(pcmp, device, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-		LOG_ERROR("playback open error: %s", snd_strerror(err));
-		return err;
-	}
-	alsa.device = malloc(strlen(device) + 1);
+	alsa.device = malloc(strlen(device) + 1 + 4); // extra space for changing to plug
 	strcpy(alsa.device, device);
 
-	// init params
-	memset(hw_params, 0, snd_pcm_hw_params_sizeof());
-	if ((err = snd_pcm_hw_params_any(*pcmp, hw_params)) < 0) {
-		LOG_ERROR("hwparam init error: %s", snd_strerror(err));
-		return err;
-	}
+	bool retry;
+	do {
+		// open device
+		if ((err = snd_pcm_open(pcmp, alsa.device, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
+			LOG_ERROR("playback open error: %s", snd_strerror(err));
+			return err;
+		}
+
+		// init params
+		memset(hw_params, 0, snd_pcm_hw_params_sizeof());
+		if ((err = snd_pcm_hw_params_any(*pcmp, hw_params)) < 0) {
+			LOG_ERROR("hwparam init error: %s", snd_strerror(err));
+			return err;
+		}
+
+		// open hw: devices without resampling, if sample rate fails try plughw: with resampling
+		bool hw = !strncmp(alsa.device, "hw:", 3);
+		retry = false;
+
+		if ((err = snd_pcm_hw_params_set_rate_resample(*pcmp, hw_params, !hw)) < 0) {
+			LOG_ERROR("resampling setup failed: %s", snd_strerror(err));
+			return err;
+		}
+
+		if ((err = snd_pcm_hw_params_set_rate(*pcmp, hw_params, sample_rate, 0)) < 0) {
+			if (hw) {
+				strcpy(alsa.device + 4, device);
+				memcpy(alsa.device, "plug", 4);
+				LOG_INFO("reopening device %s in plug mode as %s for resampling", device, alsa.device);
+				snd_pcm_close(*pcmp);
+				retry = true;
+			}
+		}
+
+	} while (retry);
 
 	// set access 
 	if ((err = snd_pcm_hw_params_set_access(*pcmp, hw_params, SND_PCM_ACCESS_MMAP_INTERLEAVED)) < 0) {
@@ -195,7 +218,7 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	snd_pcm_format_t *fmt = alsa.mmap ? (snd_pcm_format_t *)fmts_mmap : (snd_pcm_format_t *)fmts_writei;
 	while (*fmt != SND_PCM_FORMAT_UNKNOWN) {
 		if (snd_pcm_hw_params_set_format(*pcmp, hw_params, *fmt) >= 0) {
-			LOG_INFO("opened device %s using format: %s sample rate: %u", device, snd_pcm_format_name(*fmt), sample_rate);
+			LOG_INFO("opened device %s using format: %s sample rate: %u", alsa.device, snd_pcm_format_name(*fmt), sample_rate);
 			alsa.format = *fmt;
 			break;
 		}
@@ -211,13 +234,6 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 		LOG_ERROR("channel count not available: %s", snd_strerror(err));
 		return err;
 	}
-
-	// set sample rate
-	if ((err = snd_pcm_hw_params_set_rate(*pcmp, hw_params, sample_rate, 0)) < 0) {
-		LOG_ERROR("sample rate not available: %s", snd_strerror(err));
-		return err;
-	}
-	alsa.rate = sample_rate;
 
 	// set buffer time and period count
 	unsigned count = period_count;
@@ -260,6 +276,9 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 		snd_output_stdio_attach(&debug_output, stderr, 0);
 		snd_pcm_dump(*pcmp, debug_output);
 	}
+
+	// this indicates we have opened the device ok
+	alsa.rate = sample_rate;
 
 	return 0;
 }
@@ -880,22 +899,28 @@ void _checkfade(bool start) {
 		output.fade_end = outputbuf->writep;
 	}
 
-	if (start && output.fade_mode == FADE_CROSSFADE && _buf_used(outputbuf) != 0) {
-		if (output.next_sample_rate != output.current_sample_rate) {
-			LOG_INFO("crossfade disabled as sample rates differ");
-			return;
+	if (start && output.fade_mode == FADE_CROSSFADE) {
+		if (_buf_used(outputbuf) != 0) {
+			if (output.next_sample_rate != output.current_sample_rate) {
+				LOG_INFO("crossfade disabled as sample rates differ");
+				return;
+			}
+			bytes = min(bytes, _buf_used(outputbuf));   // max of current remaining samples from previous track
+			bytes = min(bytes, outputbuf->size * 0.9);  // max of 90% of outputbuf as we consume additional buffer during crossfade
+			LOG_INFO("CROSSFADE: %u frames", bytes / BYTES_PER_FRAME);
+			output.fade = FADE_DUE;
+			output.fade_dir = FADE_CROSS;
+			output.fade_start = outputbuf->writep - bytes;
+			if (output.fade_start < outputbuf->buf) {
+				output.fade_start += outputbuf->size;
+			}
+			output.fade_end = outputbuf->writep;
+			output.track_start = output.fade_start;
+		} else if (outputbuf->size == OUTPUTBUF_SIZE && outputbuf->readp == outputbuf->buf) {
+			// if default setting used and nothing in buffer attempt to resize to provide full crossfade support
+			LOG_INFO("resize outputbuf for crossfade");
+			_buf_resize(outputbuf, OUTPUTBUF_SIZE_CROSSFADE);
 		}
-		bytes = min(bytes, _buf_used(outputbuf));   // max of current remaining samples from previous track
-		bytes = min(bytes, outputbuf->size * 0.9);  // max of 90% of outputbuf as we consume additional buffer during crossfade
-		LOG_INFO("CROSSFADE: %u frames", bytes / BYTES_PER_FRAME);
-		output.fade = FADE_DUE;
-		output.fade_dir = FADE_CROSS;
-		output.fade_start = outputbuf->writep - bytes;
-		if (output.fade_start < outputbuf->buf) {
-			output.fade_start += outputbuf->size;
-		}
-		output.fade_end = outputbuf->writep;
-		output.track_start = output.fade_start;
 	}
 }
 

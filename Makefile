@@ -1,43 +1,22 @@
-CFLAGS  = -Wall -fPIC -O2
-LDFLAGS = -lasound -lpthread -ldl -lrt
+# Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
+CFLAGS  ?= -Wall -fPIC -O2
+LDFLAGS ?= -lasound -lpthread -ldl -lrt
+EXECUTABLE ?= squeezelite
 
-all: squeezelite
+SOURCES = main.c slimproto.c utils.c output.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c faad.c
+DEPS    = squeezelite.h
 
-squeezelite: main.o slimproto.o utils.o output.o buffer.o stream.o decode.o flac.o pcm.o mad.o vorbis.o faad.o
-	$(CC) $(CFLAGS) main.o slimproto.o utils.o output.o buffer.o stream.o decode.o flac.o pcm.o mad.o vorbis.o faad.o $(LDFLAGS) -o squeezelite
+OBJECTS = $(SOURCES:.c=.o)
 
-main.o: main.c squeezelite.h
-	$(CC) $(CFLAGS) -c main.c -o main.o
+all: $(EXECUTABLE)
 
-slimproto.o: slimproto.c squeezelite.h slimproto.h
-	$(CC) $(CFLAGS) -c slimproto.c -o slimproto.o
+$(EXECUTABLE): $(OBJECTS)
+	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
 
-utils.o: utils.c squeezelite.h
-	$(CC) $(CFLAGS) -c utils.c -o utils.o
+$(OBJECTS): $(DEPS)
 
-output.o: output.c squeezelite.h
-	$(CC) $(CFLAGS) -c output.c -o output.o
+.c.o:
+	$(CC) $(CFLAGS) $< -c -o $@
 
-buffer.o: buffer.c squeezelite.h
-	$(CC) $(CFLAGS) -c buffer.c -o buffer.o
-
-stream.o: stream.c squeezelite.h
-	$(CC) $(CFLAGS) -c stream.c -o stream.o
-
-decode.o: decode.c squeezelite.h
-	$(CC) $(CFLAGS) -c decode.c -o decode.o
-
-flac.o: flac.c squeezelite.h
-	$(CC) $(CFLAGS) -c flac.c -o flac.o
-
-pcm.o: pcm.c squeezelite.h
-	$(CC) $(CFLAGS) -c pcm.c -o pcm.o
-
-mad.o: mad.c squeezelite.h
-	$(CC) $(CFLAGS) -c mad.c -o mad.o
-
-vorbis.o: vorbis.c squeezelite.h
-	$(CC) $(CFLAGS) -c vorbis.c -o vorbis.o
-
-faad.o: faad.c squeezelite.h
-	$(CC) $(CFLAGS) -c faad.c -o faad.o
+clean:
+	rm -f $(OBJECTS) $(EXECUTABLE)

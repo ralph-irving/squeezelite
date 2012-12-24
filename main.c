@@ -30,14 +30,16 @@ static void usage(const char *argv0) {
 	printf(TITLE " See -t for license terms\n"
 		   "Usage: %s [options] [<server_ip>]\n"
 		   "  <server_ip>\t\tConnect to server server at given IP address, otherwise uses autodiscovery\n"
-		   "  -o <output device>\tSpecify ALSA output device\n"
+		   "  -o <output device>\tSpecify ALSA output device, default \"default\"\n"
 		   "  -l \t\t\tList ALSA output devices\n"
-		   "  -a <time>:<count>\tSpecify ALSA buffer_time and period_count\n"
+		   "  -a <time>:<count>\tSpecify ALSA buffer_time (ms) and period_count, default 20:4\n"
 		   "  -b <stream>:<output>\tSpecify internal Stream and Output buffer sizes in Kbytes\n"
 		   "  -c <codec1>,<codec2>\tRestrict codecs those specified, otherwise loads all available codecs; known codecs: flac,pcm,mp3,ogg,aac\n"
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output, level: info|debug|sdebug\n"
+		   "  -f <logfile>\t\tWrite debug to logfile\n"
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"
 		   "  -n <name>\t\tSet the player name\n"
+		   "  -z \t\t\tDaemonize\n"
 		   "  -t \t\t\tLicense terms\n"
 		   "\n",
 		   argv0);
@@ -63,7 +65,9 @@ int main(int argc, char **argv) {
 	char *output_device = "default";
 	char *codecs = NULL;
 	char *name = NULL;
+	char *logfile = NULL;
 	u8_t mac[6];
+	bool daemonize = false;
 	unsigned stream_buf_size = STREAMBUF_SIZE;
 	unsigned output_buf_size =  OUTPUTBUF_SIZE;
 	unsigned alsa_buffer_time = ALSA_BUFFER_TIME;
@@ -82,7 +86,7 @@ int main(int argc, char **argv) {
 
 	int opt;
 
-    while ((opt = getopt(argc, argv, "o:a:b:c:d:m:n:lt")) != -1) {
+    while ((opt = getopt(argc, argv, "o:a:b:c:d:f:m:n:ltz")) != -1) {
         switch (opt) {
         case 'o':
             output_device = optarg;
@@ -91,7 +95,7 @@ int main(int argc, char **argv) {
 			{
 				char *t = strtok(optarg, ":");
 				char *c = strtok(NULL, ":");
-				if (t) alsa_buffer_time  = atoi(t);
+				if (t) alsa_buffer_time  = atoi(t) * 1000;
 				if (c) alsa_period_count = atoi(c);
 			}
 			break;
@@ -125,6 +129,9 @@ int main(int argc, char **argv) {
 				}
 			}
             break;
+		case 'f':
+			logfile = optarg;
+			break;
 		case 'm':
 			{
 				int byte = 0;
@@ -143,6 +150,9 @@ int main(int argc, char **argv) {
 			alsa_list_pcm();
 			exit(0);
 			break;
+		case 'z':
+			daemonize = true;
+			break;
 		case 't':
 			license();
 			exit(0);
@@ -155,6 +165,18 @@ int main(int argc, char **argv) {
 	// remaining argument should be a server address
 	if (argc == optind + 1) {
 		server = argv[optind];
+	}
+
+	if (logfile) {
+		if (!freopen(logfile, "a", stdout) || !freopen(logfile, "a", stderr)) {
+			fprintf(stderr, "error opening logfile %s: %s\n", logfile, strerror(errno));
+		}
+	}
+
+	if (daemonize) {
+		if (daemon(0, logfile ? 1 : 0)) {
+			fprintf(stderr, "error daemonizing: %s\n", strerror(errno));
+		}
 	}
 
 	output_init(log_output, output_device, output_buf_size, alsa_buffer_time, alsa_period_count);
