@@ -288,17 +288,33 @@ void stream_close(void) {
 	buf_destroy(streambuf);
 }
 
-void stream_local(const char *filename) {
+void stream_file(const char *header, size_t header_len, unsigned threshold) {
 	buf_flush(streambuf);
 
 	LOCK;
-	fd = open(filename, O_RDONLY);
+
+	stream.header_len = header_len;
+	memcpy(stream.header, header, header_len);
+	*(stream.header+header_len) = '\0';
+
+	LOG_INFO("opening local file: %s", stream.header);
+
+	fd = open(stream.header, O_RDONLY);
 	stream.state = STREAMING_FILE;
 	if (fd < 0) {
-		LOG_WARN("can't open file: %s", filename);
+		LOG_WARN("can't open file: %s", stream.header);
 		stream.state = DISCONNECT;
 	}
+
+	stream.cont_wait = false;
+	stream.meta_interval = 0;
+	stream.meta_next = 0;
+	stream.meta_left = 0;
+	stream.meta_send = false;
+	stream.sent_headers = false;
 	stream.bytes = 0;
+	stream.threshold = threshold;
+
 	UNLOCK;
 }
 
@@ -332,15 +348,6 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
 	buf_flush(streambuf);
-
-	if (header_len > MAX_HEADER - 1) {
-		LOG_WARN("request header too long: %u", header_len);
-		LOCK;
-		stream.state = DISCONNECT;
-		stream.disconnect = UNREACHABLE;
-		UNLOCK;
-		return;
-	}
 
 	LOCK;
 

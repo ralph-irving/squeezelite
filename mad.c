@@ -35,6 +35,7 @@ struct mad {
 	struct mad_stream stream;
 	struct mad_frame frame;
 	struct mad_synth synth;
+	enum mad_error last_error;
 	// for lame gapless processing
 	bool checkgapless;
 	u32_t skip;
@@ -157,18 +158,23 @@ static decode_state mad_decode(void) {
 	while (true) {
 
 		if (m->mad_frame_decode(&m->frame, &m->stream) == -1) {
-			if (m->stream.error == MAD_ERROR_BUFLEN && !eos) {
-				return DECODE_RUNNING;
-			}
-			if (!MAD_RECOVERABLE(m->stream.error)) {
+			decode_state ret;
+			if (!eos && m->stream.error == MAD_ERROR_BUFLEN) {
+				ret = DECODE_RUNNING;
+			} else if (eos && (m->stream.error == MAD_ERROR_BUFLEN || m->stream.error == MAD_ERROR_LOSTSYNC)) {
+				ret = DECODE_COMPLETE;
+			} else if (!MAD_RECOVERABLE(m->stream.error)) {
 				LOG_INFO("mad_frame_decode error: %s - stopping decoder", m->mad_stream_errorstr(&m->stream));
-				return DECODE_ERROR;
-			} if (m->stream.error == MAD_ERROR_LOSTSYNC && eos) {
-				return DECODE_COMPLETE;
+				ret = DECODE_COMPLETE;
 			} else {
-				LOG_DEBUG("mad_frame_decode error: %s", m->mad_stream_errorstr(&m->stream));
-				return DECODE_RUNNING;
+				if (m->stream.error != m->last_error) {
+					// suppress repeat error messages
+					LOG_DEBUG("mad_frame_decode error: %s", m->mad_stream_errorstr(&m->stream));
+				}
+				ret = DECODE_RUNNING;
 			}
+			m->last_error = m->stream.error;
+			return ret;
 		};
 
 		m->mad_synth_frame(&m->synth, &m->frame);
@@ -237,6 +243,7 @@ static void mad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	m->skip = MAD_DELAY;
 	m->samples = 0;
 	m->readbuf_len = 0;
+	m->last_error = MAD_ERROR_NONE;
 	m->mad_stream_init(&m->stream);
 	m->mad_frame_init(&m->frame);
 	m->mad_synth_init(&m->synth);

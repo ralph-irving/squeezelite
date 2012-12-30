@@ -103,7 +103,7 @@ static decode_state vorbis_decode(void) {
 		if ((err = v->ov_open_callbacks(streambuf, v->vf, NULL, 0, cbs)) < 0) {
 			LOG_WARN("open_callbacks error: %d", err);
 			UNLOCK_O;
-			return DECODE_ERROR;
+			return DECODE_COMPLETE;
 		}
 
 		struct vorbis_info *info = v->ov_info(v->vf, -1);
@@ -167,7 +167,7 @@ static decode_state vorbis_decode(void) {
 
 		LOG_INFO("ov_read error: %d", n);
 		UNLOCK_O;
-		return DECODE_ERROR;
+		return DECODE_COMPLETE;
 	}
 
 	UNLOCK_O;

@@ -24,7 +24,16 @@
 static log_level loglevel;
 
 #define PORT 3483
+
 #define MAXBUF 4096
+
+#if IS_LITTLE_ENDIAN
+#define LOCAL_PLAYER_IP   0x0100007f // 127.0.0.1
+#define LOCAL_PLAYER_PORT 0x9b0d     // 3483
+#else
+#define LOCAL_PLAYER_IP   0x7f000001 // 127.0.0.1
+#define LOCAL_PLAYER_PORT 0x0d9b     // 3483
+#endif
 
 static int sock;
 static int efd;
@@ -261,8 +270,18 @@ static void process_strm(u8_t *pkt, int len) {
 
 			autostart = strm->autostart - '0';
 			sendSTAT("STMf", 0);
+			if (header_len > MAX_HEADER -1) {
+				LOG_WARN("header too long: %u", header_len);
+				break;
+			}
 			codec_open(strm->format, strm->pcm_sample_size, strm->pcm_sample_rate, strm->pcm_channels, strm->pcm_endianness);
-			stream_sock(ip, port, header, header_len, strm->threshold * 1024, autostart >= 2);
+			if (ip == LOCAL_PLAYER_IP && port == LOCAL_PLAYER_PORT) {
+				// extension to slimproto for LocalPlayer - header is filename not http header, don't expect cont
+				stream_file(header, header_len, strm->threshold * 1024);
+				autostart -= 2;
+			} else {
+				stream_sock(ip, port, header, header_len, strm->threshold * 1024, autostart >= 2);
+			}
 			sendSTAT("STMc", 0);
 			sentSTMu = sentSTMo = sentSTMl = false;
 			LOCK_O;
@@ -475,7 +494,8 @@ static void slimproto_run() {
 				_sendSTMn = true;
 				decode.state = DECODE_STOPPED;
 			}
-			if (status.stream_state == STREAMING_HTTP && !sentSTMl && decode.state == DECODE_STOPPED) {
+			if ((status.stream_state == STREAMING_HTTP || status.stream_state == STREAMING_FILE) && !sentSTMl 
+				&& decode.state == DECODE_STOPPED) {
 				if (autostart == 0) {
 					_sendSTMl = true;
 					sentSTMl = true;
@@ -605,8 +625,25 @@ void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name)
 		
 			LOG_INFO("connected");
 
+			// check if this is a local player now we are connected & signal to server via 'loc' format
+			// this requires LocalPlayer server plugin to enable direct file access
+			if (!reconnect) {
+				struct sockaddr_in our_addr;
+				socklen_t len;
+
+				len = sizeof(our_addr);
+				getsockname(sock, (struct sockaddr *) &our_addr, &len);
+
+				if (our_addr.sin_addr.s_addr == serv_addr.sin_addr.s_addr) {
+					LOG_INFO("local player");
+					strcat(buf, ",");
+					strcat(buf, "loc");
+				}
+
+				reconnect = true;
+			}
+
 			sendHELO(reconnect, buf, mac);
-			reconnect = true;
 
 			if (name) {
 				sendSETDName(name);

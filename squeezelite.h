@@ -35,7 +35,7 @@
 #include <sys/types.h>
 #include <poll.h>
 
-#define VERSION "v0.7beta1-186"
+#define VERSION "v0.8beta1-188"
 
 #define STREAMBUF_SIZE (2 * 1024 * 1024)
 #define OUTPUTBUF_SIZE (44100 * 8 * 10)
@@ -47,7 +47,7 @@
 #define DECODE_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 8)
 #define OUTPUT_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 4)
 
-#define ALSA_BUFFER_TIME 20000
+#define ALSA_BUFFER_TIME  20000
 #define ALSA_PERIOD_COUNT 4
 
 #define FIXED_ONE 0x10000
@@ -72,6 +72,8 @@ typedef int64_t   s64_t;
 #endif
 
 #define BYTES_PER_FRAME 8
+
+#define IS_LITTLE_ENDIAN (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
@@ -145,7 +147,7 @@ struct streamstate {
 
 void stream_init(log_level level, unsigned stream_buf_size);
 void stream_close(void);
-void stream_local(const char *filename);
+void stream_file(const char *header, size_t header_len, unsigned threshold);
 void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
 void stream_disconnect(void);
 

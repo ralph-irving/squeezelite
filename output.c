@@ -26,8 +26,6 @@
 
 static log_level loglevel;
 
-#define IS_LITTLE_ENDIAN (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
-
 #define MAX_SILENCE_FRAMES 1024
 
 // for mmap ouput we convert to LE formats on BE devices as it is likely hardware requires LE
