@@ -21,9 +21,6 @@
 #include "squeezelite.h"
 
 #include <FLAC/stream_decoder.h>
-#include <dlfcn.h>
-
-#define LIBFLAC "libFLAC.so.8"
 
 struct flac {
 	FLAC__StreamDecoder *decoder;
@@ -59,18 +56,19 @@ extern struct streamstate stream;
 extern struct outputstate output;
 extern struct decodestate decode;
 
-#define LOCK_S   pthread_mutex_lock(&streambuf->mutex)
-#define UNLOCK_S pthread_mutex_unlock(&streambuf->mutex)
-#define LOCK_O   pthread_mutex_lock(&outputbuf->mutex)
-#define UNLOCK_O pthread_mutex_unlock(&outputbuf->mutex)
-
-typedef u_int32_t frames_t;
+#define LOCK_S   mutex_lock(streambuf->mutex)
+#define UNLOCK_S mutex_unlock(streambuf->mutex)
+#define LOCK_O   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O mutex_unlock(outputbuf->mutex)
 
 static FLAC__StreamDecoderReadStatus read_cb(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], size_t *want, void *client_data) {
+	size_t bytes;
+	bool end;
+
 	LOCK_S;
-	size_t bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
-	bool end = (stream.state <= DISCONNECT && bytes == 0);
+	bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
 	bytes = min(bytes, *want);
+	end = (stream.state <= DISCONNECT && bytes == 0);
 
 	memcpy(buffer, streambuf->readp, bytes);
 	_buf_inc_readp(streambuf, bytes);
@@ -103,10 +101,13 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 
 	while (frames > 0) {
 		frames_t f = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
+		frames_t count;
+		u32_t *optr;
+
 		f = min(f, frames);
 
-		frames_t count = f;
-		u32_t *optr = (u32_t *)outputbuf->writep;
+		count = f;
+		optr = (u32_t *)outputbuf->writep;
 
 		if (bits_per_sample == 16) {
 			while (count--) {
@@ -168,6 +169,8 @@ static decode_state flac_decode(void) {
 
 static bool load_flac() {
 	void *handle = dlopen(LIBFLAC, RTLD_NOW);
+	char *err;
+
 	if (!handle) {
 		LOG_INFO("dlerror: %s", dlerror());
 		return false;
@@ -185,7 +188,6 @@ static bool load_flac() {
 	f->FLAC__stream_decoder_process_single = dlsym(handle, "FLAC__stream_decoder_process_single");
 	f->FLAC__stream_decoder_get_state = dlsym(handle, "FLAC__stream_decoder_get_state");
 
-	char *err;
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
 		return false;
@@ -197,13 +199,13 @@ static bool load_flac() {
 
 struct codec *register_flac(void) {
 	static struct codec ret = { 
-		.id    = 'f',
-		.types = "flc",
-		.open  = flac_open,
-		.close = flac_close,
-		.decode= flac_decode,
-		.min_space = 102400,
-		.min_read_bytes = 8192,
+		'f',          // id
+		"flc",        // types
+		8192,         // min read
+		102400,       // min space
+		flac_open,    // open
+		flac_close,   // close
+		flac_decode,  // decode
 	};
 
 	if (!load_flac()) {

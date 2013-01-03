@@ -1,7 +1,7 @@
 /* 
- *  Squeezelite - lightweight headless squeezeplay emulator for linux
+ *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, triode1@btinternet.com
+ *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,24 +22,30 @@
 
 #include <signal.h>
 
-//static log_level loglevel = INFO;
-
-#define TITLE "Squeezelite " VERSION ", Copyright 2012 Adrian Smith."
+#define TITLE "Squeezelite " VERSION ", Copyright 2012, 2013 Adrian Smith."
 
 static void usage(const char *argv0) {
 	printf(TITLE " See -t for license terms\n"
 		   "Usage: %s [options] [<server_ip>]\n"
 		   "  <server_ip>\t\tConnect to server server at given IP address, otherwise uses autodiscovery\n"
-		   "  -o <output device>\tSpecify ALSA output device, default \"default\"\n"
-		   "  -l \t\t\tList ALSA output devices\n"
+		   "  -o <output device>\tSpecify output device, default \"default\"\n"
+		   "  -l \t\t\tList output devices\n"
+#if ALSA
 		   "  -a <time>:<count>\tSpecify ALSA buffer_time (ms) and period_count, default 20:4\n"
+#endif
+#if PORTAUDIO
+		   "  -a <latency>\t\tSpecify output target latency in ms\n"
+#endif
 		   "  -b <stream>:<output>\tSpecify internal Stream and Output buffer sizes in Kbytes\n"
 		   "  -c <codec1>,<codec2>\tRestrict codecs those specified, otherwise loads all available codecs; known codecs: flac,pcm,mp3,ogg,aac\n"
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output, level: info|debug|sdebug\n"
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"
 		   "  -n <name>\t\tSet the player name\n"
+		   "  -r <rate>\t\tMax sample rate for output device, enables output device to be off when squeezelite is started\n"
+#if LINUX
 		   "  -z \t\t\tDaemonize\n"
+#endif
 		   "  -t \t\t\tLicense terms\n"
 		   "\n",
 		   argv0);
@@ -60,6 +66,11 @@ static void license(void) {
 		   );
 }
 
+void sighandler(int signum) {
+	LOG_ERROR("signal");
+	slimproto_stop();
+}
+
 int main(int argc, char **argv) {
 	char *server = NULL;
 	char *output_device = "default";
@@ -67,36 +78,56 @@ int main(int argc, char **argv) {
 	char *name = NULL;
 	char *logfile = NULL;
 	u8_t mac[6];
-	bool daemonize = false;
 	unsigned stream_buf_size = STREAMBUF_SIZE;
 	unsigned output_buf_size =  OUTPUTBUF_SIZE;
+	unsigned max_rate = 0;
+#if LINUX
+	bool daemonize = false;
+#endif
+#if ALSA
 	unsigned alsa_buffer_time = ALSA_BUFFER_TIME;
 	unsigned alsa_period_count = ALSA_PERIOD_COUNT;
-
-	log_level log_output = WARN;
-	log_level log_stream = WARN;
-	log_level log_decode = WARN;
-	log_level log_slimproto = WARN;
-
-#if defined(SIGHUP)
-	signal(SIGHUP, SIG_IGN);
 #endif
+#if PORTAUDIO
+	unsigned pa_latency = 0;
+#endif
+	
+	log_level log_output = lWARN;
+	log_level log_stream = lWARN;
+	log_level log_decode = lWARN;
+	log_level log_slimproto = lWARN;
 
-	get_mac(mac);
+	char *optarg = NULL;
+	int optind = 1;
 
-	int opt;
+	while (optind < argc && strlen(argv[optind]) >= 2 && argv[optind][0] == '-') {
+		char *opt = argv[optind] + 1;
+		if (strstr("oabcdfmnr", opt) && optind < argc - 1) {
+			optarg = argv[optind + 1];
+			optind += 2;
+		} else if (strstr("ltz", opt)) {
+			optarg = NULL;
+			optind += 1;
+		} else {
+			usage(argv[0]);
+            exit(0);
+		}
 
-    while ((opt = getopt(argc, argv, "o:a:b:c:d:f:m:n:ltz")) != -1) {
-        switch (opt) {
+		switch (opt[0]) {
         case 'o':
             output_device = optarg;
             break;
 		case 'a': 
 			{
+#if ALSA				
 				char *t = strtok(optarg, ":");
 				char *c = strtok(NULL, ":");
 				if (t) alsa_buffer_time  = atoi(t) * 1000;
 				if (c) alsa_period_count = atoi(c);
+#endif
+#if PORTAUDIO
+				pa_latency = atoi(optarg);
+#endif
 			}
 			break;
 		case 'b': 
@@ -114,11 +145,11 @@ int main(int argc, char **argv) {
 			{
 				char *l = strtok(optarg, "=");
 				char *v = strtok(NULL, "=");
-				log_level new = WARN;
+				log_level new = lWARN;
 				if (l && v) {
-					if (!strcmp(v, "info"))   new = INFO;
-					if (!strcmp(v, "debug"))  new = DEBUG;
-					if (!strcmp(v, "sdebug")) new = SDEBUG;
+					if (!strcmp(v, "info"))   new = lINFO;
+					if (!strcmp(v, "debug"))  new = lDEBUG;
+					if (!strcmp(v, "sdebug")) new = lSDEBUG;
 					if (!strcmp(l, "all") || !strcmp(l, "slimproto")) log_slimproto = new;
 					if (!strcmp(l, "all") || !strcmp(l, "stream"))    log_stream = new;
 					if (!strcmp(l, "all") || !strcmp(l, "decode"))    log_decode = new;
@@ -138,29 +169,42 @@ int main(int argc, char **argv) {
 				char *tmp;
 				char *t = strtok(optarg, ":");
 				while (t && byte < 6) {
-					mac[byte++] = strtoul(t, &tmp, 16);
+					mac[byte++] = (u8_t)strtoul(t, &tmp, 16);
 					t = strtok(NULL, ":");
 				}
 			}
+			break;
+		case 'r':
+			max_rate = atoi(optarg);
 			break;
 		case 'n':
 			name = optarg;
 			break;
 		case 'l':
-			alsa_list_pcm();
+			list_devices();
 			exit(0);
 			break;
+#if LINUX
 		case 'z':
 			daemonize = true;
 			break;
+#endif
 		case 't':
 			license();
 			exit(0);
         default:
-            usage(argv[0]);
-            exit(0);
+			break;
         }
     }
+
+	signal(SIGINT, sighandler);
+	signal(SIGTERM, sighandler);
+#if defined(SIGQUIT)
+	signal(SIGQUIT, sighandler);
+#endif
+#if defined(SIGHUP)
+	signal(SIGHUP, sighandler);
+#endif
 
 	// remaining argument should be a server address
 	if (argc == optind + 1) {
@@ -173,13 +217,26 @@ int main(int argc, char **argv) {
 		}
 	}
 
+#if LINUX
 	if (daemonize) {
 		if (daemon(0, logfile ? 1 : 0)) {
 			fprintf(stderr, "error daemonizing: %s\n", strerror(errno));
 		}
 	}
+#endif
 
-	output_init(log_output, output_device, output_buf_size, alsa_buffer_time, alsa_period_count);
+#if WIN
+	winsock_init();
+#endif
+
+	get_mac(mac);
+
+#if ALSA
+	output_init(log_output, output_device, output_buf_size, alsa_buffer_time, alsa_period_count, max_rate);
+#endif
+#if PORTAUDIO
+	output_init(log_output, output_device, output_buf_size, pa_latency, max_rate);
+#endif
 	stream_init(log_stream, stream_buf_size);
 	decode_init(log_decode, codecs);
 
@@ -188,6 +245,10 @@ int main(int argc, char **argv) {
 	decode_close();
 	stream_close();
 	output_close();
+
+#if WIN
+	winsock_close();
+#endif
 
 	exit(0);
 }

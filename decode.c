@@ -1,7 +1,7 @@
 /* 
- *  Squeezelite - lightweight headless squeezeplay emulator for linux
+ *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, triode1@btinternet.com
+ *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,10 +29,10 @@ extern struct buffer *outputbuf;
 extern struct streamstate stream;
 extern struct outputstate output;
 
-#define LOCK_S   pthread_mutex_lock(&streambuf->mutex)
-#define UNLOCK_S pthread_mutex_unlock(&streambuf->mutex)
-#define LOCK_O   pthread_mutex_lock(&outputbuf->mutex)
-#define UNLOCK_O pthread_mutex_unlock(&outputbuf->mutex)
+#define LOCK_S   mutex_lock(streambuf->mutex)
+#define UNLOCK_S mutex_unlock(streambuf->mutex)
+#define LOCK_O   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O mutex_unlock(outputbuf->mutex)
 
 struct decodestate decode;
 struct codec *codecs[MAX_CODECS];
@@ -42,14 +42,17 @@ static bool running = true;
 static void *decode_thread() {
 
 	while (running) {
+		size_t bytes, space;
+		bool toend;
+		decode_state state;
 
 		LOCK_S;
-		size_t bytes = _buf_used(streambuf);
-		bool toend = (stream.state <= DISCONNECT);
+		bytes = _buf_used(streambuf);
+		toend = (stream.state <= DISCONNECT);
 		UNLOCK_S;
 		LOCK_O;
-		size_t space = _buf_space(outputbuf);
-		decode_state state = decode.state;
+		space = _buf_space(outputbuf);
+		state = decode.state;
 		UNLOCK_O;
 
 		if (state == DECODE_RUNNING) {
@@ -85,27 +88,34 @@ static void *decode_thread() {
 	return 0;
 }
 
-static pthread_t thread;
+static thread_type thread;
 
 void decode_init(log_level level, const char *opt) {
+	int i;
+
 	loglevel = level;
 
 	LOG_INFO("init decode");
 
 	// register codecs
 	// alc,wma,wmap,wmal,aac,spt,ogg,ogf,flc,aif,pcm,mp3
-	int i = 0;
+	i = 0;
 	if (!opt || !strcmp(opt, "aac"))  codecs[i++] = register_faad();
 	if (!opt || !strcmp(opt, "ogg"))  codecs[i++] = register_vorbis();
 	if (!opt || !strcmp(opt, "flac")) codecs[i++] = register_flac();
 	if (!opt || !strcmp(opt, "pcm"))  codecs[i++] = register_pcm();
 	if (!opt || !strcmp(opt, "mp3"))  codecs[i++] = register_mad();
 
+#if LINUX || OSX
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_attr_setstacksize(&attr, DECODE_THREAD_STACK_SIZE);
 	pthread_create(&thread, &attr, decode_thread, NULL);
 	pthread_attr_destroy(&attr);
+#endif
+#if WIN
+	thread = CreateThread(NULL, DECODE_THREAD_STACK_SIZE, (LPTHREAD_START_ROUTINE)&decode_thread, NULL, 0, NULL);
+#endif
 
 	decode.new_stream = true;
 	decode.state = DECODE_STOPPED;
@@ -121,6 +131,8 @@ void decode_close(void) {
 }
 
 void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t endianness) {
+	int i;
+
 	LOG_INFO("codec open: '%c'", format);
 
 	LOCK_O;
@@ -129,7 +141,6 @@ void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, 
 	UNLOCK_O;
 
 	// find the required codec
-	int i;
 	for (i = 0; i < MAX_CODECS; ++i) {
 
 		if (codecs[i] && codecs[i]->id == format) {

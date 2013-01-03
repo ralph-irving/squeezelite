@@ -1,7 +1,7 @@
 /* 
- *  Squeezelite - lightweight headless squeezeplay emulator for linux
+ *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, triode1@btinternet.com
+ *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,39 +18,117 @@
  *
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <string.h>
-#include <errno.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <stdbool.h>
-#include <limits.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/time.h>
-#include <sys/socket.h>
-#include <sys/eventfd.h>
-#include <sys/types.h>
-#include <poll.h>
+#define VERSION "v0.9beta1-189"
 
-#define VERSION "v0.8beta1-188"
+// build detection
+#if defined(linux)
+#define LINUX     1
+#define OSX       0
+#define WIN       0
+#elif defined (__APPLE__)
+#define LINUX     0
+#define OSX       1
+#define WIN       0
+#elif defined (_MSC_VER)
+#define LINUX     0
+#define OSX       0
+#define WIN       1
+#else
+#error unknown target
+#endif
 
+#if LINUX && !defined(PORTAUDIO)
+#define ALSA      1
+#define PORTAUDIO 0
+#else
+#define ALSA      0
+#define PORTAUDIO 1
+#endif
+
+#if LINUX && !defined(SELFPIPE)
+#define EVENTFD   1
+#define SELFPIPE  0
+#define WINEVENT  0
+#endif
+#if (LINUX && !EVENTFD) || OSX
+#define EVENTFD   0
+#define SELFPIPE  1
+#define WINEVENT  0
+#endif
+#if WIN
+#define EVENTFD   0
+#define SELFPIPE  0
+#define WINEVENT  1
+#endif
+
+// dynamically loaded libraries
+#if LINUX
+#define LIBFLAC "libFLAC.so.8"
+#define LIBMAD  "libmad.so.0"
+#define LIBVORBIS "libvorbisfile.so.3"
+#define LIBTREMOR "libvorbisidec.so.1"
+#define LIBFAAD "libfaad.so.2"
+#endif
+
+#if OSX
+#define LIBFLAC "libFLAC.8.dylib"
+#define LIBMAD  "libmad.0.dylib"
+#define LIBVORBIS "libvorbisfile.3.dylib"
+#define LIBTREMOR "libvorbisidec.1.dylib"
+#define LIBFAAD "libfaad.2.dylib"
+#endif
+
+#if WIN
+#define LIBFLAC "libFLAC.dll"
+#define LIBMAD  "libmad.dll"
+#define LIBVORBIS "libvorbisfile.dll"
+#define LIBTREMOR "libvorbisidec.dll"
+#define LIBFAAD "libfaad2.dll"
+#endif
+
+// config options
 #define STREAMBUF_SIZE (2 * 1024 * 1024)
 #define OUTPUTBUF_SIZE (44100 * 8 * 10)
 #define OUTPUTBUF_SIZE_CROSSFADE (OUTPUTBUF_SIZE * 12 / 10)
 
 #define MAX_HEADER 4096 // do not reduce as icy-meta max is 4080
 
+#if ALSA
+#define ALSA_BUFFER_TIME  20000
+#define ALSA_PERIOD_COUNT 4
+#endif
+
+#if defined LITTLE_ENDIAN
+#undef LITTLE_ENDIAN
+#endif
+#define LITTLE_ENDIAN (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
+#include <errno.h>
+#include <limits.h>
+#include <sys/types.h>
+
+#if LINUX || OSX
+#include <unistd.h>
+#include <stdbool.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/time.h>
+#include <sys/socket.h>
+#include <poll.h>
+#include <dlfcn.h>
+#include <pthread.h>
+#include <signal.h>
+
 #define STREAM_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 4)
 #define DECODE_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 8)
 #define OUTPUT_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 4)
-
-#define ALSA_BUFFER_TIME  20000
-#define ALSA_PERIOD_COUNT 4
-
-#define FIXED_ONE 0x10000
+#define thread_t pthread_t;
+#define closesocket(s) close(s)
+#define last_error() errno
 
 typedef u_int8_t  u8_t;
 typedef u_int16_t u16_t;
@@ -60,42 +138,142 @@ typedef int16_t   s16_t;
 typedef int32_t   s32_t;
 typedef int64_t   s64_t;
 
+#define mutex_type pthread_mutex_t
+#define mutex_create(m) pthread_mutex_init(&m, NULL)
+#define mutex_create_p(m) pthread_mutexattr_t attr; pthread_mutexattr_init(&attr); pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT); pthread_mutex_init(&m, &attr); pthread_mutexattr_destroy(&attr)
+#define mutex_lock(m) pthread_mutex_lock(&m)
+#define mutex_unlock(m) pthread_mutex_unlock(&m)
+#define mutex_destroy(m) pthread_mutex_destroy(&m)
+#define thread_type pthread_t
+
+#endif
+
+#if WIN
+
+#include <winsock2.h>
+#include <io.h>
+
+#define STREAM_THREAD_STACK_SIZE (1024 * 64)
+#define DECODE_THREAD_STACK_SIZE (1024 * 128)
+#define OUTPUT_THREAD_STACK_SIZE (1024 * 64)
+
+typedef unsigned __int8  u8_t;
+typedef unsigned __int16 u16_t;
+typedef unsigned __int32 u32_t;
+typedef unsigned __int64 u64_t;
+typedef __int16 s16_t;
+typedef __int32 s32_t;
+typedef __int64 s64_t;
+
+typedef BOOL bool;
+#define true TRUE
+#define false FALSE
+
+#define inline __inline
+
+#define mutex_type HANDLE
+#define mutex_create(m) m = CreateMutex(NULL, FALSE, NULL)
+#define mutex_create_p mutex_create
+#define mutex_lock(m) WaitForSingleObject(m, INFINITE)
+#define mutex_unlock(m) ReleaseMutex(m)
+#define mutex_destroy(m) CloseHandle(m)
+#define thread_type HANDLE
+
+#define usleep(x) Sleep(x/1000)
+#define sleep(x) Sleep(x*1000)
+#define last_error() WSAGetLastError()
+#define open _open
+#define read _read
+
+#define in_addr_t u32_t
+#define socklen_t int
+
+#define poll WSAPoll // FIXME? - limits support to Vista and later
+
+#define dlopen(x, y) LoadLibrary((LPCTSTR)x)
+#define dlsym(x, y)  (void *)GetProcAddress(x, y)
+#define dlerror()    GetLastError() ? "dlerror" : NULL
+
+#endif
+
+typedef u32_t frames_t;
+typedef int sockfd;
+
+#if EVENTFD
+#include <sys/eventfd.h>
+#define event_event int
+#define event_handle struct pollfd
+#define wake_create(e) e = eventfd(0, 0)
+#define wake_signal(e) eventfd_write(e, 1)
+#define wake_clear(e) eventfd_t val; eventfd_read(e, &val)
+#define wake_close(e) close(e)
+#endif
+
+#if SELFPIPE
+#define event_handle struct pollfd
+#define event_event struct wake
+#define wake_create(e) pipe(e.fds); set_nonblock(e.fds[0]); set_nonblock(e.fds[1])
+#define wake_signal(e) write(e.fds[1], ".", 1)
+#define wake_clear(e) char c[10]; read(e, &c, 10)
+#define wake_close(e) close(e.fds[0]); close(e.fds[1])
+struct wake { 
+  int fds[2];
+};
+#endif
+
+#if WINEVENT
+#define event_event HANDLE
+#define event_handle HANDLE
+#define wake_create(e) e = CreateEvent(NULL, FALSE, FALSE, NULL)
+#define wake_signal(e) SetEvent(e)
+#define wake_close(e) CloseHandle(e)
+#endif
+
 // printf/scanf formats for u64_t
-#if __WORDSIZE == 64
+#if LINUX && __WORDSIZE == 64
 #define FMT_u64 "%lu"
 #define FMT_x64 "%lx"
-#elif __GLIBC_HAVE_LONG_LONG || defined __GNUC__
+#elif __GLIBC_HAVE_LONG_LONG || defined __GNUC__ || WIN
 #define FMT_u64 "%llu"
 #define FMT_x64 "%llx"
 #else
 #error can not support u64_t
 #endif
 
-#define BYTES_PER_FRAME 8
+#define FIXED_ONE 0x10000
 
-#define IS_LITTLE_ENDIAN (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+#define BYTES_PER_FRAME 8
 
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
 // logging
-typedef enum { ERROR = 0, WARN, INFO, DEBUG, SDEBUG } log_level;
+typedef enum { lERROR = 0, lWARN, lINFO, lDEBUG, lSDEBUG } log_level;
 
 const char *logtime(void);
 void logprint(const char *fmt, ...);
 
-#define LOG_ERROR(fmt, ...) if (loglevel >= ERROR) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define LOG_WARN(fmt, ...)  if (loglevel >= WARN)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define LOG_INFO(fmt, ...)  if (loglevel >= INFO)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define LOG_DEBUG(fmt, ...) if (loglevel >= DEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define LOG_SDEBUG(fmt, ...) if (loglevel >= SDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define LOG_ERROR(fmt, ...) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define LOG_WARN(fmt, ...)  if (loglevel >= lWARN)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define LOG_INFO(fmt, ...)  if (loglevel >= lINFO)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define LOG_DEBUG(fmt, ...) if (loglevel >= lDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define LOG_SDEBUG(fmt, ...) if (loglevel >= lSDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
 // utils.c (non logging)
+typedef enum { EVENT_TIMEOUT = 0, EVENT_READ, EVENT_WAKE } event_type;
+
 u32_t gettime_ms(void);
 void get_mac(u8_t *mac);
-inline void packN(u32_t *dest, u32_t val);
-inline void packn(u16_t *dest, u16_t val);
-inline u32_t unpackN(u32_t *src);
-inline u16_t unpackn(u16_t *src);
+void set_nonblock(sockfd s);
+void set_readwake_handles(event_handle handles[], sockfd s, event_event e);
+event_type wait_readwake(event_handle handles[], int timeout);
+void packN(u32_t *dest, u32_t val);
+void packn(u16_t *dest, u16_t val);
+u32_t unpackN(u32_t *src);
+u16_t unpackn(u16_t *src);
+#if WIN
+void winsock_init(void);
+void winsock_close(void);
+#endif
 
 // buffer.c
 struct buffer {
@@ -105,7 +283,7 @@ struct buffer {
 	u8_t *wrap;
 	size_t size;
 	size_t base_size;
-	pthread_mutex_t mutex;
+	mutex_type mutex;
 };
 
 // _* called with mutex locked
@@ -123,6 +301,7 @@ void buf_destroy(struct buffer *buf);
 
 // slimproto.c
 void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name);
+void slimproto_stop(void);
 void wake_controller(void);
 
 // stream.c
@@ -184,13 +363,19 @@ typedef enum { FADE_NONE = 0, FADE_CROSSFADE, FADE_IN, FADE_OUT, FADE_INOUT } fa
 struct outputstate {
 	output_state state;
 	const char *device;
+#if ALSA
 	unsigned buffer_time;
 	unsigned period_count;
+#endif
 	bool  track_started; 
+#if PORTAUDIO
+	bool  pa_reopen;
+	double latency;
+#endif
 	unsigned frames_played;
 	unsigned current_sample_rate;
 	unsigned max_sample_rate;
-	unsigned alsa_frames;
+	unsigned device_frames;
 	u32_t updated;
 	u32_t current_replay_gain;
 	union {
@@ -212,12 +397,18 @@ struct outputstate {
 	unsigned fade_secs;        // set by slimproto
 };
 
-void alsa_list_pcm(void);
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned period_time, unsigned period_count);
+void list_devices(void);
+#if ALSA
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned period_time, unsigned period_count, unsigned max_rate);
+#endif
+#if PORTAUDIO
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, unsigned max_rate);
+#endif
 void output_flush(void);
 void output_close(void);
 // _* called with mutex locked
 void _checkfade(bool);
+void _pa_open(void);
 
 // codecs
 #define MAX_CODECS 5

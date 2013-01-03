@@ -1,7 +1,7 @@
 /* 
- *  Squeezelite - lightweight headless squeezeplay emulator for linux
+ *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, triode1@btinternet.com
+ *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -57,35 +57,40 @@ void _buf_inc_writep(struct buffer *buf, unsigned by) {
 }
 
 void buf_flush(struct buffer *buf) {
-	pthread_mutex_lock(&buf->mutex);
+	mutex_lock(buf->mutex);
 	buf->readp  = buf->buf;
 	buf->writep = buf->buf;
-	pthread_mutex_unlock(&buf->mutex);
+	mutex_unlock(buf->mutex);
 }
 
 // adjust buffer to multiple of mod bytes so reading in multiple always wraps on frame boundary
 void buf_adjust(struct buffer *buf, size_t mod) {
-	pthread_mutex_lock(&buf->mutex);
-	size_t size = ((unsigned)(buf->base_size / mod)) * mod;
+	size_t size;
+	mutex_lock(buf->mutex);
+	size = ((unsigned)(buf->base_size / mod)) * mod;
 	buf->readp  = buf->buf;
 	buf->writep = buf->buf;
 	buf->wrap   = buf->buf + size;
 	buf->size   = size;
-	pthread_mutex_unlock(&buf->mutex);
+	mutex_unlock(buf->mutex);
 }
 
-// called with mutex locked to resize, does not retain contents
+// called with mutex locked to resize, does not retain contents, reverts to original size if fails
 void _buf_resize(struct buffer *buf, size_t size) {
-	// use realloc so we can continue if resize failed at expense of copying useless data
-	u8_t *tmp = realloc(buf->buf, size);
-	if (tmp) {
-		buf->buf = tmp;
-		buf->readp  = buf->buf;
-		buf->writep = buf->buf;
-		buf->wrap   = buf->buf + size;
-		buf->size   = size;
-		buf->base_size = size;
+	free(buf->buf);
+	buf->buf = malloc(size);
+	if (!buf->buf) {
+		size    = buf->size;
+		buf->buf= malloc(size);
+		if (!buf->buf) {
+			size = 0;
+		}
 	}
+	buf->readp  = buf->buf;
+	buf->writep = buf->buf;
+	buf->wrap   = buf->buf + size;
+	buf->size   = size;
+	buf->base_size = size;
 }
 
 void buf_init(struct buffer *buf, size_t size) {
@@ -95,14 +100,7 @@ void buf_init(struct buffer *buf, size_t size) {
 	buf->wrap   = buf->buf + size;
 	buf->size   = size;
 	buf->base_size = size;
-
-	pthread_mutexattr_t mutex_attr;
-	pthread_mutexattr_init(&mutex_attr);
-	pthread_mutexattr_setprotocol(&mutex_attr, PTHREAD_PRIO_INHERIT);
-
-	pthread_mutex_init(&buf->mutex, &mutex_attr);
-
-	pthread_mutexattr_destroy(&mutex_attr);
+	mutex_create_p(buf->mutex);
 }
 
 void buf_destroy(struct buffer *buf) {
@@ -111,6 +109,6 @@ void buf_destroy(struct buffer *buf) {
 		buf->buf = NULL;
 		buf->size = 0;
 		buf->base_size = 0;
-		pthread_mutex_destroy(&buf->mutex);
+		mutex_destroy(buf->mutex);
 	}
 }

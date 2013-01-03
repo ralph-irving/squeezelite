@@ -1,7 +1,7 @@
 /* 
- *  Squeezelite - lightweight headless squeezeplay emulator for linux
+ *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, triode1@btinternet.com
+ *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,14 +28,12 @@ extern struct streamstate stream;
 extern struct outputstate output;
 extern struct decodestate decode;
 
-#define LOCK_S   pthread_mutex_lock(&streambuf->mutex)
-#define UNLOCK_S pthread_mutex_unlock(&streambuf->mutex)
-#define LOCK_O   pthread_mutex_lock(&outputbuf->mutex)
-#define UNLOCK_O pthread_mutex_unlock(&outputbuf->mutex)
+#define LOCK_S   mutex_lock(streambuf->mutex)
+#define UNLOCK_S mutex_unlock(streambuf->mutex)
+#define LOCK_O   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O mutex_unlock(outputbuf->mutex)
 
 #define MAX_DECODE_FRAMES 4096
-
-typedef u_int32_t frames_t;
 
 static u32_t sample_rates[] = {
 	11025, 22050, 32000, 44100, 48000, 8000, 12000, 16000, 24000, 96000, 88200, 176400, 192000
@@ -47,11 +45,16 @@ static u32_t channels;
 static bool  bigendian;
 
 static decode_state pcm_decode(void) {
+	size_t in, out;
+	frames_t frames, count;
+	u32_t *optr;
+	u8_t  *iptr;
+	
 	LOCK_S;
 	LOCK_O;
 
-	size_t in = min(_buf_used(streambuf), _buf_cont_read(streambuf)) / (channels * sample_size);
-	size_t out = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
+	in = min(_buf_used(streambuf), _buf_cont_read(streambuf)) / (channels * sample_size);
+	out = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
 
 	if (stream.state <= DISCONNECT && in == 0) {
 		UNLOCK_O;
@@ -67,13 +70,13 @@ static decode_state pcm_decode(void) {
 		decode.new_stream = false;
 	}
 
-	frames_t frames = min(in, out);
+	frames = min(in, out);
 	frames = min(frames, MAX_DECODE_FRAMES);
 
-	u32_t *optr = (u32_t *)outputbuf->writep;
-	u8_t  *iptr = (u8_t *)streambuf->readp;
+	optr = (u32_t *)outputbuf->writep;
+	iptr = (u8_t *)streambuf->readp;
 
-	frames_t count = frames * channels;
+	count = frames * channels;
 
 	if (channels == 2) {
  		if (sample_size == 2) {
@@ -176,13 +179,13 @@ static void pcm_close(void) {
 
 struct codec *register_pcm(void) {
 	static struct codec ret = { 
-		.id    = 'p',
-		.types = "aif,pcm",
-		.open  = pcm_open,
-		.close = pcm_close,
-		.decode= pcm_decode,
-		.min_space = 102400,
-		.min_read_bytes = 4096,
+		'p',         // id
+		"aif,pcm",   // types
+		4096,        // min read
+		102400,      // min space
+		pcm_open,    // open
+		pcm_close,   // close
+		pcm_decode,  // decode
 	};
 
 	LOG_INFO("using pcm");

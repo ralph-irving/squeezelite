@@ -1,7 +1,7 @@
 /* 
- *  Squeezelite - lightweight headless squeezeplay emulator for linux
+ *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, triode1@btinternet.com
+ *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,13 +18,15 @@
  *
  */
 
-// alsa output
+// Output using Alsa or Portaudio:
+// - ALSA output is the preferred output for linux as it allows direct hardware access
+// - PortAudio is the output output supported on other platforms and also builds on linux for test purposes
 
 #include "squeezelite.h"
 
-#include <alsa/asoundlib.h>
+#if ALSA
 
-static log_level loglevel;
+#include <alsa/asoundlib.h>
 
 #define MAX_SILENCE_FRAMES 1024
 
@@ -41,18 +43,48 @@ static snd_pcm_format_t fmts_writei[] = {
 #endif
 	SND_PCM_FORMAT_UNKNOWN };
 
-typedef unsigned frames_t;
-
 // ouput device
 static struct {
 	char *device;
 	snd_pcm_format_t format;
 	snd_pcm_uframes_t period_size;
-	unsigned rate;
 	bool mmap;
+	unsigned rate;
 } alsa;
 
+static u8_t silencebuf[MAX_SILENCE_FRAMES * BYTES_PER_FRAME];
+
+#endif //ALSA
+
+#if PORTAUDIO
+
+#include <portaudio.h>
+#if OSX
+#include <pa_mac_core.h>
+#endif
+
+#define MAX_SILENCE_FRAMES 102400 // silencebuf not used in pa case so set large
+
+// ouput device
+static struct {
+	unsigned rate;
+	PaStream *stream;
+} pa;
+
+#endif
+
+static log_level loglevel;
+
 struct outputstate output;
+
+static struct buffer buf;
+
+struct buffer *outputbuf = &buf;
+
+static bool running = true;
+
+#define LOCK   mutex_lock(outputbuf->mutex)
+#define UNLOCK mutex_unlock(outputbuf->mutex)
 
 static inline s32_t gain(s32_t gain, s32_t sample) {
 	s64_t res = (s64_t)gain * (s64_t)sample;
@@ -63,7 +95,9 @@ static inline s32_t to_gain(float f) {
 	return (s32_t)(f * 65536.0F);
 }
 
-void alsa_list_pcm(void) {
+#if ALSA
+
+void list_devices(void) {
 	void **hints, **n;
 	if (snd_device_name_hint(-1, "pcm", &hints) >= 0) {
 		n = hints;
@@ -95,7 +129,7 @@ static void alsa_close(snd_pcm_t *pcmp) {
 	}
 }
 
-bool alsa_testopen(const char *device, u32_t *max_rate) {
+static bool test_open(const char *device, u32_t *max_rate) {
 	int err;
 	snd_pcm_t *pcm;
 	snd_pcm_hw_params_t *hw_params;
@@ -269,7 +303,7 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	}
 
 	// dump info
-	if (loglevel == SDEBUG) {
+	if (loglevel == lSDEBUG) {
 		static snd_output_t *debug_output;
 		snd_output_stdio_attach(&debug_output, stderr, 0);
 		snd_pcm_dump(*pcmp, debug_output);
@@ -281,24 +315,209 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	return 0;
 }
 
+#endif // ALSA
 
-// output thread 
+#if PORTAUDIO
 
-static struct buffer buf;
+void list_devices(void) {
+ 	PaError err;
+	int i;
 
-struct buffer *outputbuf = &buf;
+	if ((err = Pa_Initialize()) != paNoError) {
+		LOG_WARN("error initialising port audio: %s", Pa_GetErrorText(err));
+		return;
+	}
 
-static u8_t silencebuf[MAX_SILENCE_FRAMES * BYTES_PER_FRAME];
+	printf("Output devices:\n");
+	for (i = 0; i < Pa_GetDeviceCount(); ++i) {
+		printf("  %i - %s\n", i, Pa_GetDeviceInfo(i)->name);
+	}
+	printf("\n");
 
-#define LOCK   pthread_mutex_lock(&outputbuf->mutex)
-#define UNLOCK pthread_mutex_unlock(&outputbuf->mutex)
+ 	if ((err = Pa_Terminate()) != paNoError) {
+		LOG_WARN("error closing port audio: %s", Pa_GetErrorText(err));
+	}
+}
 
-static bool running = true;
+static int pa_device_id(const char *device) {
+	int len = strlen(device);
+	int i;
 
-static void *output_thread() {
+	if (!strncmp(device, "default", 7)) {
+		return Pa_GetDefaultOutputDevice();
+	}
+	if (len >= 1 && len <= 2 && device[0] > '0' && device[0] <= '9') {
+		return atoi(device);
+	}
+
+	for (i = 0; i < Pa_GetDeviceCount(); ++i) {
+		if (!strncmp(Pa_GetDeviceInfo(i)->name, device, len)) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+static int pa_callback(const void *pa_input, void *pa_output, unsigned long pa_frames_wanted, 
+					   const PaStreamCallbackTimeInfo *timeInfo, PaStreamCallbackFlags statusFlags, void *userData);
+
+static bool test_open(const char *device, u32_t *max_rate) {
+	PaStreamParameters outputParameters;
+	PaError err;
+	u32_t rates[] = { 192000, 176400, 96000, 88200, 48000, 44100, 0 };
+	int device_id, i;
+
+	if ((device_id = pa_device_id(device)) == -1) {
+		LOG_INFO("device %s not found", device);
+		return false;
+	}
+
+	outputParameters.device = device_id;
+	outputParameters.channelCount = 2;
+	outputParameters.sampleFormat = paInt32;
+	outputParameters.suggestedLatency =
+		output.latency ? (double)output.latency/(double)1000 : Pa_GetDeviceInfo(outputParameters.device)->defaultHighOutputLatency;
+	outputParameters.hostApiSpecificStreamInfo = NULL;
+
+	// check supported sample rates
+	// Note this does not appear to work on OSX - it always returns paNoError...
+	for (i = 0; rates[i]; ++i) {
+		if (Pa_IsFormatSupported(NULL, &outputParameters, (double)rates[i]) == paNoError) {
+			*max_rate = rates[i];
+			break;
+		}
+	}
+
+	if ((err = Pa_OpenStream(&pa.stream, NULL, &outputParameters, (double)*max_rate, paFramesPerBufferUnspecified,
+							 paNoFlag, pa_callback, NULL)) != paNoError) {
+		LOG_WARN("error opening stream: %s", Pa_GetErrorText(err));
+		return false;
+	}
+
+	if ((err = Pa_CloseStream(pa.stream)) != paNoError) {
+		LOG_WARN("error closing stream: %s", Pa_GetErrorText(err));
+		return false;
+	}
+
+	pa.stream = NULL;
+
+	return true;
+}
+
+static void pa_stream_finished(void *userdata) {
+	if (running) {
+		LOG_INFO("stream finished");
+		LOCK;
+		output.pa_reopen = true;
+		wake_controller();
+		UNLOCK;
+	}
+}
+
+static thread_type probe_thread;
+bool probe_thread_running = false;
+
+static void *pa_probe() {
+	// this is a hack to partially support hot plugging of devices
+	// we rely on terminating and reinitalising PA to get an updated list of devices and use name for output.device
+	while (probe_thread_running) {
+		LOG_INFO("probing device %s", output.device);
+		LOCK;
+		Pa_Terminate();
+		Pa_Initialize();
+		pa.stream = NULL;
+		if (pa_device_id(output.device) != -1) {
+			LOG_INFO("found");
+			probe_thread_running = false;
+			_pa_open();
+		} else {
+			sleep(5);
+		}
+		UNLOCK;
+	}
+
+	return 0;
+}
+
+void _pa_open(void) {
+	PaStreamParameters outputParameters;
+	PaError err = paNoError;
+	int device_id;
+
+	if (pa.stream) {
+		if ((err = Pa_CloseStream(pa.stream)) != paNoError) {
+			LOG_WARN("error closing stream: %s", Pa_GetErrorText(err));
+		}
+	}
+
+	if ((device_id = pa_device_id(output.device)) == -1) {
+		LOG_INFO("device %s not found", output.device);
+		err = 1;
+	} else {
+
+		outputParameters.device = device_id;
+		outputParameters.channelCount = 2;
+		outputParameters.sampleFormat = paInt32;
+		outputParameters.suggestedLatency =
+			output.latency ? (double)output.latency/(double)1000 : Pa_GetDeviceInfo(outputParameters.device)->defaultHighOutputLatency;
+		outputParameters.hostApiSpecificStreamInfo = NULL;
+		
+#if OSX
+		// enable pro mode which aims to avoid resampling if possible
+		PaMacCoreStreamInfo macInfo;
+		PaMacCore_SetupStreamInfo(&macInfo, paMacCorePro);
+		outputParameters.hostApiSpecificStreamInfo = &macInfo;
+#endif
+	}
+
+	if (!err && 
+		(err = Pa_OpenStream(&pa.stream, NULL, &outputParameters, (double)output.current_sample_rate, paFramesPerBufferUnspecified,
+							 paPrimeOutputBuffersUsingStreamCallback, pa_callback, NULL)) != paNoError) {
+		LOG_WARN("error opening device %i - %s : %s", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name, 
+				 Pa_GetErrorText(err));
+	}
+
+	if (!err) {
+		LOG_INFO("opened device %i - %s at %u latency %u ms", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name,
+				 (unsigned int)Pa_GetStreamInfo(pa.stream)->sampleRate, (unsigned int)(Pa_GetStreamInfo(pa.stream)->outputLatency * 1000));
+
+		pa.rate = output.current_sample_rate;
+
+		if ((err = Pa_SetStreamFinishedCallback(pa.stream, pa_stream_finished)) != paNoError) {
+			LOG_WARN("error setting finish callback: %s", Pa_GetErrorText(err));
+		}
+	
+		if ((err = Pa_StartStream(pa.stream)) != paNoError) {
+			LOG_WARN("error starting stream: %s", Pa_GetErrorText(err));
+		}
+	}
+
+	if (err && !probe_thread_running) {
+		// create a thread to probe for the device
+#if LINUX || OSX
+		pthread_create(&probe_thread, NULL, pa_probe, NULL);
+#endif
+#if WIN
+		probe_thread = CreateThread(NULL, OUTPUT_THREAD_STACK_SIZE, (LPTHREAD_START_ROUTINE)&pa_probe, NULL, 0, NULL);
+#endif
+		probe_thread_running = true;
+		UNLOCK;
+		return;
+	}
+}
+
+#endif // PORTAUDIO
+
+
+#if ALSA
+
+// output thread for Alsa
+
+static void *output_thread(void *arg) {
 	snd_pcm_t *pcmp = NULL;
 	bool start = true;
-	bool output_off = false, probe_device = false;
+	bool output_off = false, probe_device = (arg != NULL);
 	int err;
 
 	while (running) {
@@ -315,7 +534,7 @@ static void *output_thread() {
 		if (probe_device) {
 			while (!pcm_probe(output.device)) {
 				LOG_DEBUG("waiting for device %s to return", output.device);
-				sleep(2);
+				sleep(5);
 			}
 			probe_device = false;
 		}
@@ -395,11 +614,6 @@ static void *output_thread() {
 			continue;
 		}
 
-		LOCK;
-
-		snd_pcm_sframes_t frames = _buf_used(outputbuf) / BYTES_PER_FRAME;
-		bool silence = false;
-
 		// turn off if requested
 		if (output.state == OUTPUT_OFF) {
 			UNLOCK;
@@ -409,6 +623,25 @@ static void *output_thread() {
 			LOG_INFO("disabling output");
 			continue;
 		}
+
+#endif // ALSA
+
+#if PORTAUDIO
+	static int pa_callback(const void *pa_input, void *pa_output, unsigned long pa_frames_wanted, 
+						   const PaStreamCallbackTimeInfo *time_info, PaStreamCallbackFlags statusFlags, void *userData) {
+
+		u8_t *optr = (u8_t *)pa_output;
+		frames_t avail = pa_frames_wanted;
+#endif
+		frames_t frames, size;
+		bool silence;
+
+		s32_t cross_gain_in = 0, cross_gain_out = 0; s32_t *cross_ptr = NULL;
+
+		LOCK;
+
+		frames = _buf_used(outputbuf) / BYTES_PER_FRAME;
+		silence = false;
 
 		// start when threshold met, note: avail * 4 may need tuning
 		if (output.state == OUTPUT_BUFFER && frames > avail * 4 && frames > output.threshold * output.next_sample_rate / 100) {
@@ -466,17 +699,20 @@ static void *output_thread() {
 
 		LOG_SDEBUG("avail: %d frames: %d silence: %d", avail, frames, silence);
 		frames = min(frames, avail);
-		snd_pcm_sframes_t size = frames;
+		size = frames;
 
+#if ALSA
 		snd_pcm_sframes_t delay;
 		snd_pcm_delay(pcmp, &delay);
-		output.alsa_frames = delay;
+		output.device_frames = delay;
+#endif
+#if PORTAUDIO
+		output.device_frames = (unsigned)((time_info->outputBufferDacTime - Pa_GetStreamTime(pa.stream)) * output.current_sample_rate);
+#endif
 		output.updated = gettime_ms();
 
-		s32_t cross_gain_in = 0, cross_gain_out = 0; s32_t *cross_ptr = NULL;
-
 		while (size > 0) {
-			snd_pcm_uframes_t alsa_frames;
+			frames_t out_frames;
 			
 			frames_t cont_frames = _buf_cont_read(outputbuf) / BYTES_PER_FRAME;
 
@@ -493,7 +729,11 @@ static void *output_thread() {
 						output.current_replay_gain = output.next_replay_gain;
 					}
 					output.track_start = NULL;
-					break;
+					if (output.current_sample_rate != output.next_sample_rate) {
+						output.current_sample_rate = output.next_sample_rate;
+						break;
+					}
+					continue;
 				} else if (output.track_start > outputbuf->readp) {
 					// reduce cont_frames so we find the next track start at beginning of next chunk
 					cont_frames = min(cont_frames, (output.track_start - outputbuf->readp) / BYTES_PER_FRAME);
@@ -547,10 +787,11 @@ static void *output_thread() {
 						}
 						if (output.fade_dir == FADE_UP || output.fade_dir == FADE_DOWN) {
 							// fade in, in-out, out handled via altering standard gain
+							s32_t fade_gain;
 							if (output.fade_dir == FADE_DOWN) {
 								cur_f = dur_f - cur_f;
 							}
-							s32_t fade_gain = to_gain((float)cur_f / (float)dur_f);
+							fade_gain = to_gain((float)cur_f / (float)dur_f);
 							gainL = gain(gainL, fade_gain);
 							gainR = gain(gainR, fade_gain);
 						}
@@ -578,24 +819,28 @@ static void *output_thread() {
 				}
 			}
 
- 			alsa_frames = !silence ? min(size, cont_frames) : size;
+ 			out_frames = !silence ? min(size, cont_frames) : size;
 
+#if ALSA			
 			avail = snd_pcm_avail_update(pcmp);
 
 			if (alsa.mmap) {
 
 				const snd_pcm_channel_area_t *areas;
 				snd_pcm_uframes_t offset;
+				snd_pcm_uframes_t alsa_frames = (snd_pcm_uframes_t)out_frames;
 
 				if ((err = snd_pcm_mmap_begin(pcmp, &areas, &offset, &alsa_frames)) < 0) {
 					LOG_WARN("error from mmap_begin: %s", snd_strerror(err));
 					break;
 				}
 
-				// perform crossfade buffer copying here as we do not know the actual alsa_frames value until here
+				out_frames = (frames_t)alsa_frames;
+
+				// perform crossfade buffer copying here as we do not know the actual out_frames value until here
 				if (output.fade == FADE_ACTIVE && output.fade_dir == FADE_CROSS) {
 					s32_t *ptr = (s32_t *)(void *)outputbuf->readp;
-					frames_t count = alsa_frames * 2;
+					frames_t count = out_frames * 2;
 					while (count--) {
 						if (cross_ptr > (s32_t *)outputbuf->wrap) {
 							cross_ptr -= outputbuf->size / BYTES_PER_FRAME * 2;
@@ -607,13 +852,13 @@ static void *output_thread() {
 
 				void  *outputptr = areas[0].addr + (areas[0].first + offset * areas[0].step) / 8;
 				s32_t *inputptr  = (s32_t *) (silence ? silencebuf : outputbuf->readp);
-				frames_t cnt = alsa_frames;
+				frames_t cnt = out_frames;
 				
 				switch(alsa.format) {
 				case SND_PCM_FORMAT_S16_LE:
 					{
 						u32_t *optr = (u32_t *)(void *)outputptr;
-#if IS_LITTLE_ENDIAN
+#if LITTLE_ENDIAN
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							while (cnt--) {
 								*(optr++) = (*(inputptr) & 0xffff0000) | (*(inputptr+1) >> 16 & 0x0000ffff);
@@ -649,7 +894,7 @@ static void *output_thread() {
 				case SND_PCM_FORMAT_S24_LE: 
 					{
 						u32_t *optr = (u32_t *)(void *)outputptr;
-#if IS_LITTLE_ENDIAN
+#if LITTLE_ENDIAN
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							while (cnt--) {
 								*(optr++) = *(inputptr++) >> 8;
@@ -696,7 +941,7 @@ static void *output_thread() {
 									while (cnt >= 2) {
 										s32_t l1 = *(inputptr++); s32_t r1 = *(inputptr++);
 										s32_t l2 = *(inputptr++); s32_t r2 = *(inputptr++);
-#if IS_LITTLE_ENDIAN
+#if LITTLE_ENDIAN
 										*(o_ptr++) = (l1 & 0xffffff00) >>  8 | (r1 & 0x0000ff00) << 16;
 										*(o_ptr++) = (r1 & 0xffff0000) >> 16 | (l2 & 0x00ffff00) <<  8;
 										*(o_ptr++) = (l2 & 0xff000000) >> 24 | (r2 & 0xffffff00);
@@ -732,7 +977,7 @@ static void *output_thread() {
 									while (cnt >= 2) {
 										s32_t l1 = gain(gainL, *(inputptr++)); s32_t r1 = gain(gainR, *(inputptr++));
 										s32_t l2 = gain(gainL, *(inputptr++)); s32_t r2 = gain(gainR, *(inputptr++));
-#if IS_LITTLE_ENDIAN
+#if LITTLE_ENDIAN
 										*(o_ptr++) = (l1 & 0xffffff00) >>  8 | (r1 & 0x0000ff00) << 16;
 										*(o_ptr++) = (r1 & 0xffff0000) >> 16 | (l2 & 0x00ffff00) <<  8;
 										*(o_ptr++) = (l2 & 0xff000000) >> 24 | (r2 & 0xffffff00);
@@ -765,7 +1010,7 @@ static void *output_thread() {
 				case SND_PCM_FORMAT_S32_LE:
 					{
 						u32_t *optr = (u32_t *)(void *)outputptr;
-#if IS_LITTLE_ENDIAN
+#if LITTLE_ENDIAN
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							memcpy(outputptr, inputptr, cnt * BYTES_PER_FRAME);
 						} else {
@@ -805,70 +1050,108 @@ static void *output_thread() {
 					break;
 				}
 				
-				snd_pcm_sframes_t w = snd_pcm_mmap_commit(pcmp, offset, alsa_frames);
-				if (w < 0 || w != alsa_frames) {
+				snd_pcm_sframes_t w = snd_pcm_mmap_commit(pcmp, offset, out_frames);
+				if (w < 0 || w != out_frames) {
 					LOG_WARN("mmap_commit error");
 					break;
 				}
 
 			} else {
 
-				if (output.fade == FADE_ACTIVE && output.fade_dir == FADE_CROSS) {
-					s32_t *ptr = (s32_t *)(void *)outputbuf->readp;
-					frames_t count = alsa_frames * 2;
-					while (count--) {
-						if (cross_ptr > (s32_t *)outputbuf->wrap) {
-							cross_ptr -= outputbuf->size / BYTES_PER_FRAME * 2;
-						}
-						*ptr = gain(cross_gain_out, *ptr) + gain(cross_gain_in, *cross_ptr);
-						ptr++; cross_ptr++;
-					}
-				}
+#endif // ALSA
 
-				if (!silence && (gainL != FIXED_ONE || gainR!= FIXED_ONE)) {
-					unsigned count = alsa_frames;
-					s32_t *ptrL = (s32_t *)(void *)outputbuf->readp;
-					s32_t *ptrR = (s32_t *)(void *)outputbuf->readp + 1;
-					while (count--) {
-						*ptrL = gain(gainL, *ptrL);
-						*ptrR = gain(gainR, *ptrR);
-						ptrL += 2;
-						ptrR += 2;
+#if PORTAUDIO
+			if (1) {
+#endif
+				if (!silence) {
+
+					if (output.fade == FADE_ACTIVE && output.fade_dir == FADE_CROSS) {
+						s32_t *ptr = (s32_t *)(void *)outputbuf->readp;
+						frames_t count = out_frames * 2;
+						while (count--) {
+							if (cross_ptr > (s32_t *)outputbuf->wrap) {
+								cross_ptr -= outputbuf->size / BYTES_PER_FRAME * 2;
+							}
+							*ptr = gain(cross_gain_out, *ptr) + gain(cross_gain_in, *cross_ptr);
+							ptr++; cross_ptr++;
+						}
+					}
+
+					if (gainL != FIXED_ONE || gainR!= FIXED_ONE) {
+						unsigned count = out_frames;
+						s32_t *ptrL = (s32_t *)(void *)outputbuf->readp;
+						s32_t *ptrR = (s32_t *)(void *)outputbuf->readp + 1;
+						while (count--) {
+							*ptrL = gain(gainL, *ptrL);
+							*ptrR = gain(gainR, *ptrR);
+							ptrL += 2;
+							ptrR += 2;
+						}
 					}
 				}
-				
-				snd_pcm_sframes_t w = snd_pcm_writei(pcmp, silence ? silencebuf : outputbuf->readp, alsa_frames);
+#if ALSA
+				snd_pcm_sframes_t w = snd_pcm_writei(pcmp, silence ? silencebuf : outputbuf->readp, out_frames);
 				if (w < 0) {
 					LOG_WARN("writei error: %d", w);
 					break;
 				} else {
-					if (w != alsa_frames) {
-						LOG_WARN("writei only wrote %u of %u", w, alsa_frames);
+					if (w != out_frames) {
+						LOG_WARN("writei only wrote %u of %u", w, out_frames);
 					}						
-					alsa_frames = w;
+					out_frames = w;
 				}
+#endif
+#if PORTAUDIO
+				if (!silence) {
+					memcpy(optr, outputbuf->readp, out_frames * BYTES_PER_FRAME);
+				} else {
+					memset(optr, 0, out_frames * BYTES_PER_FRAME);
+				}
+
+				optr += out_frames * BYTES_PER_FRAME;
+#endif
 			}
 
-			size -= alsa_frames;
+			size -= out_frames;
 			
 			if (!silence) {
-				_buf_inc_readp(outputbuf, alsa_frames * BYTES_PER_FRAME);
-				output.frames_played += alsa_frames;
+				_buf_inc_readp(outputbuf, out_frames * BYTES_PER_FRAME);
+				output.frames_played += out_frames;
 			}
 		}
-		
+			
 		LOG_SDEBUG("wrote %u frames", frames);
 
+#if ALSA	
 		UNLOCK;
 	}
 
 	return 0;
 }
+#endif
+
+#if PORTAUDIO
+		if (frames < pa_frames_wanted) {
+			LOG_SDEBUG("pad with silience");
+	   		memset(optr, 0, (pa_frames_wanted - frames) * BYTES_PER_FRAME);
+		}
+
+		if (pa.rate != output.current_sample_rate) {
+			UNLOCK;
+			return paComplete;
+		} else {
+			UNLOCK;
+			return paContinue;
+		}
+	}
+#endif
 
 void _checkfade(bool start) {
+	frames_t bytes;
+
 	LOG_INFO("fade mode: %u duration: %u %s", output.fade_mode, output.fade_secs, start ? "track-start" : "track-end");
 
-	frames_t bytes = output.next_sample_rate * BYTES_PER_FRAME * output.fade_secs;
+	bytes = output.next_sample_rate * BYTES_PER_FRAME * output.fade_secs;
 	if (output.fade_mode == FADE_INOUT) {
 		bytes /= 2;
 	}
@@ -903,8 +1186,8 @@ void _checkfade(bool start) {
 				LOG_INFO("crossfade disabled as sample rates differ");
 				return;
 			}
-			bytes = min(bytes, _buf_used(outputbuf));   // max of current remaining samples from previous track
-			bytes = min(bytes, outputbuf->size * 0.9);  // max of 90% of outputbuf as we consume additional buffer during crossfade
+			bytes = min(bytes, _buf_used(outputbuf));               // max of current remaining samples from previous track
+			bytes = min(bytes, (frames_t)(outputbuf->size * 0.9));  // max of 90% of outputbuf as we consume additional buffer during crossfade
 			LOG_INFO("CROSSFADE: %u frames", bytes / BYTES_PER_FRAME);
 			output.fade = FADE_DUE;
 			output.fade_dir = FADE_CROSS;
@@ -922,9 +1205,14 @@ void _checkfade(bool start) {
 	}
 }
 
+#if ALSA
 static pthread_t thread;
-
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count) {
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count, unsigned max_rate) {
+#endif
+#if PORTAUDIO
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, unsigned max_rate) {
+	PaError err;
+#endif
 	loglevel = level;
 
 	LOG_INFO("init output");
@@ -938,23 +1226,44 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 		exit(0);
 	}
 
+	LOCK;
+
 	output.state = STOPPED;
 	output.current_sample_rate = 44100;
 	output.device = device;
+	output.fade = FADE_INACTIVE;
+
+#if ALSA
 	output.buffer_time = buffer_time;
 	output.period_count = period_count;
+#endif
 
-	if (!alsa_testopen(output.device, &output.max_sample_rate)) {
-		LOG_ERROR("unable to open output device");
-		exit(0);
+#if PORTAUDIO
+	output.latency = latency;
+	pa.stream = NULL;
+
+ 	if ((err = Pa_Initialize()) != paNoError) {
+		LOG_WARN("error initialising port audio: %s", Pa_GetErrorText(err));
+		return;
+	}
+#endif
+
+	if (!max_rate) {
+		if (!test_open(output.device, &output.max_sample_rate)) {
+			LOG_ERROR("unable to open output device");
+			exit(0);
+		}
+	} else {
+		output.max_sample_rate = max_rate;
 	}
 
 	LOG_INFO("output: %s maxrate: %u", output.device, output.max_sample_rate);
 
+#if ALSA
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_attr_setstacksize(&attr, STREAM_THREAD_STACK_SIZE);
-	pthread_create(&thread, &attr, output_thread, NULL);
+	pthread_create(&thread, &attr, output_thread, max_rate ? "probe" : NULL);
 	pthread_attr_destroy(&attr);
 
 	// try to set this thread to real-time scheduler class, likely only works as root
@@ -963,6 +1272,13 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 	if (pthread_setschedparam(thread, SCHED_FIFO, &param) != 0) {
 		LOG_DEBUG("unable to set output sched fifo: %s", strerror(errno));
 	}
+#endif
+
+#if PORTAUDIO
+	_pa_open();
+#endif
+
+	UNLOCK;
 }
 
 void output_flush(void) {
@@ -971,10 +1287,34 @@ void output_flush(void) {
 }
 
 void output_close(void) {
+#if PORTAUDIO
+	 PaError err;
+#endif
+
 	LOG_INFO("close output");
+
 	LOCK;
+
 	running = false;
+
+#if ALSA
 	UNLOCK;
 	pthread_join(thread,NULL);
+#endif
+
+#if PORTAUDIO
+	probe_thread_running = false;
+
+	if (pa.stream) {
+		if ((err = Pa_AbortStream(pa.stream)) != paNoError) {
+			LOG_WARN("error closing stream: %s", Pa_GetErrorText(err));
+		}
+	}
+ 	if ((err = Pa_Terminate()) != paNoError) {
+		LOG_WARN("error closing port audio: %s", Pa_GetErrorText(err));
+	}
+	UNLOCK;
+#endif
+
 	buf_destroy(outputbuf);
 }

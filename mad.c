@@ -1,7 +1,7 @@
 /* 
- *  Squeezelite - lightweight headless squeezeplay emulator for linux
+ *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, triode1@btinternet.com
+ *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,13 +21,10 @@
 #include "squeezelite.h"
 
 #include <mad.h>
-#include <dlfcn.h>
 
 #define MAD_DELAY 529
 
 #define READBUF_SIZE 2048 // local buffer used by decoder: FIXME merge with any other decoders needing one?
-
-#define LIBMAD "libmad.so.0"
 
 struct mad {
 	u8_t *readbuf;
@@ -62,10 +59,10 @@ extern struct streamstate stream;
 extern struct outputstate output;
 extern struct decodestate decode;
 
-#define LOCK_S   pthread_mutex_lock(&streambuf->mutex)
-#define UNLOCK_S pthread_mutex_unlock(&streambuf->mutex)
-#define LOCK_O   pthread_mutex_lock(&outputbuf->mutex)
-#define UNLOCK_O pthread_mutex_unlock(&outputbuf->mutex)
+#define LOCK_S   mutex_lock(streambuf->mutex)
+#define UNLOCK_S mutex_unlock(streambuf->mutex)
+#define LOCK_O   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O mutex_unlock(outputbuf->mutex)
 
 // based on libmad minimad.c scale
 static inline u32_t scale(mad_fixed_t sample) {
@@ -85,6 +82,9 @@ static void _check_lame_header(size_t bytes) {
 
 	if (*ptr == 0xff && (*(ptr+1) & 0xf0) == 0xf0 && bytes > 180) {
 
+		u32_t frame_count = 0, enc_delay = 0, enc_padding = 0;
+		u8_t flags;
+
 		// 2 channels
 		if (!memcmp(ptr + 36, "Xing", 4) || !memcmp(ptr + 36, "Info", 4)) {
 			ptr += 36 + 7;
@@ -93,8 +93,7 @@ static void _check_lame_header(size_t bytes) {
 			ptr += 21 + 7;
 		}
 
-		u32_t frame_count = 0, enc_delay = 0, enc_padding = 0;
-		u8_t flags = *ptr;
+		flags = *ptr;
 
 		if (flags & 0x01) {
 			frame_count = unpackN((u32_t *)(ptr + 1));
@@ -123,9 +122,11 @@ static void _check_lame_header(size_t bytes) {
 }
 
 static decode_state mad_decode(void) {
-	LOCK_S;
-	size_t bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
+	size_t bytes;
 	bool eos = false;
+
+	LOCK_S;
+	bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
 
 	if (m->checkgapless) {
 		m->checkgapless = false;
@@ -156,6 +157,9 @@ static decode_state mad_decode(void) {
 	m->mad_stream_buffer(&m->stream, m->readbuf, m->readbuf_len);
 
 	while (true) {
+		size_t frames;
+		s32_t *iptrl;
+		s32_t *iptrr;
 
 		if (m->mad_frame_decode(&m->frame, &m->stream) == -1) {
 			decode_state ret;
@@ -194,9 +198,9 @@ static decode_state mad_decode(void) {
 			m->synth.pcm.length = _buf_space(outputbuf) / BYTES_PER_FRAME;
 		}
 		
-		size_t frames = m->synth.pcm.length;
-		s32_t *iptrl = m->synth.pcm.samples[0];
-		s32_t *iptrr = m->synth.pcm.samples[ m->synth.pcm.channels - 1 ];
+		frames = m->synth.pcm.length;
+		iptrl = m->synth.pcm.samples[0];
+		iptrr = m->synth.pcm.samples[ m->synth.pcm.channels - 1 ];
 
 		if (m->skip) {
 			u32_t skip = min(m->skip, frames);
@@ -210,7 +214,7 @@ static decode_state mad_decode(void) {
 		if (m->samples) {
 			if (m->samples < frames) {
 				LOG_DEBUG("gapless: trimming %u frames from end", frames - m->samples);
-				frames = m->samples;
+				frames = (size_t)m->samples;
 			}
 			m->samples -= frames;
 		}
@@ -259,11 +263,13 @@ static void mad_close(void) {
 
 static bool load_mad() {
 	void *handle = dlopen(LIBMAD, RTLD_NOW);
+	char *err;
+
 	if (!handle) {
 		LOG_INFO("dlerror: %s", dlerror());
 		return false;
 	}
-
+	
 	m = malloc(sizeof(struct mad));
 
 	m->readbuf = NULL;
@@ -278,7 +284,6 @@ static bool load_mad() {
 	m->mad_synth_frame = dlsym(handle, "mad_synth_frame");
 	m->mad_stream_errorstr = dlsym(handle, "mad_stream_errorstr");
 
-	char *err;
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
 		return false;
@@ -290,13 +295,13 @@ static bool load_mad() {
 
 struct codec *register_mad(void) {
 	static struct codec ret = { 
-		.id    = 'm',
-		.types = "mp3",
-		.open  = mad_open,
-		.close = mad_close,
-		.decode= mad_decode,
-		.min_space = 204800,
-		.min_read_bytes = READBUF_SIZE,
+		'm',          // id
+		"mp3",        // types
+		READBUF_SIZE, // min read
+		206800,       // min space
+		mad_open,     // open
+		mad_close,    // close
+		mad_decode,   // decode
 	};
 
 	if (!load_mad()) {

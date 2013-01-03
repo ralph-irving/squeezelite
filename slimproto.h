@@ -1,7 +1,7 @@
 /* 
- *  Squeezelite - lightweight headless squeezeplay emulator for linux
+ *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, triode1@btinternet.com
+ *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,8 @@
 
 // packet formats for slimproto
 
+#pragma pack(push, 1)
+
 // from S:N:Slimproto _hello_handler
 struct HELO_packet {
 	char  opcode[4];
@@ -32,7 +34,7 @@ struct HELO_packet {
 	u32_t bytes_received_H, bytes_received_L;
 	char  lang[2];
 	//	u8_t capabilities[];
-} __attribute__((packed));
+};
 
 // S:N:Slimproto _stat_handler
 struct STAT_packet {
@@ -55,28 +57,28 @@ struct STAT_packet {
 	u32_t elapsed_milliseconds;
 	u32_t server_timestamp;
 	u16_t error_code;
-} __attribute__((packed));
+};
 
 // S:N:Slimproto _disco_handler
 struct DSCO_packet {
 	char  opcode[4];
 	u32_t length;
 	u8_t  reason;
-} __attribute__((packed));
+};
 
 // S:N:Slimproto _http_response_handler
 struct RESP_header {
 	char  opcode[4];
 	u32_t length;
 	// char header[] - added in sendRESP
-} __attribute__((packed));
+};
 
 // S:N:Slimproto _http_metadata_handler
 struct META_header {
 	char  opcode[4];
 	u32_t length;
 	// char metadata[]
-} __attribute__((packed));
+};
 
 // S:N:Slimproto _http_setting_handler
 struct SETD_header {
@@ -84,7 +86,7 @@ struct SETD_header {
 	u32_t length;
 	u8_t  id;
 	// data
-} __attribute__((packed));
+};
 
 // from S:P:Squeezebox stream_s
 struct strm_packet {
@@ -107,14 +109,14 @@ struct strm_packet {
 	u16_t server_port;
 	u32_t server_ip;
 	//char request_string[];
-} __attribute__((packed));
+};
 
 // S:P:Squeezebox2
 struct aude_packet {
 	char  opcode[4];
 	u8_t  enable_spdif;
 	u8_t  enable_dac;
-} __attribute__((packed));
+};
 
 // S:P:Squeezebox2
 struct audg_packet {
@@ -126,7 +128,7 @@ struct audg_packet {
 	u32_t gainL;
 	u32_t gainR;
 	// squence ids - unused
-} __attribute__((packed));
+};
 
 // S:P:Squeezebox2
 struct cont_packet {
@@ -134,5 +136,13 @@ struct cont_packet {
 	u32_t metaint;
 	u8_t  loop;
 	// guids we don't use
-} __attribute__((packed));
+};
 
+// S:C:Commands
+struct serv_packet {
+	char  opcode[4];
+	u32_t server_ip;
+	// possible sync group
+};
+
+#pragma pack(pop)

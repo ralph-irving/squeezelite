@@ -1,7 +1,7 @@
 /* 
- *  Squeezelite - lightweight headless squeezeplay emulator for linux
+ *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, triode1@btinternet.com
+ *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,15 +29,10 @@ static log_level loglevel;
 static struct buffer buf;
 struct buffer *streambuf = &buf;
 
-#if (0)
-#define LOCK   LOG_INFO("lock"); pthread_mutex_lock(&streambuf->mutex)
-#define UNLOCK LOG_INFO("unlock"); pthread_mutex_unlock(&streambuf->mutex)
-#else
-#define LOCK   pthread_mutex_lock(&streambuf->mutex)
-#define UNLOCK pthread_mutex_unlock(&streambuf->mutex)
-#endif
+#define LOCK   mutex_lock(streambuf->mutex)
+#define UNLOCK mutex_unlock(streambuf->mutex)
 
-static int fd;
+static sockfd fd;
 
 struct streamstate stream;
 
@@ -52,10 +47,10 @@ static void send_header(void) {
 		if (n <= 0) {
 			if (n < 0 && errno == EAGAIN && try < 10) {
 				LOG_SDEBUG("retrying (%d) writing to socket", ++try);
-				usleep(100);
+				usleep(1000);
 				continue;
 			}
-			LOG_WARN("failed writing to socket: %s", strerror(errno));
+			LOG_WARN("failed writing to socket: %s", strerror(last_error()));
 			stream.disconnect = LOCAL_DISCONNECT;
 			stream.state = DISCONNECT;
 			wake_controller();
@@ -73,7 +68,7 @@ static bool running = true;
 static void _disconnect(stream_state state, disconnect_code disconnect) {
 	stream.state = state;
 	stream.disconnect = disconnect;
-	close(fd);
+	closesocket(fd);
 	fd = -1;
 	wake_controller();
 }
@@ -82,15 +77,16 @@ static void *stream_thread() {
 
 	while (running) {
 
+		struct pollfd pollinfo = { fd, 0, 0 };
+		size_t space;
+
 		if (fd < 0) {
 			usleep(100000);
 			continue;
 		}
 
-		struct pollfd pollinfo = { .fd = fd, .events = 0 };
-		
 		LOCK;
-		size_t space = min(_buf_space(streambuf), _buf_cont_write(streambuf));
+		space = min(_buf_space(streambuf), _buf_cont_write(streambuf));
 
 		if (stream.state > STREAMING_WAIT && space) {
 			pollinfo.events = POLLIN;
@@ -100,7 +96,7 @@ static void *stream_thread() {
 		}
 
 		UNLOCK;
-		
+
 		if (poll(&pollinfo, 1, 100)) {
 
 			LOCK;
@@ -113,7 +109,7 @@ static void *stream_thread() {
 				continue;
 			}
 					
-			if (pollinfo.revents & POLLIN) {
+			if (pollinfo.revents & (POLLIN | POLLHUP)) {
 
 				// get response headers
 				if (stream.state == RECV_HEADERS) {
@@ -128,7 +124,7 @@ static void *stream_thread() {
 							UNLOCK;
 							continue;
 						}
-						LOG_WARN("error reading headers: %s", n ? strerror(errno) : "closed");
+						LOG_WARN("error reading headers: %s", n ? strerror(last_error()) : "closed");
 						_disconnect(STOPPED, LOCAL_DISCONNECT);
 						UNLOCK;
 						continue;
@@ -170,7 +166,7 @@ static void *stream_thread() {
 								UNLOCK;
 								continue;
 							}
-							LOG_WARN("error reading icy meta: %s", n ? strerror(errno) : "closed");
+							LOG_WARN("error reading icy meta: %s", n ? strerror(last_error()) : "closed");
 							_disconnect(STOPPED, LOCAL_DISCONNECT);
 							UNLOCK;
 							continue;
@@ -187,7 +183,7 @@ static void *stream_thread() {
 								UNLOCK;
 								continue;
 							}
-							LOG_WARN("error reading icy meta: %s", n ? strerror(errno) : "closed");
+							LOG_WARN("error reading icy meta: %s", n ? strerror(last_error()) : "closed");
 							_disconnect(STOPPED, LOCAL_DISCONNECT);
 							UNLOCK;
 							continue;
@@ -210,19 +206,20 @@ static void *stream_thread() {
 
 				// stream body into streambuf
 				} else {
-					
+					int n;
+
 					space = min(_buf_space(streambuf), _buf_cont_write(streambuf));
 					if (stream.meta_interval) {
 						space = min(space, stream.meta_next);
 					}
 					
-					int n = stream.state == STREAMING_FILE ? read(fd, streambuf->writep, space) : recv(fd, streambuf->writep, space, 0);
+					n = stream.state == STREAMING_FILE ? read(fd, streambuf->writep, space) : recv(fd, streambuf->writep, space, 0);
 					if (n == 0) {
 						LOG_INFO("end of stream");
 						_disconnect(DISCONNECT, DISCONNECT_OK);
 					}
 					if (n < 0 && errno != EAGAIN) {
-						LOG_WARN("error reading: %s", strerror(errno));
+						LOG_WARN("error reading: %s", strerror(last_error()));
 						_disconnect(DISCONNECT, REMOTE_DISCONNECT);
 					}
 					
@@ -254,7 +251,7 @@ static void *stream_thread() {
 	return 0;
 }
 
-static pthread_t thread;
+static thread_type thread;
 
 void stream_init(log_level level, unsigned stream_buf_size) {
 	loglevel = level;
@@ -271,11 +268,18 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 	stream.state = STOPPED;
 	stream.header = malloc(MAX_HEADER);
 
+	fd = -1;
+
+#if LINUX || OSX
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_attr_setstacksize(&attr, STREAM_THREAD_STACK_SIZE);
 	pthread_create(&thread, &attr, stream_thread, NULL);
 	pthread_attr_destroy(&attr);
+#endif
+#if WIN
+	thread = CreateThread(NULL, STREAM_THREAD_STACK_SIZE, (LPTHREAD_START_ROUTINE)&stream_thread, NULL, 0, NULL);
+#endif
 }
 
 void stream_close(void) {
@@ -283,7 +287,9 @@ void stream_close(void) {
 	LOCK;
 	running = false;
 	UNLOCK;
+#if LINUX || OSX
 	pthread_join(thread,NULL);
+#endif
 	free(stream.header);
 	buf_destroy(streambuf);
 }
@@ -344,8 +350,7 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 		return;
 	}
 
-	int flags = fcntl(sock, F_GETFL,0);
-	fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+	set_nonblock(sock);
 
 	buf_flush(streambuf);
 
@@ -373,7 +378,7 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 
 void stream_disconnect(void) {
 	LOCK;
-	close(fd);
+	closesocket(fd);
 	fd = -1;
 	stream.state = STOPPED;
 	UNLOCK;

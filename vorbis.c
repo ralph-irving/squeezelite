@@ -1,7 +1,7 @@
 /* 
- *  Squeezelite - lightweight headless squeezeplay emulator for linux
+ *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, triode1@btinternet.com
+ *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,9 +21,6 @@
 #include "squeezelite.h"
 
 // automatically select between floating point (preferred) and fixed point libraries:
-#define LIBVORBIS "libvorbisfile.so.3"
-#define LIBTREMOR "libvorbisidec.so.1"
-
 // NOTE: works with Tremor version here: http://svn.xiph.org/trunk/Tremor, not vorbisidec.1.0.2 currently in ubuntu
 
 // we take common definations from <vorbis/vorbisfile.h> even though we can use tremor at run time
@@ -32,7 +29,6 @@
 
 // #include <tremor/ivorbisfile.h>
 #include <vorbis/vorbisfile.h>
-#include <dlfcn.h>
 
 struct vorbis {
 	OggVorbis_File *vf;
@@ -54,16 +50,16 @@ extern struct streamstate stream;
 extern struct outputstate output;
 extern struct decodestate decode;
 
-#define LOCK_S   pthread_mutex_lock(&streambuf->mutex)
-#define UNLOCK_S pthread_mutex_unlock(&streambuf->mutex)
-#define LOCK_O   pthread_mutex_lock(&outputbuf->mutex)
-#define UNLOCK_O pthread_mutex_unlock(&outputbuf->mutex)
+#define LOCK_S   mutex_lock(streambuf->mutex)
+#define UNLOCK_S mutex_unlock(streambuf->mutex)
+#define LOCK_O   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O mutex_unlock(outputbuf->mutex)
 
-typedef u_int32_t frames_t;
+static size_t _read_cb(void *ptr, size_t size, size_t nmemb, void *datasource) {
+	size_t bytes;
 
-static size_t _read(void *ptr, size_t size, size_t nmemb, void *datasource) {
 	LOCK_S;
-	size_t bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
+	bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
 	bytes = min(bytes, size * nmemb);
 
 	memcpy(ptr, streambuf->readp, bytes);
@@ -74,19 +70,22 @@ static size_t _read(void *ptr, size_t size, size_t nmemb, void *datasource) {
 }
 
 // these are needed for older versions of tremor, later versions and libvorbis allow NULL to be used
-static int _seek(void *datasource, ogg_int64_t offset, int whence) { return -1; }
-static int _close(void *datasource) { return 0; }
-static long _tell(void *datasource) { return 0; }
+static int _seek_cb(void *datasource, ogg_int64_t offset, int whence) { return -1; }
+static int _close_cb(void *datasource) { return 0; }
+static long _tell_cb(void *datasource) { return 0; }
 
 static decode_state vorbis_decode(void) {
 	static int channels;
+	bool end;
+	frames_t frames;
+	int bytes, s, n;
 
 	LOCK_S;
-	bool end = (stream.state <= DISCONNECT);
+	end = (stream.state <= DISCONNECT);
 	UNLOCK_S;
 				  
 	LOCK_O;
-	frames_t frames = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
+	frames = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
 
 	if (!frames && end) {
 		UNLOCK_O;
@@ -94,19 +93,25 @@ static decode_state vorbis_decode(void) {
 	}
 
 	if (decode.new_stream) {
-		ov_callbacks cbs = { .read_func = _read, .seek_func = NULL, .close_func = NULL, .tell_func = NULL };
+		ov_callbacks cbs;
+		int err;
+		struct vorbis_info *info;
+
+		cbs.read_func = _read_cb;
+		
 		if (v->ov_read_tremor) {
-			cbs.seek_func = _seek; cbs.close_func = _close; cbs.tell_func = _tell;
+			cbs.seek_func = _seek_cb; cbs.close_func = _close_cb; cbs.tell_func = _tell_cb;
+		} else {
+			cbs.seek_func = NULL; cbs.close_func = NULL; cbs.tell_func = NULL;
 		}
 
-		int err;
 		if ((err = v->ov_open_callbacks(streambuf, v->vf, NULL, 0, cbs)) < 0) {
 			LOG_WARN("open_callbacks error: %d", err);
 			UNLOCK_O;
 			return DECODE_COMPLETE;
 		}
 
-		struct vorbis_info *info = v->ov_info(v->vf, -1);
+		info = v->ov_info(v->vf, -1);
 
 		LOG_INFO("setting track_start");
 		output.next_sample_rate = info->rate; 
@@ -123,24 +128,27 @@ static decode_state vorbis_decode(void) {
 		}
 	}
 
-	int bytes = frames * 2 * channels; // samples returned are 16 bits
+	bytes = frames * 2 * channels; // samples returned are 16 bits
 
-	int stream, n;
 	// write the decoded frames into outputbuf even though they are 16 bits per sample, then unpack them
 	if (v->ov_read) {
-		n = v->ov_read(v->vf, (char *)outputbuf->writep, bytes, 0, 2, 1, &stream);
+		n = v->ov_read(v->vf, (char *)outputbuf->writep, bytes, 0, 2, 1, &s);
 	} else {
-		n = v->ov_read_tremor(v->vf, (char *)outputbuf->writep, bytes, &stream);
+		n = v->ov_read_tremor(v->vf, (char *)outputbuf->writep, bytes, &s);
 	}
 
 	if (n > 0) {
 
+		frames_t count;
+		s16_t *iptr;
+		s32_t *optr;
+
 		frames = n / 2 / channels;
-		frames_t count = frames * channels;
+		count = frames * channels;
 
 		// work backward to unpack samples to 4 bytes per sample
-		s16_t *iptr = (s16_t *)outputbuf->writep + count;
-		s32_t *optr = (s32_t *)outputbuf->writep + frames * 2;
+		iptr = (s16_t *)outputbuf->writep + count;
+		optr = (s32_t *)outputbuf->writep + frames * 2;
 
 		if (channels == 2) {
 			while (count--) {
@@ -190,8 +198,10 @@ static void vorbis_close(void) {
 }
 
 static bool load_vorbis() {
-	bool tremor = false;
 	void *handle = dlopen(LIBVORBIS, RTLD_NOW);
+	char *err;
+	bool tremor = false;
+
 	if (!handle) {
 		handle = dlopen(LIBTREMOR, RTLD_NOW);
 		if (handle) {
@@ -210,7 +220,6 @@ static bool load_vorbis() {
 	v->ov_clear = dlsym(handle, "ov_clear");
 	v->ov_open_callbacks = dlsym(handle, "ov_open_callbacks");
 	
-	char *err;
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
 		return false;
@@ -221,14 +230,14 @@ static bool load_vorbis() {
 }
 
 struct codec *register_vorbis(void) {
-	static struct codec ret = { 
-		.id    = 'o',
-		.types = "ogg",
-		.open  = vorbis_open,
-		.close = vorbis_close,
-		.decode= vorbis_decode,
-		.min_space = 20480,
-		.min_read_bytes = 2048,
+	static struct codec ret = {
+		'o',          // id
+		"ogg",        // types
+		2048,         // min read
+		20480,        // min space
+		vorbis_open,  // open
+		vorbis_close, // close
+		vorbis_decode,// decode
 	};
 
 	if (!load_vorbis()) {

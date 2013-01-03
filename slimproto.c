@@ -1,7 +1,7 @@
 /* 
- *  Squeezelite - lightweight headless squeezeplay emulator for linux
+ *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, triode1@btinternet.com
+ *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ static log_level loglevel;
 
 #define MAXBUF 4096
 
-#if IS_LITTLE_ENDIAN
+#if LITTLE_ENDIAN
 #define LOCAL_PLAYER_IP   0x0100007f // 127.0.0.1
 #define LOCAL_PLAYER_PORT 0x9b0d     // 3483
 #else
@@ -35,8 +35,7 @@ static log_level loglevel;
 #define LOCAL_PLAYER_PORT 0x0d9b     // 3483
 #endif
 
-static int sock;
-static int efd;
+static sockfd sock;
 static in_addr_t slimproto_ip;
 
 extern struct buffer *streambuf;
@@ -48,10 +47,12 @@ extern struct decodestate decode;
 
 extern struct codec *codecs[];
 
-#define LOCK_S   pthread_mutex_lock(&streambuf->mutex)
-#define UNLOCK_S pthread_mutex_unlock(&streambuf->mutex)
-#define LOCK_O   pthread_mutex_lock(&outputbuf->mutex)
-#define UNLOCK_O pthread_mutex_unlock(&outputbuf->mutex)
+event_event wake_e;
+
+#define LOCK_S   mutex_lock(streambuf->mutex)
+#define UNLOCK_S mutex_unlock(streambuf->mutex)
+#define LOCK_O   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O mutex_unlock(outputbuf->mutex)
 
 static struct {
 	u32_t updated;
@@ -62,7 +63,7 @@ static struct {
 	u32_t output_full;
 	u32_t output_size;
 	u32_t frames_played;
-	u32_t alsa_frames;
+	u32_t device_frames;
 	u32_t current_sample_rate;
 	u32_t last;
 	stream_state stream_state;
@@ -70,6 +71,8 @@ static struct {
 
 int autostart;
 bool sentSTMu, sentSTMo, sentSTMl;
+u32_t new_server;
+char *new_server_cap;
 
 void send_packet(u8_t *packet, size_t len) {
 	u8_t *ptr = packet;
@@ -79,7 +82,7 @@ void send_packet(u8_t *packet, size_t len) {
 	while (len) {
 		n = send(sock, ptr, len, 0);
 		if (n < 0) {
-			LOG_INFO("failed writing to socket: %s", strerror(errno));
+			LOG_INFO("failed writing to socket: %s", strerror(last_error()));
 			return;
 		}
 		ptr += n;
@@ -87,15 +90,14 @@ void send_packet(u8_t *packet, size_t len) {
 	}
 }
 
-static void sendHELO(bool reconnect, const char *cap, u8_t mac[6]) {
-	const char *capbase = "Model=squeezelite,ModelName=SqueezeLite,AccuratePlayPoints=1,HasDigitalOut=1,";
-	
-	struct HELO_packet pkt = {
-		.opcode = "HELO",
-		.length = htonl(sizeof(struct HELO_packet) - 8 + strlen(capbase) + strlen(cap)),
-		.deviceid = 12, // squeezeplay
-		.revision = 0, 
-	};
+static void sendHELO(bool reconnect, const char *fixed_cap, const char *var_cap, u8_t mac[6]) {
+	const char *base_cap = "Model=squeezelite,ModelName=SqueezeLite,AccuratePlayPoints=1,HasDigitalOut=1";
+	struct HELO_packet pkt;
+
+	memcpy(&pkt.opcode, "HELO", 4);
+	pkt.length = htonl(sizeof(struct HELO_packet) - 8 + strlen(base_cap) + strlen(fixed_cap) + strlen(var_cap));
+	pkt.deviceid = 12; // squeezeplay
+	pkt.revision = 0;
 	packn(&pkt.wlan_channellist, reconnect ? 0x4000 : 0x0000);
 	packN(&pkt.bytes_received_H, (u64_t)status.stream_bytes >> 32);
 	packN(&pkt.bytes_received_L, (u64_t)status.stream_bytes & 0xffffffff);
@@ -103,9 +105,12 @@ static void sendHELO(bool reconnect, const char *cap, u8_t mac[6]) {
 
 	LOG_INFO("mac: %02x:%02x:%02x:%02x:%02x:%02x", pkt.mac[0], pkt.mac[1], pkt.mac[2], pkt.mac[3], pkt.mac[4], pkt.mac[5]);
 
+	LOG_DEBUG("cap: %s%s%s", base_cap, fixed_cap, var_cap);
+
 	send_packet((u8_t *)&pkt, sizeof(pkt));
-	send_packet((u8_t *)capbase, strlen(capbase));
-	send_packet((u8_t *)cap, strlen(cap));
+	send_packet((u8_t *)base_cap, strlen(base_cap));
+	send_packet((u8_t *)fixed_cap, strlen(fixed_cap));
+	send_packet((u8_t *)var_cap, strlen(var_cap));
 }
 
 static void sendSTAT(const char *event, u32_t server_timestamp) {
@@ -114,7 +119,7 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 	u32_t ms_played;
 
 	if (status.current_sample_rate) {
-		ms_played = (u32_t)(((u64_t)(status.frames_played - status.alsa_frames) * (u64_t)1000) / (u64_t)status.current_sample_rate);
+		ms_played = (u32_t)(((u64_t)(status.frames_played - status.device_frames) * (u64_t)1000) / (u64_t)status.current_sample_rate);
 		if (now > status.updated) ms_played += (now - status.updated);
 	} else {
 		ms_played = 0;
@@ -142,10 +147,10 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 
 	LOG_INFO("STAT: %s", event);
 
-	if (loglevel == SDEBUG) {
-		LOG_SDEBUG("received bytesL: %u streambuf: %u outputbuf: %u calc elapsed: %u real elapsed: %u (diff: %u) alsa: %u delay: %d",
+	if (loglevel == lSDEBUG) {
+		LOG_SDEBUG("received bytesL: %u streambuf: %u outputbuf: %u calc elapsed: %u real elapsed: %u (diff: %u) device: %u delay: %d",
 				   (u32_t)status.stream_bytes, status.stream_full, status.output_full, ms_played, now - status.stream_start,
-				   ms_played - now + status.stream_start, status.alsa_frames * 1000 / status.current_sample_rate, now - status.updated);
+				   ms_played - now + status.stream_start, status.device_frames * 1000 / status.current_sample_rate, now - status.updated);
 	}
 
 	send_packet((u8_t *)&pkt, sizeof(pkt));
@@ -261,7 +266,7 @@ static void process_strm(u8_t *pkt, int len) {
 		{
 			unsigned header_len = len - sizeof(struct strm_packet);
 			char *header = (char *)(pkt + sizeof(struct strm_packet));
-			in_addr_t ip = strm->server_ip; // keep in network byte order
+			in_addr_t ip = (in_addr_t)strm->server_ip; // keep in network byte order
 			u16_t port = strm->server_port; // keep in network byte order
 			if (ip == 0) ip = slimproto_ip; 
 
@@ -345,6 +350,31 @@ static void process_audg(u8_t *pkt, int len) {
 	UNLOCK_O;
 }
 
+#define SYNC_CAP ",SyncgroupID="
+#define SYNC_CAP_LEN 13
+
+static void process_serv(u8_t *pkt, int len) {
+	struct serv_packet *serv = (struct serv_packet *)pkt;
+
+	LOG_INFO("switch server");
+
+	new_server = serv->server_ip;
+
+	if (len - sizeof(struct serv_packet) == 10) {
+		if (!new_server_cap) {
+			new_server_cap = malloc(SYNC_CAP_LEN + 10 + 1);
+		}
+		new_server_cap[0] = '\0';
+		strcat(new_server_cap, SYNC_CAP);
+		strncat(new_server_cap, (const char *)(pkt + sizeof(struct serv_packet)), 10);
+	} else {
+		if (new_server_cap) {
+			free(new_server_cap);
+			new_server_cap = NULL;
+		}
+	}		
+}
+
 struct handler {
 	char opcode[5];
 	void (*handler)(u8_t *, int);
@@ -355,6 +385,7 @@ static struct handler handlers[] = {
 	{ "cont", process_cont },
 	{ "aude", process_aude },
 	{ "audg", process_audg },
+	{ "serv", process_serv },
 	{ "",     NULL  },
 };
 
@@ -371,24 +402,31 @@ static void process(u8_t *pack, int len) {
 	}
 }
 
+static bool running;
+
 static void slimproto_run() {
-	struct pollfd pollinfo[2] = { { .fd = sock, .events = POLLIN }, { .fd = efd, .events = POLLIN } };
 	static u8_t buffer[MAXBUF];
 	int  expect = 0;
 	int  got    = 0;
+	u32_t now;
+	static u32_t last = 0;
+	event_handle ehandles[2];
 
-	while (true) {
+	set_readwake_handles(ehandles, sock, wake_e);
+
+	while (running && !new_server) {
 
 		bool wake = false;
+		event_type ev;
 
-		if (poll(pollinfo, 2, 1000)) {
-
-			if (pollinfo[0].revents) {
+		if ((ev = wait_readwake(ehandles, 1000)) != EVENT_TIMEOUT) {
+	
+			if (ev == EVENT_READ) {
 
 				if (expect > 0) {
 					int n = recv(sock, buffer + got, expect, 0);
 					if (n <= 0) {
-						LOG_INFO("error reading from socket: %s", n ? strerror(errno) : "closed");
+						LOG_INFO("error reading from socket: %s", n ? strerror(last_error()) : "closed");
 						return;
 					}
 					expect -= n;
@@ -400,7 +438,7 @@ static void slimproto_run() {
 				} else if (expect == 0) {
 					int n = recv(sock, buffer + got, 2 - got, 0);
 					if (n <= 0) {
-						LOG_INFO("error reading from socket: %s", n ? strerror(errno) : "closed");
+						LOG_INFO("error reading from socket: %s", n ? strerror(last_error()) : "closed");
 						return;
 					}
 					got += n;
@@ -419,20 +457,15 @@ static void slimproto_run() {
 
 			}
 
-			if (pollinfo[1].revents) {
-				uint64_t u;
-				u = read(efd, &u, sizeof(uint64_t));
+			if (ev == EVENT_WAKE) {
 				wake = true;
 			}
 		}
 
 		// update playback state when woken or every 100ms
-		u32_t now = gettime_ms();
-		static u32_t last = 0;
+		now = gettime_ms();
 
 		if (wake || now - last > 100 || last > now) {
-			last = now;
-
 			bool _sendSTMs = false;
 			bool _sendDSCO = false;
 			bool _sendRESP = false;
@@ -446,6 +479,7 @@ static void slimproto_run() {
 			disconnect_code disconnect;
 			static char header[MAX_HEADER];
 			size_t header_len = 0;
+			last = now;
 
 			LOCK_S;
 			status.stream_full = _buf_used(streambuf);
@@ -479,13 +513,19 @@ static void slimproto_run() {
 			status.frames_played = output.frames_played;
 			status.current_sample_rate = output.current_sample_rate;
 			status.updated = output.updated;
-			status.alsa_frames = output.alsa_frames;
+			status.device_frames = output.device_frames;
 			
 			if (output.track_started) {
 				_sendSTMs = true;
 				output.track_started = false;
 				status.stream_start = output.updated;
 			}
+#if PORTAUDIO
+			if (output.pa_reopen) {
+				_pa_open();
+				output.pa_reopen = false;
+			}
+#endif
 			if (decode.state == DECODE_COMPLETE) {
 				_sendSTMd = true;
 				decode.state = DECODE_STOPPED;
@@ -538,27 +578,29 @@ static void slimproto_run() {
 
 // called from other threads to wake state machine above
 void wake_controller(void) {
-	uint64_t u = 1;
-	u = write(efd, &u, sizeof(uint64_t));
+	wake_signal(wake_e);
 }
 
 in_addr_t discover_server(void) {
     struct sockaddr_in d;
     struct sockaddr_in s;
+	char *buf;
+	struct pollfd pollinfo;
 
 	int disc_sock = socket(AF_INET, SOCK_DGRAM, 0);
 
-	int enable = 1;
-	setsockopt(disc_sock, SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
+	socklen_t enable = 1;
+	setsockopt(disc_sock, SOL_SOCKET, SO_BROADCAST, (const void *)&enable, sizeof(enable));
+
+	buf = "e";
 
 	memset(&d, 0, sizeof(d));
     d.sin_family = AF_INET;
 	d.sin_port = htons(PORT);
     d.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
-	char *buf = "e";
-
-	struct pollfd pollinfo = { .fd = disc_sock, .events = POLLIN };
+	pollinfo.fd = disc_sock;
+	pollinfo.events = POLLIN;
 
 	do {
 
@@ -578,28 +620,29 @@ in_addr_t discover_server(void) {
 
 	} while (s.sin_addr.s_addr == 0);
 
-	close(disc_sock);
+	closesocket(disc_sock);
 
 	return s.sin_addr.s_addr;
 }
 
 void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name) {
     struct sockaddr_in serv_addr;
-	static char buf[128];
+	static char fixed_cap[128], var_cap[128] = "";
 	bool reconnect = false;
+	int i;
 
-	efd = eventfd(0, 0);
+	wake_create(wake_e);
 
 	loglevel = level;
 	slimproto_ip = addr ? inet_addr(addr) : discover_server();
 
 	LOCK_O;
-	sprintf(buf, "MaxSampleRate=%u", output.max_sample_rate); 
-	int i;
+	sprintf(fixed_cap, ",MaxSampleRate=%u", output.max_sample_rate); 
+	
 	for (i = 0; i < MAX_CODECS; i++) {
-		if (codecs[i] && codecs[i]->id && strlen(buf) < 128 - 10) {
-			strcat(buf, ",");
-			strcat(buf, codecs[i]->types);
+		if (codecs[i] && codecs[i]->id && strlen(fixed_cap) < 128 - 10) {
+			strcat(fixed_cap, ",");
+			strcat(fixed_cap, codecs[i]->types);
 		}
 	}
 	UNLOCK_O;
@@ -610,9 +653,18 @@ void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name)
 	serv_addr.sin_port = htons(PORT);
 
 	LOG_INFO("connecting to %s:%d", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
-	LOG_DEBUG("cap: %s", buf);
 
-	while (true) {
+	running = true;
+	new_server = 0;
+
+	while (running) {
+
+		if (new_server) {
+			slimproto_ip = serv_addr.sin_addr.s_addr = new_server;
+			LOG_INFO("switching server to %s:%d", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
+			new_server = 0;
+			reconnect = false;
+		}
 
 		sock = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -622,28 +674,36 @@ void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name)
 			sleep(5);
 
 		} else {
-		
+
+			struct sockaddr_in our_addr;
+			socklen_t len;
+
 			LOG_INFO("connected");
+
+			var_cap[0] = '\0';
 
 			// check if this is a local player now we are connected & signal to server via 'loc' format
 			// this requires LocalPlayer server plugin to enable direct file access
+			len = sizeof(our_addr);
+			getsockname(sock, (struct sockaddr *) &our_addr, &len);
+			
+			if (our_addr.sin_addr.s_addr == serv_addr.sin_addr.s_addr) {
+				LOG_INFO("local player");
+				strcat(var_cap, ",loc");
+			}
+
+			// add on any capablity to be sent to the new server
+			if (new_server_cap) {
+				strcat(var_cap, new_server_cap);
+				free(new_server_cap);
+				new_server_cap = NULL;
+			}
+
 			if (!reconnect) {
-				struct sockaddr_in our_addr;
-				socklen_t len;
-
-				len = sizeof(our_addr);
-				getsockname(sock, (struct sockaddr *) &our_addr, &len);
-
-				if (our_addr.sin_addr.s_addr == serv_addr.sin_addr.s_addr) {
-					LOG_INFO("local player");
-					strcat(buf, ",");
-					strcat(buf, "loc");
-				}
-
 				reconnect = true;
 			}
 
-			sendHELO(reconnect, buf, mac);
+			sendHELO(reconnect, fixed_cap, var_cap, mac);
 
 			if (name) {
 				sendSETDName(name);
@@ -655,8 +715,10 @@ void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name)
 			usleep(100000);
 		}
 
-		close(sock);
+		closesocket(sock);
 	}
+}
 
-	close(efd);
+void slimproto_stop(void) {
+	running = false;
 }

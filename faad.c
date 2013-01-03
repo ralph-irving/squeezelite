@@ -1,8 +1,8 @@
 /* 
- *  Squeezelite - lightweight headless squeezeplay emulator for linux
+ *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, triode1@btinternet.com
- *
+ *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
+ *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,9 +21,6 @@
 #include "squeezelite.h"
 
 #include <neaacdec.h>
-#include <dlfcn.h>
-
-#define LIBFAAD "libfaad.so.2"
 
 #define WRAPBUF_LEN 2048
 
@@ -45,7 +42,6 @@ struct faad {
 	bool  empty;
 	struct chunk_table *chunkinfo;
 	// faad symbols to be dynamically loaded
-	unsigned long (* NeAACDecGetCapabilities)(void);
 	NeAACDecConfigurationPtr (* NeAACDecGetCurrentConfiguration)(NeAACDecHandle);
 	unsigned char (* NeAACDecSetConfiguration)(NeAACDecHandle, NeAACDecConfigurationPtr);
 	NeAACDecHandle (* NeAACDecOpen)(void);
@@ -66,12 +62,10 @@ extern struct streamstate stream;
 extern struct outputstate output;
 extern struct decodestate decode;
 
-#define LOCK_S   pthread_mutex_lock(&streambuf->mutex)
-#define UNLOCK_S pthread_mutex_unlock(&streambuf->mutex)
-#define LOCK_O   pthread_mutex_lock(&outputbuf->mutex)
-#define UNLOCK_O pthread_mutex_unlock(&outputbuf->mutex)
-
-typedef u_int32_t frames_t;
+#define LOCK_S   mutex_lock(streambuf->mutex)
+#define UNLOCK_S mutex_unlock(streambuf->mutex)
+#define LOCK_O   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O mutex_unlock(outputbuf->mutex)
 
 // minimal code for mp4 file parsing to extract audio config and find media data
 
@@ -98,12 +92,13 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 	u32_t len;
 
 	while (bytes >= 8) {
+		// count trak to find the first playable one
+		static unsigned trak, play;
+		u32_t consume;
+
 		len = unpackN((u32_t *)streambuf->readp);
 		memcpy(type, streambuf->readp + 4, 4);
 		type[4] = '\0';
-
-		// count trak to find the first playable one
-		static unsigned trak, play;
 
 		if (!strcmp(type, "moov")) {
 			trak = 0;
@@ -115,6 +110,7 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 
 		// extract audio config from within esds and pass to DecInit2
 		if (!strcmp(type, "esds") && bytes > len) {
+			unsigned config_len;
 			u8_t *ptr = streambuf->readp + 12;
 			if (*ptr++ == 0x03) {
 				mp4_desc_length(&ptr);
@@ -128,7 +124,7 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				LOG_WARN("error parsing esds");
 				return -1;
 			}
-			unsigned config_len = mp4_desc_length(&ptr);
+			config_len = mp4_desc_length(&ptr);
 			if (a->NeAACDecInit2(a->hAac, ptr, config_len, samplerate_p, channels_p) == 0) {
 				LOG_DEBUG("playable aac track: %u", trak);
 				play = trak;
@@ -147,6 +143,7 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 
 		// build offsets table from stco and stored stsc
 		if (!strcmp(type, "stco") && bytes > len && play == trak) {
+			u32_t i;
 			// extract chunk offsets
 			u8_t *ptr = streambuf->readp + 12;
 			u32_t entries = unpackN((u32_t *)ptr);
@@ -156,7 +153,6 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				LOG_WARN("malloc fail");
 				return -1;
 			}
-			u32_t i;
 			for (i = 0; i < entries; ++i) {
 				a->chunkinfo[i].offset = unpackN((u32_t *)ptr);
 				a->chunkinfo[i].sample = 0;
@@ -169,7 +165,7 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				u32_t stsc_entries = unpackN((u32_t *)a->stsc);
 				u32_t sample = 0;
 				u32_t last = 0, last_samples = 0;
-				void *ptr = a->stsc + 4;
+				u8_t *ptr = (u8_t *)a->stsc + 4;
 				while (stsc_entries--) {
 					u32_t first = unpackN((u32_t *)ptr);
 					u32_t samples = unpackN((u32_t *)(ptr + 4));
@@ -241,7 +237,7 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 		}
 
 		// default to consuming entire box
-		u32_t consume = len;
+		consume = len;
 
 		// read into these boxes so reduce consume
 		if (!strcmp(type, "moov") || !strcmp(type, "trak") || !strcmp(type, "mdia") || !strcmp(type, "minf") || !strcmp(type, "stbl") ||
@@ -274,9 +270,16 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 }
 
 static decode_state faad_decode(void) {
+	size_t bytes_total;
+	size_t bytes_wrap;
+	NeAACDecFrameInfo info;
+	s32_t *iptr;
+	bool endstream;
+	frames_t frames;
+
 	LOCK_S;
-	size_t bytes_total = _buf_used(streambuf);
-	size_t bytes_wrap  = min(bytes_total, _buf_cont_read(streambuf));
+	bytes_total = _buf_used(streambuf);
+	bytes_wrap  = min(bytes_total, _buf_cont_read(streambuf));
 
 	if (stream.state <= DISCONNECT && !bytes_total) {
 		UNLOCK_S;
@@ -351,9 +354,6 @@ static decode_state faad_decode(void) {
 		}
 	}
 
-	NeAACDecFrameInfo info;
-	s32_t *iptr;
-
 	if (bytes_wrap < WRAPBUF_LEN && bytes_total > WRAPBUF_LEN) {
 
 		// make a local copy of frames which may have wrapped round the end of streambuf
@@ -372,7 +372,7 @@ static decode_state faad_decode(void) {
 		LOG_WARN("error: %u %s", info.error, a->NeAACDecGetErrorMessage(info.error));
 	}
 
-	bool endstream = false;
+	endstream = false;
 
 	// mp4 end of chunk - skip to next offset
 	if (a->chunkinfo && a->chunkinfo[a->nextchunk].offset && a->sample++ == a->chunkinfo[a->nextchunk].sample) {
@@ -419,15 +419,16 @@ static decode_state faad_decode(void) {
 
 	LOCK_O;
 
-	size_t frames = info.samples / info.channels;
+	frames = info.samples / info.channels;
 
 	if (a->skip) {
+		u32_t skip;
 		if (a->empty) {
 			a->empty = false;
 			a->skip -= frames;
 			LOG_DEBUG("gapless: first frame empty, skipped %u frames at start", frames);
 		}
-		u32_t skip = min(frames, a->skip);
+		skip = min(frames, a->skip);
 		LOG_DEBUG("gapless: skipping %u frames at start", skip);
 		frames -= skip;
 		a->skip -= skip;
@@ -437,7 +438,7 @@ static decode_state faad_decode(void) {
 	if (a->samples) {
 		if (a->samples < frames) {
 			LOG_DEBUG("gapless: trimming %u frames from end", frames - a->samples);
-			frames = a->samples;
+			frames = (frames_t)a->samples;
 		}
 		a->samples -= frames;
 	}
@@ -446,10 +447,13 @@ static decode_state faad_decode(void) {
 
 	while (frames > 0) {
 		frames_t f = _buf_cont_write(outputbuf) / BYTES_PER_FRAME;
-		f = min(f, frames);
+		frames_t count;
+		s32_t *optr;
 
-		frames_t count = f;
-		s32_t *optr = (s32_t *)outputbuf->writep;
+		f = min(f, frames);
+		count = f;
+		
+		optr = (s32_t *)outputbuf->writep;
 
 		if (info.channels == 2) {
 			while (count--) {
@@ -475,6 +479,8 @@ static decode_state faad_decode(void) {
 }
 
 static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
+	NeAACDecConfigurationPtr conf;
+
 	LOG_INFO("opening %s stream", size == '2' ? "adts" : "mp4");
 
 	a->type = size;
@@ -497,7 +503,7 @@ static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	}
 	a->hAac = a->NeAACDecOpen();
 
-	NeAACDecConfigurationPtr conf = a->NeAACDecGetCurrentConfiguration(a->hAac);
+	conf = a->NeAACDecGetCurrentConfiguration(a->hAac);
 
 	conf->outputFormat = FAAD_FMT_24BIT;
 	conf->downMatrix = 1;
@@ -522,6 +528,8 @@ static void faad_close(void) {
 
 static bool load_faad() {
 	void *handle = dlopen(LIBFAAD, RTLD_NOW);
+	char *err;
+
 	if (!handle) {
 		LOG_INFO("dlerror: %s", dlerror());
 		return false;
@@ -532,7 +540,6 @@ static bool load_faad() {
 	a->hAac = NULL;
 	a->chunkinfo = NULL;
 	a->stsc = NULL;
-	a->NeAACDecGetCapabilities = dlsym(handle, "NeAACDecGetCapabilities");
 	a->NeAACDecGetCurrentConfiguration = dlsym(handle, "NeAACDecGetCurrentConfiguration");
 	a->NeAACDecSetConfiguration = dlsym(handle, "NeAACDecSetConfiguration");
 	a->NeAACDecOpen = dlsym(handle, "NeAACDecOpen");
@@ -542,25 +549,24 @@ static bool load_faad() {
 	a->NeAACDecDecode = dlsym(handle, "NeAACDecDecode");
 	a->NeAACDecGetErrorMessage = dlsym(handle, "NeAACDecGetErrorMessage");
 
-	char *err;
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
 		return false;
 	}
 
-	LOG_INFO("loaded "LIBFAAD" cap: 0x%x", a->NeAACDecGetCapabilities());
+	LOG_INFO("loaded "LIBFAAD"");
 	return true;
 }
 
 struct codec *register_faad(void) {
 	static struct codec ret = { 
-		.id    = 'a',
-		.types = "aac",
-		.open  = faad_open,
-		.close = faad_close,
-		.decode= faad_decode,
-		.min_space = 20480,
-		.min_read_bytes = WRAPBUF_LEN,
+		'a',          // id
+		"aac",        // types
+		WRAPBUF_LEN,  // min read
+		20480,        // min space
+		faad_open,    // open
+		faad_close,   // close
+		faad_decode,  // decode
 	};
 
 	if (!load_faad()) {
