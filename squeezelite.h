@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v0.9beta4"
+#define VERSION "v0.9beta5-194"
 
 // build detection
 #if defined(linux)
@@ -191,9 +191,7 @@ typedef BOOL bool;
 #define in_addr_t u32_t
 #define socklen_t int
 
-#define dlopen(x, y) LoadLibrary((LPCTSTR)x)
-#define dlsym(x, y)  (void *)GetProcAddress(x, y)
-//dlerror implemented in utils.c
+#define RTLD_NOW 0
 
 #endif
 
@@ -274,6 +272,8 @@ u16_t unpackn(u16_t *src);
 #if WIN
 void winsock_init(void);
 void winsock_close(void);
+void *dlopen(const char *filename, int flag);
+void *dlsym(void *handle, const char *symbol);
 char *dlerror(void);
 int poll(struct pollfd *fds, unsigned long numfds, int timeout);
 #endif

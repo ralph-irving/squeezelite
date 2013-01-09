@@ -240,6 +240,16 @@ void winsock_close(void) {
 	WSACleanup();
 }
 
+void *dlopen(const char *filename, int flag) {
+	SetLastError(0);
+	return LoadLibrary((LPCTSTR)filename);
+}
+
+void *dlsym(void *handle, const char *symbol) {
+	SetLastError(0);
+	return (void *)GetProcAddress(handle, symbol);
+}
+
 char *dlerror(void) {
 	static char ret[32];
 	int last = GetLastError();

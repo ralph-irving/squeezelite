@@ -26,7 +26,8 @@
 #define WRITE_SIZE 32 * 1024
 
 struct mpg {
-	mpg123_handle *h;	
+	mpg123_handle *h;
+	bool use16bit;
 	// mpg symbols to be dynamically loaded
 	int (* mpg123_init)(void);
 	int (* mpg123_feature)(const enum mpg123_feature_set);
@@ -73,6 +74,10 @@ static decode_state mpg_decode(void) {
 		return DECODE_COMPLETE;
 	}
 
+	if (m->use16bit) {
+		space = (space / BYTES_PER_FRAME) * 4;
+	}
+
 	ret = m->mpg123_decode(m->h, streambuf->readp, bytes, outputbuf->writep, space, &size);
 
 	if (ret == MPG123_NEW_FORMAT) {
@@ -91,6 +96,19 @@ static decode_state mpg_decode(void) {
 
 		} else {
 			LOG_WARN("format change mid stream - not supported");
+		}
+	}
+
+	// expand 16bit output to 32bit samples
+	if (m->use16bit) {
+		s16_t *iptr;
+		s32_t *optr;
+		size_t count = size / 2;
+		size = count * 4;
+		iptr = (s16_t *)outputbuf->writep + count;
+		optr = (s32_t *)outputbuf->writep + count;
+		while (count--) {
+			*--optr = *--iptr << 16;
 		}
 	}
 
@@ -131,11 +149,11 @@ static void mpg_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 		LOG_WARN("new error: %s", m->mpg123_plain_strerror(err));
 	}
 
-	// restrict output to 32bit signed 2 channel for all supported sample rates
+	// restrict output to 32bit or 16bit signed 2 channel based on library capability
 	m->mpg123_rates(&list, &count);
 	m->mpg123_format_none(m->h);
 	for (i = 0; i < count; i++) {
-		m->mpg123_format(m->h, list[i], 2, MPG123_ENC_SIGNED_32);
+		m->mpg123_format(m->h, list[i], 2, m->use16bit ? MPG123_ENC_SIGNED_16 : MPG123_ENC_SIGNED_32);
 	}
 
 	err = m->mpg123_open_feed(m->h);
@@ -181,10 +199,7 @@ static bool load_mpg() {
 
 	m->mpg123_init();
 
-	if (!m->mpg123_feature(MPG123_FEATURE_OUTPUT_32BIT)) {
-		LOG_WARN("32 bit output not supported - disabled");
-		return false;
-	}
+	m->use16bit = !m->mpg123_feature(MPG123_FEATURE_OUTPUT_32BIT);
 
 	LOG_INFO("loaded "LIBMPG);
 	return true;

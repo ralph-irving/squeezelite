@@ -77,7 +77,7 @@ static void *stream_thread() {
 
 	while (running) {
 
-		struct pollfd pollinfo = { fd, 0, 0 };
+		struct pollfd pollinfo;
 		size_t space;
 
 		LOCK;
@@ -85,6 +85,7 @@ static void *stream_thread() {
 		UNLOCK;
 
 		if (fd >= 0 && stream.state > STREAMING_WAIT && space) {
+			pollinfo.fd = fd;
 			pollinfo.events = POLLIN;
 			if (stream.state == SEND_HEADERS) {
 				pollinfo.events |= POLLOUT;
