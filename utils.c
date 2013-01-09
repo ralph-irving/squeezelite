@@ -239,5 +239,43 @@ void winsock_init(void) {
 void winsock_close(void) {
 	WSACleanup();
 }
+
+char *dlerror(void) {
+	static char ret[32];
+	int last = GetLastError();
+	if (last) {
+		sprintf(ret, "code: %i", last);
+		SetLastError(0);
+		return ret;
+	}
+	return NULL;
+}
+
+// this only implements numfds == 1
+int poll(struct pollfd *fds, unsigned long numfds, int timeout) {
+	fd_set r, w;
+	struct timeval tv;
+	int ret;
+	
+	FD_ZERO(&r);
+	FD_ZERO(&w);
+	
+	if (fds[0].events & POLLIN) FD_SET(fds[0].fd, &r);
+	if (fds[0].events & POLLOUT) FD_SET(fds[0].fd, &w);
+	
+	tv.tv_sec = timeout / 1000;
+	tv.tv_usec = 1000 * (timeout % 1000);
+	
+	ret = select(fds[0].fd + 1, &r, &w, NULL, &tv);
+    
+	if (ret < 0) return ret;
+	
+	fds[0].revents = 0;
+	if (FD_ISSET(fds[0].fd, &r)) fds[0].revents |= POLLIN;
+	if (FD_ISSET(fds[0].fd, &w)) fds[0].revents |= POLLOUT;
+	
+	return ret;
+}
+
 #endif
 

@@ -528,6 +528,7 @@ static void *output_thread(void *arg) {
 			LOCK;
 			output_off = (output.state == OUTPUT_OFF);
 			UNLOCK;
+			if (!running) return 0;
 		}
 
 		// wait until device returns - to allow usb audio devices to be turned off
@@ -773,11 +774,11 @@ static void *output_thread(void *arg) {
 							} else {
 								LOG_WARN("unable to skip crossfaded start");
 							}
-							output.fade = FADE_NONE;
+							output.fade = FADE_INACTIVE;
 							output.current_replay_gain = output.next_replay_gain;
 						} else {
 							LOG_INFO("fade complete");
-							output.fade = FADE_NONE;
+							output.fade = FADE_INACTIVE;
 						}
 					}
 					// if fade in progress set fade gain, ensure cont_frames reduced so we get to end of fade at start of chunk
@@ -838,7 +839,7 @@ static void *output_thread(void *arg) {
 				out_frames = (frames_t)alsa_frames;
 
 				// perform crossfade buffer copying here as we do not know the actual out_frames value until here
-				if (output.fade == FADE_ACTIVE && output.fade_dir == FADE_CROSS) {
+				if (output.fade == FADE_ACTIVE && output.fade_dir == FADE_CROSS && cross_ptr) {
 					s32_t *ptr = (s32_t *)(void *)outputbuf->readp;
 					frames_t count = out_frames * 2;
 					while (count--) {
@@ -1065,7 +1066,7 @@ static void *output_thread(void *arg) {
 #endif
 				if (!silence) {
 
-					if (output.fade == FADE_ACTIVE && output.fade_dir == FADE_CROSS) {
+					if (output.fade == FADE_ACTIVE && output.fade_dir == FADE_CROSS && cross_ptr) {
 						s32_t *ptr = (s32_t *)(void *)outputbuf->readp;
 						frames_t count = out_frames * 2;
 						while (count--) {
@@ -1284,6 +1285,9 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 void output_flush(void) {
 	LOG_INFO("flush output buffer");
 	buf_flush(outputbuf);
+	LOCK;
+	output.fade = FADE_INACTIVE;
+	UNLOCK;
 }
 
 void output_close(void) {

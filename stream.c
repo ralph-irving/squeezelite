@@ -45,7 +45,7 @@ static void send_header(void) {
 	while (len) {
 		n = send(fd, ptr, len, 0);
 		if (n <= 0) {
-			if (n < 0 && errno == EAGAIN && try < 10) {
+			if (n < 0 && last_error() == EAGAIN && try < 10) {
 				LOG_SDEBUG("retrying (%d) writing to socket", ++try);
 				usleep(1000);
 				continue;
@@ -80,22 +80,19 @@ static void *stream_thread() {
 		struct pollfd pollinfo = { fd, 0, 0 };
 		size_t space;
 
-		if (fd < 0) {
-			usleep(100000);
-			continue;
-		}
-
 		LOCK;
 		space = min(_buf_space(streambuf), _buf_cont_write(streambuf));
+		UNLOCK;
 
-		if (stream.state > STREAMING_WAIT && space) {
+		if (fd >= 0 && stream.state > STREAMING_WAIT && space) {
 			pollinfo.events = POLLIN;
 			if (stream.state == SEND_HEADERS) {
 				pollinfo.events |= POLLOUT;
 			}
+		} else {
+			usleep(100000);
+			continue;
 		}
-
-		UNLOCK;
 
 		if (poll(&pollinfo, 1, 100)) {
 
@@ -120,7 +117,7 @@ static void *stream_thread() {
 
 					int n = recv(fd, &c, 1, 0);
 					if (n <= 0) {
-						if (n < 0 && errno == EAGAIN) {
+						if (n < 0 && last_error() == EAGAIN) {
 							UNLOCK;
 							continue;
 						}
@@ -162,7 +159,7 @@ static void *stream_thread() {
 						u8_t c;
 						int n = recv(fd, &c, 1, 0);
 						if (n <= 0) {
-							if (n < 0 && errno == EAGAIN) {
+							if (n < 0 && last_error() == EAGAIN) {
 								UNLOCK;
 								continue;
 							}
@@ -179,7 +176,7 @@ static void *stream_thread() {
 					if (stream.meta_left) {
 						int n = recv(fd, stream.header + stream.header_len, stream.meta_left, 0);
 						if (n <= 0) {
-							if (n < 0 && errno == EAGAIN) {
+							if (n < 0 && last_error() == EAGAIN) {
 								UNLOCK;
 								continue;
 							}
@@ -218,7 +215,7 @@ static void *stream_thread() {
 						LOG_INFO("end of stream");
 						_disconnect(DISCONNECT, DISCONNECT_OK);
 					}
-					if (n < 0 && errno != EAGAIN) {
+					if (n < 0 && last_error() != EAGAIN) {
 						LOG_WARN("error reading: %s", strerror(last_error()));
 						_disconnect(DISCONNECT, REMOTE_DISCONNECT);
 					}

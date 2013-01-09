@@ -222,12 +222,12 @@ static void process_strm(u8_t *pkt, int len) {
 	case 'q':
 		stream_disconnect();
 		buf_flush(streambuf);
-		buf_flush(outputbuf);
+		output_flush();
 		break;
 	case 'f':
 		stream_disconnect();
 		buf_flush(streambuf);
-		buf_flush(outputbuf);
+		output_flush();
 		break;
 	case 'p':
 		{
@@ -675,22 +675,24 @@ void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name)
 
 		} else {
 
-			struct sockaddr_in our_addr;
-			socklen_t len;
-
 			LOG_INFO("connected");
 
 			var_cap[0] = '\0';
 
+#if !WIN
 			// check if this is a local player now we are connected & signal to server via 'loc' format
 			// this requires LocalPlayer server plugin to enable direct file access
+			// not supported on windows at present as the poll in stream.c does not work for file access
+			struct sockaddr_in our_addr;
+			socklen_t len;
 			len = sizeof(our_addr);
 			getsockname(sock, (struct sockaddr *) &our_addr, &len);
-			
+
 			if (our_addr.sin_addr.s_addr == serv_addr.sin_addr.s_addr) {
 				LOG_INFO("local player");
 				strcat(var_cap, ",loc");
 			}
+#endif
 
 			// add on any capablity to be sent to the new server
 			if (new_server_cap) {

@@ -67,7 +67,6 @@ static void license(void) {
 }
 
 void sighandler(int signum) {
-	LOG_ERROR("signal");
 	slimproto_stop();
 }
 
@@ -99,6 +98,8 @@ int main(int argc, char **argv) {
 
 	char *optarg = NULL;
 	int optind = 1;
+
+	get_mac(mac);
 
 	while (optind < argc && strlen(argv[optind]) >= 2 && argv[optind][0] == '-') {
 		char *opt = argv[optind] + 1;
@@ -228,8 +229,6 @@ int main(int argc, char **argv) {
 #if WIN
 	winsock_init();
 #endif
-
-	get_mac(mac);
 
 #if ALSA
 	output_init(log_output, output_device, output_buf_size, alsa_buffer_time, alsa_period_count, max_rate);

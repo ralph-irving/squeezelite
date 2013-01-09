@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v0.9beta1-189"
+#define VERSION "v0.9beta4"
 
 // build detection
 #if defined(linux)
@@ -65,6 +65,7 @@
 #if LINUX
 #define LIBFLAC "libFLAC.so.8"
 #define LIBMAD  "libmad.so.0"
+#define LIBMPG "libmpg123.so.0"
 #define LIBVORBIS "libvorbisfile.so.3"
 #define LIBTREMOR "libvorbisidec.so.1"
 #define LIBFAAD "libfaad.so.2"
@@ -73,6 +74,7 @@
 #if OSX
 #define LIBFLAC "libFLAC.8.dylib"
 #define LIBMAD  "libmad.0.dylib"
+#define LIBMPG "libmpg123.0.dylib"
 #define LIBVORBIS "libvorbisfile.3.dylib"
 #define LIBTREMOR "libvorbisidec.1.dylib"
 #define LIBFAAD "libfaad.2.dylib"
@@ -81,6 +83,7 @@
 #if WIN
 #define LIBFLAC "libFLAC.dll"
 #define LIBMAD  "libmad.dll"
+#define LIBMPG "libmpg123.dll"
 #define LIBVORBIS "libvorbisfile.dll"
 #define LIBTREMOR "libvorbisidec.dll"
 #define LIBFAAD "libfaad2.dll"
@@ -188,11 +191,9 @@ typedef BOOL bool;
 #define in_addr_t u32_t
 #define socklen_t int
 
-#define poll WSAPoll // FIXME? - limits support to Vista and later
-
 #define dlopen(x, y) LoadLibrary((LPCTSTR)x)
 #define dlsym(x, y)  (void *)GetProcAddress(x, y)
-#define dlerror()    GetLastError() ? "dlerror" : NULL
+//dlerror implemented in utils.c
 
 #endif
 
@@ -273,6 +274,8 @@ u16_t unpackn(u16_t *src);
 #if WIN
 void winsock_init(void);
 void winsock_close(void);
+char *dlerror(void);
+int poll(struct pollfd *fds, unsigned long numfds, int timeout);
 #endif
 
 // buffer.c
@@ -411,10 +414,11 @@ void _checkfade(bool);
 void _pa_open(void);
 
 // codecs
-#define MAX_CODECS 5
+#define MAX_CODECS 6
 
 struct codec *register_flac(void);
 struct codec *register_pcm(void);
 struct codec *register_mad(void);
+struct codec *register_mpg(void);
 struct codec *register_vorbis(void);
 struct codec *register_faad(void);

@@ -104,7 +104,10 @@ void decode_init(log_level level, const char *opt) {
 	if (!opt || !strcmp(opt, "ogg"))  codecs[i++] = register_vorbis();
 	if (!opt || !strcmp(opt, "flac")) codecs[i++] = register_flac();
 	if (!opt || !strcmp(opt, "pcm"))  codecs[i++] = register_pcm();
-	if (!opt || !strcmp(opt, "mp3"))  codecs[i++] = register_mad();
+
+	// try mad then mpg for mp3 unless command line option passed
+	if ( !opt || !strcmp(opt, "mp3") || !strcmp(opt, "mad"))                codecs[i] = register_mad();
+	if ((!opt || !strcmp(opt, "mp3") || !strcmp(opt, "mpg")) && !codecs[i]) codecs[i] = register_mpg();
 
 #if LINUX || OSX
 	pthread_attr_t attr;
