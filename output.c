@@ -36,7 +36,7 @@ static snd_pcm_format_t fmts_mmap[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S2
 
 // for non mmap output we rely on ALSA to do the conversion and just open the device in native 32bit native endian
 static snd_pcm_format_t fmts_writei[] = {
-#if IS_LITTLE_ENDIAN
+#if LITTLE_ENDIAN
 	SND_PCM_FORMAT_S32_LE,
 #else
 	SND_PCM_FORMAT_S32_BE,
