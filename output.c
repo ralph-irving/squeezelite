@@ -30,31 +30,22 @@
 
 #define MAX_SILENCE_FRAMES 1024
 
-// for mmap ouput we convert to LE formats on BE devices as it is likely hardware requires LE
-static snd_pcm_format_t fmts_mmap[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S24_LE, SND_PCM_FORMAT_S24_3LE, SND_PCM_FORMAT_S16_LE,
-										SND_PCM_FORMAT_UNKNOWN };
-
-// for non mmap output we rely on ALSA to do the conversion and just open the device in native 32bit native endian
-static snd_pcm_format_t fmts_writei[] = {
-#if LITTLE_ENDIAN
-	SND_PCM_FORMAT_S32_LE,
-#else
-	SND_PCM_FORMAT_S32_BE,
-#endif
-	SND_PCM_FORMAT_UNKNOWN };
+static snd_pcm_format_t fmts[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S24_LE, SND_PCM_FORMAT_S24_3LE, SND_PCM_FORMAT_S16_LE,
+								   SND_PCM_FORMAT_UNKNOWN };
 
 // ouput device
 static struct {
 	char *device;
 	snd_pcm_format_t format;
 	snd_pcm_uframes_t period_size;
-	bool mmap;
 	unsigned rate;
+	bool mmap;
+	u8_t *write_buf;
 } alsa;
 
 static u8_t silencebuf[MAX_SILENCE_FRAMES * BYTES_PER_FRAME];
 
-#endif //ALSA
+#endif // ALSA
 
 #if PORTAUDIO
 
@@ -71,7 +62,7 @@ static struct {
 	PaStream *stream;
 } pa;
 
-#endif
+#endif // PORTAUDIO
 
 static log_level loglevel;
 
@@ -86,8 +77,13 @@ static bool running = true;
 #define LOCK   mutex_lock(outputbuf->mutex)
 #define UNLOCK mutex_unlock(outputbuf->mutex)
 
+#define MAX_SCALESAMPLE 0x7fffffffffffLL
+#define MIN_SCALESAMPLE -MAX_SCALESAMPLE
+
 static inline s32_t gain(s32_t gain, s32_t sample) {
 	s64_t res = (s64_t)gain * (s64_t)sample;
+	if (res > MAX_SCALESAMPLE) res = MAX_SCALESAMPLE;
+	if (res < MIN_SCALESAMPLE) res = MIN_SCALESAMPLE;
 	return (s32_t) (res >> 16);
 }
 
@@ -235,22 +231,19 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	} while (retry);
 
 	// set access 
-	if ((err = snd_pcm_hw_params_set_access(*pcmp, hw_params, SND_PCM_ACCESS_MMAP_INTERLEAVED)) < 0) {
-		LOG_INFO("alsa mmap not available trying non mmap access");
+	if (!alsa.mmap || snd_pcm_hw_params_set_access(*pcmp, hw_params, SND_PCM_ACCESS_MMAP_INTERLEAVED) < 0) {
 		if ((err = snd_pcm_hw_params_set_access(*pcmp, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
 			LOG_ERROR("access type not available: %s", snd_strerror(err));
 			return err;
 		}
 		alsa.mmap = false;
-	} else {
-		alsa.mmap = true;
 	}
 
 	// set the sample format
-	snd_pcm_format_t *fmt = alsa.mmap ? (snd_pcm_format_t *)fmts_mmap : (snd_pcm_format_t *)fmts_writei;
+	snd_pcm_format_t *fmt = (snd_pcm_format_t *)fmts;
 	while (*fmt != SND_PCM_FORMAT_UNKNOWN) {
 		if (snd_pcm_hw_params_set_format(*pcmp, hw_params, *fmt) >= 0) {
-			LOG_INFO("opened device %s using format: %s sample rate: %u", alsa.device, snd_pcm_format_name(*fmt), sample_rate);
+			LOG_INFO("opened device %s using format: %s sample rate: %u mmap: %u", alsa.device, snd_pcm_format_name(*fmt), sample_rate, alsa.mmap);
 			alsa.format = *fmt;
 			break;
 		}
@@ -295,6 +288,16 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	}
 
 	LOG_INFO("buffer time: %u period count: %u buffer size: %u period size: %u", time, count, buffer_size, alsa.period_size);
+
+	// create an intermediate buffer for non mmap case for all but S32_LE
+	// this is used to pack samples into the output format before calling writei
+	if (!alsa.mmap && !alsa.write_buf && alsa.format != SND_PCM_FORMAT_S32_LE) {
+		alsa.write_buf = malloc(alsa.period_size * BYTES_PER_FRAME);
+		if (!alsa.write_buf) {
+			LOG_ERROR("unable to malloc write_buf");
+			return -1;
+		}
+	}
 
 	// set params
 	if ((err = snd_pcm_hw_params(*pcmp, hw_params)) < 0) {
@@ -570,7 +573,7 @@ static void *output_thread(void *arg) {
 			continue;
 		}
 
-		if (start) {
+		if (start && alsa.mmap) {
 			if ((err = snd_pcm_start(pcmp)) < 0) {
 				if ((err = snd_pcm_recover(pcmp, err, 1)) < 0) {
 					LOG_WARN("start error: %s", snd_strerror(err));
@@ -606,6 +609,11 @@ static void *output_thread(void *arg) {
 				continue;
 			}
 			avail = snd_pcm_avail_update(pcmp);
+		}
+
+		// restrict avail in writei mode as write_buf is restricted to period_size
+		if (!alsa.mmap) {
+			avail = min(avail, alsa.period_size);
 		}
 
 		// avoid spinning in cases where wait returns but no bytes available (seen with pulse audio)
@@ -823,20 +831,24 @@ static void *output_thread(void *arg) {
  			out_frames = !silence ? min(size, cont_frames) : size;
 
 #if ALSA			
-			avail = snd_pcm_avail_update(pcmp);
+			if (alsa.mmap || alsa.format != SND_PCM_FORMAT_S32_LE) {
 
-			if (alsa.mmap) {
-
+				// in all alsa cases except SND_PCM_FORMAT_S32_LE non mmap we take this path:
+				// - mmap: scale and pack to output format, write direct into mmap region
+				// - non mmap: scale and pack into alsa.write_buf, which is the used with writei to send to alsa
 				const snd_pcm_channel_area_t *areas;
 				snd_pcm_uframes_t offset;
 				snd_pcm_uframes_t alsa_frames = (snd_pcm_uframes_t)out_frames;
 
-				if ((err = snd_pcm_mmap_begin(pcmp, &areas, &offset, &alsa_frames)) < 0) {
-					LOG_WARN("error from mmap_begin: %s", snd_strerror(err));
-					break;
-				}
+				if (alsa.mmap) {
 
-				out_frames = (frames_t)alsa_frames;
+					if ((err = snd_pcm_mmap_begin(pcmp, &areas, &offset, &alsa_frames)) < 0) {
+						LOG_WARN("error from mmap_begin: %s", snd_strerror(err));
+						break;
+					}
+
+					out_frames = (frames_t)alsa_frames;
+				}
 
 				// perform crossfade buffer copying here as we do not know the actual out_frames value until here
 				if (output.fade == FADE_ACTIVE && output.fade_dir == FADE_CROSS && cross_ptr) {
@@ -851,7 +863,7 @@ static void *output_thread(void *arg) {
 					}
 				}
 
-				void  *outputptr = areas[0].addr + (areas[0].first + offset * areas[0].step) / 8;
+				void  *outputptr = alsa.mmap ? (areas[0].addr + (areas[0].first + offset * areas[0].step) / 8) : alsa.write_buf;
 				s32_t *inputptr  = (s32_t *) (silence ? silencebuf : outputbuf->readp);
 				frames_t cnt = out_frames;
 				
@@ -1051,10 +1063,23 @@ static void *output_thread(void *arg) {
 					break;
 				}
 				
-				snd_pcm_sframes_t w = snd_pcm_mmap_commit(pcmp, offset, out_frames);
-				if (w < 0 || w != out_frames) {
-					LOG_WARN("mmap_commit error");
-					break;
+				if (alsa.mmap) {
+					snd_pcm_sframes_t w = snd_pcm_mmap_commit(pcmp, offset, out_frames);
+					if (w < 0 || w != out_frames) {
+						LOG_WARN("mmap_commit error");
+						break;
+					}
+				} else {
+					snd_pcm_sframes_t w = snd_pcm_writei(pcmp, alsa.write_buf, out_frames);
+					if (w < 0) {
+						LOG_WARN("writei error: %d", w);
+						break;
+					} else {
+						if (w != out_frames) {
+							LOG_WARN("writei only wrote %u of %u", w, out_frames);
+						}						
+						out_frames = w;
+					}
 				}
 
 			} else {
@@ -1091,6 +1116,7 @@ static void *output_thread(void *arg) {
 					}
 				}
 #if ALSA
+				// only used in S32_LE non mmap case, write the 32 samples straight with writei, no need for intermediate buffer
 				snd_pcm_sframes_t w = snd_pcm_writei(pcmp, silence ? silencebuf : outputbuf->readp, out_frames);
 				if (w < 0) {
 					LOG_WARN("writei error: %d", w);
@@ -1208,7 +1234,7 @@ void _checkfade(bool start) {
 
 #if ALSA
 static pthread_t thread;
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count, unsigned max_rate) {
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count, bool mmap, unsigned max_rate) {
 #endif
 #if PORTAUDIO
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, unsigned max_rate) {
@@ -1235,8 +1261,12 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 	output.fade = FADE_INACTIVE;
 
 #if ALSA
+	alsa.mmap = mmap;
+	alsa.write_buf = NULL;
 	output.buffer_time = buffer_time;
 	output.period_count = period_count;
+
+	LOG_INFO("requested buffer_time: %u period_count: %u mmap: %u", output.buffer_time, output.period_count, alsa.mmap);
 #endif
 
 #if PORTAUDIO
@@ -1304,6 +1334,7 @@ void output_close(void) {
 #if ALSA
 	UNLOCK;
 	pthread_join(thread,NULL);
+	if (alsa.write_buf) free(alsa.write_buf);
 #endif
 
 #if PORTAUDIO

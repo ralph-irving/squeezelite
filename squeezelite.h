@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v0.9beta5-195"
+#define VERSION "v0.9beta6-196"
 
 // build detection
 #if defined(linux)
@@ -402,7 +402,7 @@ struct outputstate {
 
 void list_devices(void);
 #if ALSA
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned period_time, unsigned period_count, unsigned max_rate);
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count, bool mmap, unsigned max_rate);
 #endif
 #if PORTAUDIO
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, unsigned max_rate);

@@ -43,6 +43,9 @@ static void usage(const char *argv0) {
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"
 		   "  -n <name>\t\tSet the player name\n"
 		   "  -r <rate>\t\tMax sample rate for output device, enables output device to be off when squeezelite is started\n"
+#if ALSA
+		   "  -w \t\t\tDisable ASLA mmap output\n"
+#endif
 #if LINUX
 		   "  -z \t\t\tDaemonize\n"
 #endif
@@ -86,6 +89,7 @@ int main(int argc, char **argv) {
 #if ALSA
 	unsigned alsa_buffer_time = ALSA_BUFFER_TIME;
 	unsigned alsa_period_count = ALSA_PERIOD_COUNT;
+	unsigned alsa_mmap = true;
 #endif
 #if PORTAUDIO
 	unsigned pa_latency = 0;
@@ -106,7 +110,7 @@ int main(int argc, char **argv) {
 		if (strstr("oabcdfmnr", opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
 			optind += 2;
-		} else if (strstr("ltz", opt)) {
+		} else if (strstr("ltwz", opt)) {
 			optarg = NULL;
 			optind += 1;
 		} else {
@@ -185,6 +189,11 @@ int main(int argc, char **argv) {
 			list_devices();
 			exit(0);
 			break;
+#if ALSA
+		case 'w':
+			alsa_mmap = false;
+			break;
+#endif
 #if LINUX
 		case 'z':
 			daemonize = true;
@@ -231,7 +240,7 @@ int main(int argc, char **argv) {
 #endif
 
 #if ALSA
-	output_init(log_output, output_device, output_buf_size, alsa_buffer_time, alsa_period_count, max_rate);
+	output_init(log_output, output_device, output_buf_size, alsa_buffer_time, alsa_period_count, alsa_mmap, max_rate);
 #endif
 #if PORTAUDIO
 	output_init(log_output, output_device, output_buf_size, pa_latency, max_rate);
