@@ -99,6 +99,12 @@ static void *stream_thread() {
 
 			LOCK;
 
+			// check socket has not been closed while in poll
+			if (fd < 0) {
+				UNLOCK;
+				continue;
+			}
+
 			if ((pollinfo.revents & POLLOUT) && stream.state == SEND_HEADERS) {
 				send_header();
 				stream.header_len = 0;
@@ -376,8 +382,10 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 
 void stream_disconnect(void) {
 	LOCK;
-	closesocket(fd);
-	fd = -1;
+	if (fd != -1) {
+		closesocket(fd);
+		fd = -1;
+	}
 	stream.state = STOPPED;
 	UNLOCK;
 }

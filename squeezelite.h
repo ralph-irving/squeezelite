@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v0.9beta6-196"
+#define VERSION "v0.9beta8-199"
 
 // build detection
 #if defined(linux)
@@ -82,8 +82,8 @@
 
 #if WIN
 #define LIBFLAC "libFLAC.dll"
-#define LIBMAD  "libmad.dll"
-#define LIBMPG "libmpg123.dll"
+#define LIBMAD  "libmad-0.dll"
+#define LIBMPG "libmpg123-0.dll"
 #define LIBVORBIS "libvorbisfile.dll"
 #define LIBTREMOR "libvorbisidec.dll"
 #define LIBFAAD "libfaad2.dll"
@@ -339,6 +339,7 @@ typedef enum { DECODE_STOPPED = 0, DECODE_RUNNING, DECODE_COMPLETE, DECODE_ERROR
 struct decodestate {
 	decode_state state;
 	bool new_stream;
+	mutex_type mutex;
 };
 
 struct codec {
@@ -402,7 +403,7 @@ struct outputstate {
 
 void list_devices(void);
 #if ALSA
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count, bool mmap, unsigned max_rate);
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count, const char *alsa_sample_fmt, bool mmap, unsigned max_rate);
 #endif
 #if PORTAUDIO
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, unsigned max_rate);

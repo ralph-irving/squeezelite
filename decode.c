@@ -29,22 +29,24 @@ extern struct buffer *outputbuf;
 extern struct streamstate stream;
 extern struct outputstate output;
 
-#define LOCK_S   mutex_lock(streambuf->mutex)
-#define UNLOCK_S mutex_unlock(streambuf->mutex)
-#define LOCK_O   mutex_lock(outputbuf->mutex)
-#define UNLOCK_O mutex_unlock(outputbuf->mutex)
-
 struct decodestate decode;
 struct codec *codecs[MAX_CODECS];
 static struct codec *codec;
 static bool running = true;
+
+#define LOCK_S   mutex_lock(streambuf->mutex)
+#define UNLOCK_S mutex_unlock(streambuf->mutex)
+#define LOCK_O   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O mutex_unlock(outputbuf->mutex)
+#define LOCK_D   mutex_lock(decode.mutex);
+#define UNLOCK_D mutex_unlock(decode.mutex);
 
 static void *decode_thread() {
 
 	while (running) {
 		size_t bytes, space;
 		bool toend;
-		decode_state state;
+		bool ran = false;
 
 		LOCK_S;
 		bytes = _buf_used(streambuf);
@@ -52,37 +54,38 @@ static void *decode_thread() {
 		UNLOCK_S;
 		LOCK_O;
 		space = _buf_space(outputbuf);
-		state = decode.state;
 		UNLOCK_O;
 
-		if (state == DECODE_RUNNING) {
+		LOCK_D;
+
+		if (decode.state == DECODE_RUNNING) {
 		
 			LOG_SDEBUG("streambuf bytes: %u outputbuf space: %u", bytes, space);
 			
 			if (space > codec->min_space && (bytes > codec->min_read_bytes || toend)) {
 				
-				state = codec->decode();
+				decode.state = codec->decode();
 
-				if (state != DECODE_RUNNING) {
+				if (decode.state != DECODE_RUNNING) {
 
-					LOG_INFO("decode %s", state == DECODE_COMPLETE ? "complete" : "error");
+					LOG_INFO("decode %s", decode.state == DECODE_COMPLETE ? "complete" : "error");
 
 					LOCK_O;
-					decode.state = state;
 					if (output.fade_mode) _checkfade(false);
 					UNLOCK_O;
 
 					wake_controller();
 				}
 
-			} else {
-				usleep(100000);
+				ran = true;
 			}
+		}
+		
+		UNLOCK_D;
 
-		} else {
+		if (!ran) {
 			usleep(100000);
 		}
-
 	}
 
 	return 0;
@@ -109,6 +112,8 @@ void decode_init(log_level level, const char *opt) {
 	if ( !opt || strstr(opt, "mp3") || strstr(opt, "mad"))                codecs[i] = register_mad();
 	if ((!opt || strstr(opt, "mp3") || strstr(opt, "mpg")) && !codecs[i]) codecs[i] = register_mpg();
 
+	mutex_create(decode.mutex);
+
 #if LINUX || OSX
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
@@ -126,11 +131,14 @@ void decode_init(log_level level, const char *opt) {
 
 void decode_close(void) {
 	LOG_INFO("close decode");
+	LOCK_D;
 	if (codec) {
 		codec->close();
+		codec = NULL;
 	}
-	codec = NULL;
 	running = false;
+	UNLOCK_D;
+	mutex_destroy(decode.mutex);
 }
 
 void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t endianness) {
@@ -138,10 +146,10 @@ void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, 
 
 	LOG_INFO("codec open: '%c'", format);
 
-	LOCK_O;
+	LOCK_D;
+
 	decode.new_stream = true;
 	decode.state = DECODE_STOPPED;
-	UNLOCK_O;
 
 	// find the required codec
 	for (i = 0; i < MAX_CODECS; ++i) {
@@ -156,10 +164,13 @@ void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, 
 			codec = codecs[i];
 			
 			codec->open(sample_size, sample_rate, channels, endianness);
-			
+
+			UNLOCK_D;
 			return;
 		}
 	}
+
+	UNLOCK_D;
 
 	LOG_ERROR("codec not found");
 }

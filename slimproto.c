@@ -35,7 +35,7 @@ static log_level loglevel;
 #define LOCAL_PLAYER_PORT 0x0d9b     // 3483
 #endif
 
-static sockfd sock;
+static sockfd sock = -1;
 static in_addr_t slimproto_ip;
 
 extern struct buffer *streambuf;
@@ -53,6 +53,8 @@ event_event wake_e;
 #define UNLOCK_S mutex_unlock(streambuf->mutex)
 #define LOCK_O   mutex_lock(outputbuf->mutex)
 #define UNLOCK_O mutex_unlock(outputbuf->mutex)
+#define LOCK_D   mutex_lock(decode.mutex)
+#define UNLOCK_D mutex_unlock(decode.mutex)
 
 static struct {
 	u32_t updated;
@@ -94,6 +96,7 @@ static void sendHELO(bool reconnect, const char *fixed_cap, const char *var_cap,
 	const char *base_cap = "Model=squeezelite,ModelName=SqueezeLite,AccuratePlayPoints=1,HasDigitalOut=1";
 	struct HELO_packet pkt;
 
+	memset(&pkt, 0, sizeof(pkt));
 	memcpy(&pkt.opcode, "HELO", 4);
 	pkt.length = htonl(sizeof(struct HELO_packet) - 8 + strlen(base_cap) + strlen(fixed_cap) + strlen(var_cap));
 	pkt.deviceid = 12; // squeezeplay
@@ -256,8 +259,10 @@ static void process_strm(u8_t *pkt, int len) {
 			LOCK_O;
 			output.state = jiffies ? OUTPUT_START_AT : OUTPUT_RUNNING;
 			output.start_at = jiffies;
-			decode.state = DECODE_RUNNING;
 			UNLOCK_O;
+			LOCK_D;
+			decode.state = DECODE_RUNNING;
+			UNLOCK_D;
 			LOG_INFO("unpause at: %u now: %u", jiffies, gettime_ms());
 			sendSTAT("STMr", 0);
 		}
@@ -526,6 +531,21 @@ static void slimproto_run() {
 				output.pa_reopen = false;
 			}
 #endif
+			if (output.state == OUTPUT_RUNNING && !sentSTMu && status.output_full == 0 && status.stream_state <= DISCONNECT) {
+				_sendSTMu = true;
+				sentSTMu = true;
+			}
+			if (output.state == OUTPUT_RUNNING && !sentSTMo && status.output_full == 0 && status.stream_state == STREAMING_HTTP) {
+				_sendSTMo = true;
+				sentSTMo = true;
+			}
+			UNLOCK_O;
+
+			LOCK_D;
+			if (decode.state == DECODE_RUNNING && now - status.last > 1000) {
+				_sendSTMt = true;
+				status.last = now;
+			}
 			if (decode.state == DECODE_COMPLETE) {
 				_sendSTMd = true;
 				decode.state = DECODE_STOPPED;
@@ -541,25 +561,15 @@ static void slimproto_run() {
 					sentSTMl = true;
 				} else if (autostart == 1) {
 					decode.state = DECODE_RUNNING;
+					LOCK_O;
 					if (output.state == OUTPUT_STOPPED) {
 						output.state = OUTPUT_BUFFER;
 					}
+					UNLOCK_O;
 				}
 				// autostart 2 and 3 require cont to be received first
 			}
-			if (output.state == OUTPUT_RUNNING && !sentSTMu && status.output_full == 0 && status.stream_state <= DISCONNECT) {
-				_sendSTMu = true;
-				sentSTMu = true;
-			}
-			if (output.state == OUTPUT_RUNNING && !sentSTMo && status.output_full == 0 && status.stream_state == STREAMING_HTTP) {
-				_sendSTMo = true;
-				sentSTMo = true;
-			}
-			if (decode.state == DECODE_RUNNING && now - status.last > 1000) {
-				_sendSTMt = true;
-				status.last = now;
-			}
-			UNLOCK_O;
+			UNLOCK_D;
 		
 			// send packets once locks released as packet sending can block
 			if (_sendDSCO) sendDSCO(disconnect);
@@ -611,14 +621,14 @@ in_addr_t discover_server(void) {
 			LOG_INFO("error sending disovery");
 		}
 
-		if (poll(&pollinfo, 1, 5000)) {
+		if (poll(&pollinfo, 1, 5000) == 1) {
 			char readbuf[10];
 			socklen_t slen = sizeof(s);
 			recvfrom(disc_sock, readbuf, 10, 0, (struct sockaddr *)&s, &slen);
 			LOG_INFO("got response from: %s:%d", inet_ntoa(s.sin_addr), ntohs(s.sin_port));
 		}
 
-	} while (s.sin_addr.s_addr == 0);
+	} while (s.sin_addr.s_addr == 0 && running);
 
 	closesocket(disc_sock);
 
@@ -634,7 +644,11 @@ void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name)
 	wake_create(wake_e);
 
 	loglevel = level;
+	running = true;
+
 	slimproto_ip = addr ? inet_addr(addr) : discover_server();
+
+	if (!running) return;
 
 	LOCK_O;
 	sprintf(fixed_cap, ",MaxSampleRate=%u", output.max_sample_rate); 
@@ -654,7 +668,6 @@ void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name)
 
 	LOG_INFO("connecting to %s:%d", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
 
-	running = true;
 	new_server = 0;
 
 	while (running) {
@@ -722,5 +735,6 @@ void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name)
 }
 
 void slimproto_stop(void) {
+	LOG_INFO("slimproto stop");
 	running = false;
 }

@@ -23,15 +23,32 @@
 // - PortAudio is the output output supported on other platforms and also builds on linux for test purposes
 
 #include "squeezelite.h"
+#if ALSA
+#include <alsa/asoundlib.h>
+#endif
+#if PORTAUDIO
+#include <portaudio.h>
+#if OSX
+#include <pa_mac_core.h>
+#endif
+#endif
+
+#if defined LITTLE_ENDIAN
+#undef LITTLE_ENDIAN
+#endif
+#define LITTLE_ENDIAN (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 
 #if ALSA
-
-#include <alsa/asoundlib.h>
 
 #define MAX_SILENCE_FRAMES 1024
 
 static snd_pcm_format_t fmts[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S24_LE, SND_PCM_FORMAT_S24_3LE, SND_PCM_FORMAT_S16_LE,
 								   SND_PCM_FORMAT_UNKNOWN };
+#if LITTLE_ENDIAN
+#define NATIVE_FORMAT SND_PCM_FORMAT_S32_LE
+#else
+#define NATIVE_FORMAT SND_PCM_FORMAT_S32_BE
+#endif
 
 // ouput device
 static struct {
@@ -48,11 +65,6 @@ static u8_t silencebuf[MAX_SILENCE_FRAMES * BYTES_PER_FRAME];
 #endif // ALSA
 
 #if PORTAUDIO
-
-#include <portaudio.h>
-#if OSX
-#include <pa_mac_core.h>
-#endif
 
 #define MAX_SILENCE_FRAMES 102400 // silencebuf not used in pa case so set large
 
@@ -190,7 +202,6 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	alsa.device = NULL;
 	alsa.rate = 0;
 	alsa.period_size = 0;
-	alsa.format = SND_PCM_FORMAT_UNKNOWN;
 	alsa.device = malloc(strlen(device) + 1 + 4); // extra space for changing to plug
 	strcpy(alsa.device, device);
 
@@ -240,19 +251,23 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	}
 
 	// set the sample format
-	snd_pcm_format_t *fmt = (snd_pcm_format_t *)fmts;
-	while (*fmt != SND_PCM_FORMAT_UNKNOWN) {
+	snd_pcm_format_t *fmt = alsa.format ? &alsa.format : (snd_pcm_format_t *)fmts;
+	do {
 		if (snd_pcm_hw_params_set_format(*pcmp, hw_params, *fmt) >= 0) {
 			LOG_INFO("opened device %s using format: %s sample rate: %u mmap: %u", alsa.device, snd_pcm_format_name(*fmt), sample_rate, alsa.mmap);
 			alsa.format = *fmt;
 			break;
+		}
+		if (alsa.format) {
+			LOG_ERROR("unable to open audio device requested format: %s", snd_pcm_format_name(alsa.format));
+			return -1;
 		}
 		++fmt;
 		if (*fmt == SND_PCM_FORMAT_UNKNOWN) {
 			LOG_ERROR("unable to open audio device with any supported format");
 			return -1;
 		}
-	}
+	} while (*fmt != SND_PCM_FORMAT_UNKNOWN);
 
 	// set channels
 	if ((err = snd_pcm_hw_params_set_channels (*pcmp, hw_params, 2)) < 0) {
@@ -289,9 +304,9 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 
 	LOG_INFO("buffer time: %u period count: %u buffer size: %u period size: %u", time, count, buffer_size, alsa.period_size);
 
-	// create an intermediate buffer for non mmap case for all but S32_LE
+	// create an intermediate buffer for non mmap case for all but NATIVE_FORMAT
 	// this is used to pack samples into the output format before calling writei
-	if (!alsa.mmap && !alsa.write_buf && alsa.format != SND_PCM_FORMAT_S32_LE) {
+	if (!alsa.mmap && !alsa.write_buf && alsa.format != NATIVE_FORMAT) {
 		alsa.write_buf = malloc(alsa.period_size * BYTES_PER_FRAME);
 		if (!alsa.write_buf) {
 			LOG_ERROR("unable to malloc write_buf");
@@ -831,9 +846,9 @@ static void *output_thread(void *arg) {
  			out_frames = !silence ? min(size, cont_frames) : size;
 
 #if ALSA			
-			if (alsa.mmap || alsa.format != SND_PCM_FORMAT_S32_LE) {
+			if (alsa.mmap || alsa.format != NATIVE_FORMAT) {
 
-				// in all alsa cases except SND_PCM_FORMAT_S32_LE non mmap we take this path:
+				// in all alsa cases except NATIVE_FORMAT non mmap we take this path:
 				// - mmap: scale and pack to output format, write direct into mmap region
 				// - non mmap: scale and pack into alsa.write_buf, which is the used with writei to send to alsa
 				const snd_pcm_channel_area_t *areas;
@@ -1072,7 +1087,9 @@ static void *output_thread(void *arg) {
 				} else {
 					snd_pcm_sframes_t w = snd_pcm_writei(pcmp, alsa.write_buf, out_frames);
 					if (w < 0) {
-						LOG_WARN("writei error: %d", w);
+						if (w != -EAGAIN && (err = snd_pcm_recover(pcmp, w, 1)) < 0) {
+							LOG_WARN("recover failed: %s", snd_strerror(err));
+						}
 						break;
 					} else {
 						if (w != out_frames) {
@@ -1116,10 +1133,12 @@ static void *output_thread(void *arg) {
 					}
 				}
 #if ALSA
-				// only used in S32_LE non mmap case, write the 32 samples straight with writei, no need for intermediate buffer
+				// only used in S32_LE non mmap LE case, write the 32 samples straight with writei, no need for intermediate buffer
 				snd_pcm_sframes_t w = snd_pcm_writei(pcmp, silence ? silencebuf : outputbuf->readp, out_frames);
 				if (w < 0) {
-					LOG_WARN("writei error: %d", w);
+					if (w != -EAGAIN && (err = snd_pcm_recover(pcmp, w, 1)) < 0) {
+						LOG_WARN("recover failed: %s", snd_strerror(err));
+					}
 					break;
 				} else {
 					if (w != out_frames) {
@@ -1234,7 +1253,8 @@ void _checkfade(bool start) {
 
 #if ALSA
 static pthread_t thread;
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count, bool mmap, unsigned max_rate) {
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count,
+				 const char *alsa_sample_fmt, bool mmap, unsigned max_rate) {
 #endif
 #if PORTAUDIO
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, unsigned max_rate) {
@@ -1263,15 +1283,26 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 #if ALSA
 	alsa.mmap = mmap;
 	alsa.write_buf = NULL;
+	alsa.format = 0;
 	output.buffer_time = buffer_time;
 	output.period_count = period_count;
 
-	LOG_INFO("requested buffer_time: %u period_count: %u mmap: %u", output.buffer_time, output.period_count, alsa.mmap);
+	if (alsa_sample_fmt) {
+		if (!strcmp(alsa_sample_fmt, "32")) alsa.format = SND_PCM_FORMAT_S32_LE;
+		if (!strcmp(alsa_sample_fmt, "24")) alsa.format = SND_PCM_FORMAT_S24_LE;
+		if (!strcmp(alsa_sample_fmt, "24_3")) alsa.format = SND_PCM_FORMAT_S24_3LE;
+		if (!strcmp(alsa_sample_fmt, "16")) alsa.format = SND_PCM_FORMAT_S16_LE;
+	}
+
+	LOG_INFO("requested buffer_time: %u period_count: %u format: %s mmap: %u", output.buffer_time, output.period_count, 
+			 alsa_sample_fmt ? alsa_sample_fmt : "any", alsa.mmap);
 #endif
 
 #if PORTAUDIO
 	output.latency = latency;
 	pa.stream = NULL;
+
+	LOG_INFO("requested latency: %u", output.latency);
 
  	if ((err = Pa_Initialize()) != paNoError) {
 		LOG_WARN("error initialising port audio: %s", Pa_GetErrorText(err));

@@ -31,21 +31,18 @@ static void usage(const char *argv0) {
 		   "  -o <output device>\tSpecify output device, default \"default\"\n"
 		   "  -l \t\t\tList output devices\n"
 #if ALSA
-		   "  -a <time>:<count>\tSpecify ALSA buffer_time (ms) and period_count, default 20:4\n"
+		   "  -a <b>:<c>:<f>:<m>\tSpecify ALSA params to open output device, b = buffer time in ms, c = period count, f sample format (16|24|24_3|32), m = use mmap (0|1)\n"
 #endif
 #if PORTAUDIO
 		   "  -a <latency>\t\tSpecify output target latency in ms\n"
 #endif
 		   "  -b <stream>:<output>\tSpecify internal Stream and Output buffer sizes in Kbytes\n"
-		   "  -c <codec1>,<codec2>\tRestrict codecs those specified, otherwise loads all available codecs; known codecs: flac,pcm,mp3,ogg,aac\n"
+		   "  -c <codec1>,<codec2>\tRestrict codecs those specified, otherwise loads all available codecs; known codecs: flac,pcm,mp3,ogg,aac (mad,mpg for specific mp3 codec)\n"
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output, level: info|debug|sdebug\n"
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"
 		   "  -n <name>\t\tSet the player name\n"
 		   "  -r <rate>\t\tMax sample rate for output device, enables output device to be off when squeezelite is started\n"
-#if ALSA
-		   "  -w \t\t\tDisable ASLA mmap output\n"
-#endif
 #if LINUX
 		   "  -z \t\t\tDaemonize\n"
 #endif
@@ -69,8 +66,24 @@ static void license(void) {
 		   );
 }
 
-void sighandler(int signum) {
+static void sighandler(int signum) {
 	slimproto_stop();
+}
+
+static char *next_param(char *src, char c) {
+	static char *str = NULL;
+	char *ptr, *ret;
+	if (src) str = src;
+ 	if (str && (ptr = strchr(str, c))) {
+		ret = str;
+		*ptr = '\0';
+		str = ptr + 1;
+	} else {
+		ret = str;
+		str = NULL;
+	}
+
+	return ret && ret[0] ? ret : NULL;
 }
 
 int main(int argc, char **argv) {
@@ -89,7 +102,8 @@ int main(int argc, char **argv) {
 #if ALSA
 	unsigned alsa_buffer_time = ALSA_BUFFER_TIME;
 	unsigned alsa_period_count = ALSA_PERIOD_COUNT;
-	unsigned alsa_mmap = true;
+	char *alsa_sample_fmt = NULL;
+	bool alsa_mmap = true;
 #endif
 #if PORTAUDIO
 	unsigned pa_latency = 0;
@@ -125,10 +139,14 @@ int main(int argc, char **argv) {
 		case 'a': 
 			{
 #if ALSA				
-				char *t = strtok(optarg, ":");
-				char *c = strtok(NULL, ":");
+				char *t = next_param(optarg, ':');
+				char *c = next_param(NULL, ':');
+				char *s = next_param(NULL, ':');
+				char *m = next_param(NULL, ':');
 				if (t) alsa_buffer_time  = atoi(t) * 1000;
 				if (c) alsa_period_count = atoi(c);
+				if (s) alsa_sample_fmt = s;
+				if (m) alsa_mmap = atoi(m);
 #endif
 #if PORTAUDIO
 				pa_latency = atoi(optarg);
@@ -137,8 +155,8 @@ int main(int argc, char **argv) {
 			break;
 		case 'b': 
 			{
-				char *s = strtok(optarg, ":");
-				char *o = strtok(NULL, ":");
+				char *s = next_param(optarg, ':');
+				char *o = next_param(NULL, ':');
 				if (s) stream_buf_size = atoi(s) * 1024;
 				if (o) output_buf_size = atoi(o) * 1024;
 			}
@@ -189,11 +207,6 @@ int main(int argc, char **argv) {
 			list_devices();
 			exit(0);
 			break;
-#if ALSA
-		case 'w':
-			alsa_mmap = false;
-			break;
-#endif
 #if LINUX
 		case 'z':
 			daemonize = true;
@@ -240,7 +253,7 @@ int main(int argc, char **argv) {
 #endif
 
 #if ALSA
-	output_init(log_output, output_device, output_buf_size, alsa_buffer_time, alsa_period_count, alsa_mmap, max_rate);
+	output_init(log_output, output_device, output_buf_size, alsa_buffer_time, alsa_period_count, alsa_sample_fmt, alsa_mmap, max_rate);
 #endif
 #if PORTAUDIO
 	output_init(log_output, output_device, output_buf_size, pa_latency, max_rate);
