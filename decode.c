@@ -58,7 +58,7 @@ static void *decode_thread() {
 
 		LOCK_D;
 
-		if (decode.state == DECODE_RUNNING) {
+		if (decode.state == DECODE_RUNNING && codec) {
 		
 			LOG_SDEBUG("streambuf bytes: %u outputbuf space: %u", bytes, space);
 			

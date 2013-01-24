@@ -165,7 +165,7 @@ void set_readwake_handles(event_handle handles[], sockfd s, event_event e) {
 #if WINEVENT
 	handles[0] = WSACreateEvent();
 	handles[1] = e;
-	WSAEventSelect(s, handles[0], FD_READ);
+	WSAEventSelect(s, handles[0], FD_READ | FD_CLOSE);
 #elif SELFPIPE
 	handles[0].fd = s;
 	handles[1].fd = e.fds[0];

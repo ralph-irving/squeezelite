@@ -50,7 +50,7 @@ static void send_header(void) {
 				usleep(1000);
 				continue;
 			}
-			LOG_WARN("failed writing to socket: %s", strerror(last_error()));
+			LOG_INFO("failed writing to socket: %s", strerror(last_error()));
 			stream.disconnect = LOCAL_DISCONNECT;
 			stream.state = DISCONNECT;
 			wake_controller();
@@ -128,7 +128,7 @@ static void *stream_thread() {
 							UNLOCK;
 							continue;
 						}
-						LOG_WARN("error reading headers: %s", n ? strerror(last_error()) : "closed");
+						LOG_INFO("error reading headers: %s", n ? strerror(last_error()) : "closed");
 						_disconnect(STOPPED, LOCAL_DISCONNECT);
 						UNLOCK;
 						continue;
@@ -170,7 +170,7 @@ static void *stream_thread() {
 								UNLOCK;
 								continue;
 							}
-							LOG_WARN("error reading icy meta: %s", n ? strerror(last_error()) : "closed");
+							LOG_INFO("error reading icy meta: %s", n ? strerror(last_error()) : "closed");
 							_disconnect(STOPPED, LOCAL_DISCONNECT);
 							UNLOCK;
 							continue;
@@ -187,7 +187,7 @@ static void *stream_thread() {
 								UNLOCK;
 								continue;
 							}
-							LOG_WARN("error reading icy meta: %s", n ? strerror(last_error()) : "closed");
+							LOG_INFO("error reading icy meta: %s", n ? strerror(last_error()) : "closed");
 							_disconnect(STOPPED, LOCAL_DISCONNECT);
 							UNLOCK;
 							continue;
@@ -223,7 +223,7 @@ static void *stream_thread() {
 						_disconnect(DISCONNECT, DISCONNECT_OK);
 					}
 					if (n < 0 && last_error() != EAGAIN) {
-						LOG_WARN("error reading: %s", strerror(last_error()));
+						LOG_INFO("error reading: %s", strerror(last_error()));
 						_disconnect(DISCONNECT, REMOTE_DISCONNECT);
 					}
 					
@@ -312,7 +312,7 @@ void stream_file(const char *header, size_t header_len, unsigned threshold) {
 	fd = open(stream.header, O_RDONLY);
 	stream.state = STREAMING_FILE;
 	if (fd < 0) {
-		LOG_WARN("can't open file: %s", stream.header);
+		LOG_INFO("can't open file: %s", stream.header);
 		stream.state = DISCONNECT;
 	}
 

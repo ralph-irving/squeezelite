@@ -162,8 +162,8 @@ static bool test_open(const char *device, u32_t *max_rate) {
 		return false;
 	}
 
-	if (*max_rate > 192000) {
-		*max_rate = 192000;
+	if (*max_rate > 384000) {
+		*max_rate = 384000;
 	}
 
 	if ((err = snd_pcm_close(pcm)) < 0) {
@@ -383,7 +383,7 @@ static int pa_callback(const void *pa_input, void *pa_output, unsigned long pa_f
 static bool test_open(const char *device, u32_t *max_rate) {
 	PaStreamParameters outputParameters;
 	PaError err;
-	u32_t rates[] = { 192000, 176400, 96000, 88200, 48000, 44100, 0 };
+	u32_t rates[] = { 384000, 352800, 192000, 176400, 96000, 88200, 48000, 44100, 0 };
 	int device_id, i;
 
 	if ((device_id = pa_device_id(device)) == -1) {

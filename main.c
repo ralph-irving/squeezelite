@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
 				if (m) alsa_mmap = atoi(m);
 #endif
 #if PORTAUDIO
-				pa_latency = atoi(optarg);
+				pa_latency = (unsigned)atoi(optarg);
 #endif
 			}
 			break;
