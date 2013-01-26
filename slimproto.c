@@ -78,11 +78,11 @@ char *new_server_cap;
 
 void send_packet(u8_t *packet, size_t len) {
 	u8_t *ptr = packet;
-	size_t n;
+	ssize_t n;
 
 	// may block
 	while (len) {
-		n = send(sock, ptr, len, 0);
+		n = send(sock, ptr, len, MSG_NOSIGNAL);
 		if (n < 0) {
 			LOG_INFO("failed writing to socket: %s", strerror(last_error()));
 			return;
@@ -689,6 +689,8 @@ void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name)
 		} else {
 
 			LOG_INFO("connected");
+
+			set_nosigpipe(sock);
 
 			var_cap[0] = '\0';
 

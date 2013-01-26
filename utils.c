@@ -225,6 +225,13 @@ u16_t unpackn(u16_t *src) {
 	return *(ptr) << 8 | *(ptr+1);
 } 
 
+#if OSX
+void set_nosigpipe(sockfd s) {
+	int set = 1;
+	setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, (void *)&set, sizeof(int));
+}
+#endif
+
 #if WIN
 void winsock_init(void) {
     WSADATA wsaData;

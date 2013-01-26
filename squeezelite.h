@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v0.9beta10-201"
+#define VERSION "v0.9beta11-202"
 
 // build detection
 #if defined(linux)
@@ -190,9 +190,14 @@ typedef BOOL bool;
 
 #define in_addr_t u32_t
 #define socklen_t int
+#define ssize_t int
 
 #define RTLD_NOW 0
 
+#endif
+
+#if !defined(MSG_NOSIGNAL)
+#define MSG_NOSIGNAL 0
 #endif
 
 typedef u32_t frames_t;
@@ -269,6 +274,11 @@ void packN(u32_t *dest, u32_t val);
 void packn(u16_t *dest, u16_t val);
 u32_t unpackN(u32_t *src);
 u16_t unpackn(u16_t *src);
+#if OSX
+void set_nosigpipe(sockfd s);
+#else
+#define set_nosigpipe(s)
+#endif
 #if WIN
 void winsock_init(void);
 void winsock_close(void);

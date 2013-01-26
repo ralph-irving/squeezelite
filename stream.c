@@ -40,10 +40,11 @@ static void send_header(void) {
 	char *ptr = stream.header;
 	int len = stream.header_len;
 
-	size_t n, try = 0;
+	unsigned try = 0;
+	ssize_t n;
 	
 	while (len) {
-		n = send(fd, ptr, len, 0);
+		n = send(fd, ptr, len, MSG_NOSIGNAL);
 		if (n <= 0) {
 			if (n < 0 && last_error() == EAGAIN && try < 10) {
 				LOG_SDEBUG("retrying (%d) writing to socket", ++try);
@@ -355,6 +356,7 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	}
 
 	set_nonblock(sock);
+	set_nosigpipe(sock);
 
 	buf_flush(streambuf);
 
