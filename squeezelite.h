@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v0.9beta11-202"
+#define VERSION "v0.9beta12-204"
 
 // build detection
 #if defined(linux)
@@ -99,6 +99,7 @@
 #if ALSA
 #define ALSA_BUFFER_TIME  20000
 #define ALSA_PERIOD_COUNT 4
+#define OUTPUT_RT_PRIORITY 45
 #endif
 
 #if defined LITTLE_ENDIAN
@@ -413,7 +414,7 @@ struct outputstate {
 
 void list_devices(void);
 #if ALSA
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count, const char *alsa_sample_fmt, bool mmap, unsigned max_rate);
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count, const char *alsa_sample_fmt, bool mmap, unsigned max_rate, unsigned rt_priority);
 #endif
 #if PORTAUDIO
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, unsigned max_rate);

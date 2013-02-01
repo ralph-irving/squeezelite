@@ -25,6 +25,7 @@
 #include "squeezelite.h"
 #if ALSA
 #include <alsa/asoundlib.h>
+#include <sys/mman.h>
 #endif
 #if PORTAUDIO
 #include <portaudio.h>
@@ -638,6 +639,8 @@ static void *output_thread(void *arg) {
 			continue;
 		}
 
+		LOCK;
+
 		// turn off if requested
 		if (output.state == OUTPUT_OFF) {
 			UNLOCK;
@@ -662,7 +665,9 @@ static void *output_thread(void *arg) {
 
 		s32_t cross_gain_in = 0, cross_gain_out = 0; s32_t *cross_ptr = NULL;
 
+#if PORTAUDIO
 		LOCK;
+#endif
 
 		frames = _buf_used(outputbuf) / BYTES_PER_FRAME;
 		silence = false;
@@ -1178,7 +1183,7 @@ static void *output_thread(void *arg) {
 
 #if PORTAUDIO
 		if (frames < pa_frames_wanted) {
-			LOG_SDEBUG("pad with silience");
+			LOG_SDEBUG("pad with silence");
 	   		memset(optr, 0, (pa_frames_wanted - frames) * BYTES_PER_FRAME);
 		}
 
@@ -1254,7 +1259,7 @@ void _checkfade(bool start) {
 #if ALSA
 static pthread_t thread;
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count,
-				 const char *alsa_sample_fmt, bool mmap, unsigned max_rate) {
+				 const char *alsa_sample_fmt, bool mmap, unsigned max_rate, unsigned rt_priority) {
 #endif
 #if PORTAUDIO
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, unsigned max_rate) {
@@ -1328,11 +1333,20 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 	pthread_create(&thread, &attr, output_thread, max_rate ? "probe" : NULL);
 	pthread_attr_destroy(&attr);
 
-	// try to set this thread to real-time scheduler class, likely only works as root
+	// try to set this thread to real-time scheduler class, only works as root or if user has permission
 	struct sched_param param;
-	param.sched_priority = 40;
+	param.sched_priority = rt_priority;
 	if (pthread_setschedparam(thread, SCHED_FIFO, &param) != 0) {
 		LOG_DEBUG("unable to set output sched fifo: %s", strerror(errno));
+	} else {
+		LOG_DEBUG("set output sched fifo rt: %u", param.sched_priority);
+	}
+
+	// try to lock memory into RAM to avoid delay on page faults, only works as root or if user has permission
+	if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1) {
+		LOG_INFO("unable to lock memory: %s", strerror(errno));
+	} else {
+		LOG_INFO("memory locked");
 	}
 #endif
 

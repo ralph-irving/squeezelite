@@ -42,6 +42,9 @@ static void usage(const char *argv0) {
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"
 		   "  -n <name>\t\tSet the player name\n"
+#if ALSA
+		   "  -p <priority>\t\tSet real time priority of output thread (1-99)\n"
+#endif
 		   "  -r <rate>\t\tMax sample rate for output device, enables output device to be off when squeezelite is started\n"
 #if LINUX
 		   "  -z \t\t\tDaemonize\n"
@@ -104,6 +107,7 @@ int main(int argc, char **argv) {
 	unsigned alsa_period_count = ALSA_PERIOD_COUNT;
 	char *alsa_sample_fmt = NULL;
 	bool alsa_mmap = true;
+	unsigned rt_priority = OUTPUT_RT_PRIORITY;
 #endif
 #if PORTAUDIO
 	unsigned pa_latency = 0;
@@ -121,7 +125,7 @@ int main(int argc, char **argv) {
 
 	while (optind < argc && strlen(argv[optind]) >= 2 && argv[optind][0] == '-') {
 		char *opt = argv[optind] + 1;
-		if (strstr("oabcdfmnr", opt) && optind < argc - 1) {
+		if (strstr("oabcdfmnpr", opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
 			optind += 2;
 		} else if (strstr("ltwz", opt)) {
@@ -203,6 +207,15 @@ int main(int argc, char **argv) {
 		case 'n':
 			name = optarg;
 			break;
+#if ALSA
+		case 'p':
+			rt_priority = atoi(optarg);
+			if (rt_priority > 99 || rt_priority < 1) {
+				usage(argv[0]);
+				exit(0);
+			}
+			break;
+#endif
 		case 'l':
 			list_devices();
 			exit(0);
@@ -253,7 +266,8 @@ int main(int argc, char **argv) {
 #endif
 
 #if ALSA
-	output_init(log_output, output_device, output_buf_size, alsa_buffer_time, alsa_period_count, alsa_sample_fmt, alsa_mmap, max_rate);
+	output_init(log_output, output_device, output_buf_size, alsa_buffer_time, alsa_period_count, alsa_sample_fmt, alsa_mmap, 
+				max_rate, rt_priority);
 #endif
 #if PORTAUDIO
 	output_init(log_output, output_device, output_buf_size, pa_latency, max_rate);

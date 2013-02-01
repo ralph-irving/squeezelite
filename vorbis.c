@@ -54,16 +54,15 @@ extern struct decodestate decode;
 #define LOCK_O   mutex_lock(outputbuf->mutex)
 #define UNLOCK_O mutex_unlock(outputbuf->mutex)
 
+// called with mutex locked within vorbis_decode to avoid locking O before S
 static size_t _read_cb(void *ptr, size_t size, size_t nmemb, void *datasource) {
 	size_t bytes;
 
-	LOCK_S;
 	bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
 	bytes = min(bytes, size * nmemb);
 
 	memcpy(ptr, streambuf->readp, bytes);
 	_buf_inc_readp(streambuf, bytes);
-	UNLOCK_S;
 
 	return bytes / size;
 }
@@ -80,14 +79,13 @@ static decode_state vorbis_decode(void) {
 	int bytes, s, n;
 
 	LOCK_S;
-	end = (stream.state <= DISCONNECT);
-	UNLOCK_S;
-				  
 	LOCK_O;
+	end = (stream.state <= DISCONNECT);
 	frames = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
 
 	if (!frames && end) {
 		UNLOCK_O;
+		UNLOCK_S;
 		return DECODE_COMPLETE;
 	}
 
@@ -123,6 +121,7 @@ static decode_state vorbis_decode(void) {
 		if (channels > 2) {
 			LOG_WARN("too many channels: %d", channels);
 			UNLOCK_O;
+			UNLOCK_S;
 			return DECODE_ERROR;
 		}
 	}
@@ -168,16 +167,19 @@ static decode_state vorbis_decode(void) {
 
 		LOG_INFO("end of stream");
 		UNLOCK_O;
+		UNLOCK_S;
 		return DECODE_COMPLETE;
 	
 	} else {
 
 		LOG_INFO("ov_read error: %d", n);
 		UNLOCK_O;
+		UNLOCK_S;
 		return DECODE_COMPLETE;
 	}
 
 	UNLOCK_O;
+	UNLOCK_S;
 
 	return DECODE_RUNNING;
 }
