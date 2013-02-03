@@ -105,6 +105,7 @@ static decode_state vorbis_decode(void) {
 		if ((err = v->ov_open_callbacks(streambuf, v->vf, NULL, 0, cbs)) < 0) {
 			LOG_WARN("open_callbacks error: %d", err);
 			UNLOCK_O;
+			UNLOCK_S;
 			return DECODE_COMPLETE;
 		}
 

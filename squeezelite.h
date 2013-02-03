@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v1.0rc1-206"
+#define VERSION "v1.0rc2-207"
 
 // build detection
 #if defined(linux)
@@ -127,9 +127,9 @@
 #include <pthread.h>
 #include <signal.h>
 
-#define STREAM_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 4)
-#define DECODE_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 8)
-#define OUTPUT_THREAD_STACK_SIZE (PTHREAD_STACK_MIN * 4)
+#define STREAM_THREAD_STACK_SIZE  64 * 1024
+#define DECODE_THREAD_STACK_SIZE 128 * 1024
+#define OUTPUT_THREAD_STACK_SIZE  64 * 1024
 #define thread_t pthread_t;
 #define closesocket(s) close(s)
 #define last_error() errno
@@ -289,6 +289,9 @@ void *dlopen(const char *filename, int flag);
 void *dlsym(void *handle, const char *symbol);
 char *dlerror(void);
 int poll(struct pollfd *fds, unsigned long numfds, int timeout);
+#endif
+#if LINUX
+void touch_memory(u8_t *buf, size_t size);
 #endif
 
 // buffer.c

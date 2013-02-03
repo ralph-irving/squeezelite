@@ -268,6 +268,8 @@ int main(int argc, char **argv) {
 	winsock_init();
 #endif
 
+	stream_init(log_stream, stream_buf_size);
+
 #if ALSA
 	output_init(log_output, output_device, output_buf_size, alsa_buffer_time, alsa_period_count, alsa_sample_fmt, alsa_mmap, 
 				max_rate, rt_priority);
@@ -275,7 +277,7 @@ int main(int argc, char **argv) {
 #if PORTAUDIO
 	output_init(log_output, output_device, output_buf_size, pa_latency, max_rate);
 #endif
-	stream_init(log_stream, stream_buf_size);
+
 	decode_init(log_decode, codecs);
 
 	slimproto(log_slimproto, server ? server_addr(server) : 0, mac, name);

@@ -26,6 +26,7 @@
 #if ALSA
 #include <alsa/asoundlib.h>
 #include <sys/mman.h>
+#include <malloc.h>
 #endif
 #if PORTAUDIO
 #include <portaudio.h>
@@ -42,6 +43,7 @@
 #if ALSA
 
 #define MAX_SILENCE_FRAMES 1024
+#define MAX_DEVICE_LEN 128
 
 static snd_pcm_format_t fmts[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S24_LE, SND_PCM_FORMAT_S24_3LE, SND_PCM_FORMAT_S16_LE,
 								   SND_PCM_FORMAT_UNKNOWN };
@@ -53,7 +55,7 @@ static snd_pcm_format_t fmts[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S24_LE,
 
 // ouput device
 static struct {
-	char *device;
+	char device[MAX_DEVICE_LEN + 1];
 	snd_pcm_format_t format;
 	snd_pcm_uframes_t period_size;
 	unsigned rate;
@@ -199,12 +201,14 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	if (*pcmp) alsa_close(*pcmp);
 
 	// reset params
-	if (alsa.device) free(alsa.device);
-	alsa.device = NULL;
 	alsa.rate = 0;
 	alsa.period_size = 0;
-	alsa.device = malloc(strlen(device) + 1 + 4); // extra space for changing to plug
 	strcpy(alsa.device, device);
+
+	if (strlen(device) > MAX_DEVICE_LEN - 4 - 1) {
+		LOG_ERROR("device name too long: %s", device);
+		return -1;
+	}
 
 	bool retry;
 	do {
@@ -483,9 +487,18 @@ void _pa_open(void) {
 		outputParameters.hostApiSpecificStreamInfo = NULL;
 		
 #if OSX
-		// enable pro mode which aims to avoid resampling if possible
+		// enable pro mode which aims to avoid resampling if possible for non built in devices
+		// see http://code.google.com/p/squeezelite/issues/detail?id=11 for reason for not doing with built in device
 		PaMacCoreStreamInfo macInfo;
-		PaMacCore_SetupStreamInfo(&macInfo, paMacCorePro);
+		unsigned long streamInfoFlags;
+	 	if (!strcmp(Pa_GetDeviceInfo(outputParameters.device)->name, "Built-in Output")) {
+			LOG_INFO("opening device in PlayNice mode");
+			streamInfoFlags = paMacCorePlayNice;
+		} else {
+			LOG_INFO("opening device in Pro mode");
+			streamInfoFlags = paMacCorePro;
+		}
+		PaMacCore_SetupStreamInfo(&macInfo, streamInfoFlags);
 		outputParameters.hostApiSpecificStreamInfo = &macInfo;
 #endif
 	}
@@ -841,7 +854,7 @@ static void *output_thread(void *arg) {
 								cross_ptr = (s32_t *)(output.fade_end + cur_f * BYTES_PER_FRAME);
 							} else {
 								LOG_INFO("unable to continue crossfade - too few samples");
-								output.fade = FADE_NONE;
+								output.fade = FADE_INACTIVE;
 							}
 						}
 					}
@@ -1252,6 +1265,9 @@ void _checkfade(bool start) {
 			// if default setting used and nothing in buffer attempt to resize to provide full crossfade support
 			LOG_INFO("resize outputbuf for crossfade");
 			_buf_resize(outputbuf, OUTPUTBUF_SIZE_CROSSFADE);
+#if LINUX
+			touch_memory(outputbuf->buf, outputbuf->size);
+#endif			
 		}
 	}
 }
@@ -1280,7 +1296,7 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 
 	LOCK;
 
-	output.state = STOPPED;
+	output.state = OUTPUT_STOPPED;
 	output.current_sample_rate = 44100;
 	output.device = device;
 	output.fade = FADE_INACTIVE;
@@ -1327,9 +1343,27 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 	LOG_INFO("output: %s maxrate: %u", output.device, output.max_sample_rate);
 
 #if ALSA
+
+#if LINUX
+	// RT linux - aim to avoid pagefaults by locking memory: 
+	// https://rt.wiki.kernel.org/index.php/Threaded_RT-application_with_memory_locking_and_stack_handling_example
+	if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1) {
+		LOG_INFO("unable to lock memory: %s", strerror(errno));
+	} else {
+		LOG_INFO("memory locked");
+	}
+
+   	mallopt(M_TRIM_THRESHOLD, -1);
+   	mallopt(M_MMAP_MAX, 0);
+
+	touch_memory(silencebuf, MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
+	touch_memory(outputbuf->buf, outputbuf->size);
+#endif
+
+	// start output thread
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
-	pthread_attr_setstacksize(&attr, STREAM_THREAD_STACK_SIZE);
+	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + OUTPUT_THREAD_STACK_SIZE);
 	pthread_create(&thread, &attr, output_thread, max_rate ? "probe" : NULL);
 	pthread_attr_destroy(&attr);
 
@@ -1340,13 +1374,6 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 		LOG_DEBUG("unable to set output sched fifo: %s", strerror(errno));
 	} else {
 		LOG_DEBUG("set output sched fifo rt: %u", param.sched_priority);
-	}
-
-	// try to lock memory into RAM to avoid delay on page faults, only works as root or if user has permission
-	if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1) {
-		LOG_INFO("unable to lock memory: %s", strerror(errno));
-	} else {
-		LOG_INFO("memory locked");
 	}
 #endif
 

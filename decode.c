@@ -117,7 +117,7 @@ void decode_init(log_level level, const char *opt) {
 #if LINUX || OSX
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
-	pthread_attr_setstacksize(&attr, DECODE_THREAD_STACK_SIZE);
+	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + DECODE_THREAD_STACK_SIZE);
 	pthread_create(&thread, &attr, decode_thread, NULL);
 	pthread_attr_destroy(&attr);
 #endif

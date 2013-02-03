@@ -317,3 +317,11 @@ int poll(struct pollfd *fds, unsigned long numfds, int timeout) {
 
 #endif
 
+#if LINUX
+void touch_memory(u8_t *buf, size_t size) {
+	u8_t *ptr;
+	for (ptr = buf; ptr < buf + size; ptr += sysconf(_SC_PAGESIZE)) {
+		*ptr = 0;
+   	}
+}
+#endif

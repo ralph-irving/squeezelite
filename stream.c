@@ -272,13 +272,18 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 	
 	stream.state = STOPPED;
 	stream.header = malloc(MAX_HEADER);
+	*stream.header = '\0';
 
 	fd = -1;
+
+#if LINUX
+	touch_memory(streambuf->buf, streambuf->size);
+#endif
 
 #if LINUX || OSX
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
-	pthread_attr_setstacksize(&attr, STREAM_THREAD_STACK_SIZE);
+	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + STREAM_THREAD_STACK_SIZE);
 	pthread_create(&thread, &attr, stream_thread, NULL);
 	pthread_attr_destroy(&attr);
 #endif
