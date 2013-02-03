@@ -635,7 +635,7 @@ in_addr_t discover_server(void) {
 	return s.sin_addr.s_addr;
 }
 
-void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name) {
+void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name) {
     struct sockaddr_in serv_addr;
 	static char fixed_cap[128], var_cap[128] = "";
 	bool reconnect = false;
@@ -646,7 +646,7 @@ void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name)
 	loglevel = level;
 	running = true;
 
-	slimproto_ip = addr ? inet_addr(addr) : discover_server();
+	slimproto_ip = addr ? addr : discover_server();
 
 	if (!running) return;
 

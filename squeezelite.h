@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v0.9beta12-204"
+#define VERSION "v1.0rc1-206"
 
 // build detection
 #if defined(linux)
@@ -155,6 +155,7 @@ typedef int64_t   s64_t;
 #if WIN
 
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <io.h>
 
 #define STREAM_THREAD_STACK_SIZE (1024 * 64)
@@ -269,6 +270,7 @@ typedef enum { EVENT_TIMEOUT = 0, EVENT_READ, EVENT_WAKE } event_type;
 u32_t gettime_ms(void);
 void get_mac(u8_t *mac);
 void set_nonblock(sockfd s);
+in_addr_t server_addr(const char *server);
 void set_readwake_handles(event_handle handles[], sockfd s, event_event e);
 event_type wait_readwake(event_handle handles[], int timeout);
 void packN(u32_t *dest, u32_t val);
@@ -314,7 +316,7 @@ void buf_init(struct buffer *buf, size_t size);
 void buf_destroy(struct buffer *buf);
 
 // slimproto.c
-void slimproto(log_level level, const char *addr, u8_t mac[6], const char *name);
+void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name);
 void slimproto_stop(void);
 void wake_controller(void);
 

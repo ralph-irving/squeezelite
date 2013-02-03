@@ -23,6 +23,7 @@
 #if LINUX || OSX
 #include <sys/ioctl.h>
 #include <net/if.h>
+#include <netdb.h>
 #endif
 #if WIN
 #include <iphlpapi.h>
@@ -31,6 +32,7 @@
 #include <net/if_dl.h>
 #include <net/if_types.h>
 #include <ifaddrs.h>
+#include <netdb.h>
 #endif
 
 #include <fcntl.h>
@@ -159,6 +161,25 @@ void set_nonblock(sockfd s) {
 	int flags = fcntl(s, F_GETFL,0);
 	fcntl(s, F_SETFL, flags | O_NONBLOCK);
 #endif
+}
+
+in_addr_t server_addr(const char *server) {
+	in_addr_t ip = 0;
+	struct addrinfo *res;
+	struct addrinfo hints;
+	
+	memset(&hints, 0, sizeof(struct addrinfo));
+	hints.ai_family = AF_INET;
+	
+	getaddrinfo(server, NULL, &hints, &res);
+	
+	if (res && res->ai_addr) {
+		ip = ((struct sockaddr_in*)res->ai_addr)->sin_addr.s_addr;
+	} 
+	
+	freeaddrinfo(res);
+
+	return ip;
 }
 
 void set_readwake_handles(event_handle handles[], sockfd s, event_event e) {

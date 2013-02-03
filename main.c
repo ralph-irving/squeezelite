@@ -26,8 +26,8 @@
 
 static void usage(const char *argv0) {
 	printf(TITLE " See -t for license terms\n"
-		   "Usage: %s [options] [<server_ip>]\n"
-		   "  <server_ip>\t\tConnect to server server at given IP address, otherwise uses autodiscovery\n"
+		   "Usage: %s [options] [<server>]\n"
+		   "  <server>\t\tConnect to specified server, otherwise uses autodiscovery to find server\n"
 		   "  -o <output device>\tSpecify output device, default \"default\"\n"
 		   "  -l \t\t\tList output devices\n"
 #if ALSA
@@ -71,6 +71,9 @@ static void license(void) {
 
 static void sighandler(int signum) {
 	slimproto_stop();
+
+	// remove ourselves in case above does not work, second SIGINT will cause non gracefull shutdown
+	signal(signum, SIG_DFL);
 }
 
 static char *next_param(char *src, char c) {
@@ -275,7 +278,7 @@ int main(int argc, char **argv) {
 	stream_init(log_stream, stream_buf_size);
 	decode_init(log_decode, codecs);
 
-	slimproto(log_slimproto, server, mac, name);
+	slimproto(log_slimproto, server ? server_addr(server) : 0, mac, name);
 	
 	decode_close();
 	stream_close();
