@@ -138,6 +138,9 @@ void decode_close(void) {
 	}
 	running = false;
 	UNLOCK_D;
+#if LINUX || OSX
+	pthread_join(thread, NULL);
+#endif
 	mutex_destroy(decode.mutex);
 }
 

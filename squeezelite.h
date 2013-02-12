@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v1.0rc2-207"
+#define VERSION "v1.0rc3-209"
 
 // build detection
 #if defined(linux)
@@ -347,7 +347,7 @@ void stream_init(log_level level, unsigned stream_buf_size);
 void stream_close(void);
 void stream_file(const char *header, size_t header_len, unsigned threshold);
 void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
-void stream_disconnect(void);
+bool stream_disconnect(void);
 
 // decode.c
 typedef enum { DECODE_STOPPED = 0, DECODE_RUNNING, DECODE_COMPLETE, DECODE_ERROR } decode_state;

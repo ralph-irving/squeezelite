@@ -121,7 +121,7 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 	u32_t now = gettime_ms();
 	u32_t ms_played;
 
-	if (status.current_sample_rate) {
+	if (status.current_sample_rate && status.frames_played && status.frames_played > status.device_frames) {
 		ms_played = (u32_t)(((u64_t)(status.frames_played - status.device_frames) * (u64_t)1000) / (u64_t)status.current_sample_rate);
 		if (now > status.updated) ms_played += (now - status.updated);
 	} else {
@@ -223,14 +223,20 @@ static void process_strm(u8_t *pkt, int len) {
 		sendSTAT("STMt", strm->replay_gain); // STMt replay_gain is no longer used to track latency, but support it
 		break;
 	case 'q':
-		stream_disconnect();
-		buf_flush(streambuf);
 		output_flush();
+		status.frames_played = 0;
+		if (stream_disconnect()) {
+			sendSTAT("STMf", 0);
+		}
+		buf_flush(streambuf);
 		break;
 	case 'f':
-		stream_disconnect();
-		buf_flush(streambuf);
 		output_flush();
+		status.frames_played = 0;
+		if (stream_disconnect()) {
+			sendSTAT("STMf", 0);
+		}
+		buf_flush(streambuf);
 		break;
 	case 'p':
 		{

@@ -298,7 +298,7 @@ void stream_close(void) {
 	running = false;
 	UNLOCK;
 #if LINUX || OSX
-	pthread_join(thread,NULL);
+	pthread_join(thread, NULL);
 #endif
 	free(stream.header);
 	buf_destroy(streambuf);
@@ -387,12 +387,15 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	UNLOCK;
 }
 
-void stream_disconnect(void) {
+bool stream_disconnect(void) {
+	bool disc = false;
 	LOCK;
 	if (fd != -1) {
 		closesocket(fd);
 		fd = -1;
+		disc = true;
 	}
 	stream.state = STOPPED;
 	UNLOCK;
+	return disc;
 }

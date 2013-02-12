@@ -1308,6 +1308,8 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 	output.buffer_time = buffer_time;
 	output.period_count = period_count;
 
+	memset(silencebuf, 0, sizeof(silencebuf)); 
+
 	if (alsa_sample_fmt) {
 		if (!strcmp(alsa_sample_fmt, "32")) alsa.format = SND_PCM_FORMAT_S32_LE;
 		if (!strcmp(alsa_sample_fmt, "24")) alsa.format = SND_PCM_FORMAT_S24_LE;
@@ -1389,6 +1391,8 @@ void output_flush(void) {
 	buf_flush(outputbuf);
 	LOCK;
 	output.fade = FADE_INACTIVE;
+	output.state = OUTPUT_STOPPED;
+	output.frames_played = 0;
 	UNLOCK;
 }
 
@@ -1405,7 +1409,7 @@ void output_close(void) {
 
 #if ALSA
 	UNLOCK;
-	pthread_join(thread,NULL);
+	pthread_join(thread, NULL);
 	if (alsa.write_buf) free(alsa.write_buf);
 #endif
 
