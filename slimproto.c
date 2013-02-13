@@ -225,9 +225,8 @@ static void process_strm(u8_t *pkt, int len) {
 	case 'q':
 		output_flush();
 		status.frames_played = 0;
-		if (stream_disconnect()) {
-			sendSTAT("STMf", 0);
-		}
+		stream_disconnect();
+		sendSTAT("STMf", 0);
 		buf_flush(streambuf);
 		break;
 	case 'f':
@@ -722,10 +721,6 @@ void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name) {
 				new_server_cap = NULL;
 			}
 
-			if (!reconnect) {
-				reconnect = true;
-			}
-
 			sendHELO(reconnect, fixed_cap, var_cap, mac);
 
 			if (name) {
@@ -734,6 +729,10 @@ void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name) {
 			}
 
 			slimproto_run();
+
+			if (!reconnect) {
+				reconnect = true;
+			}
 
 			usleep(100000);
 		}

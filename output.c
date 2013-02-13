@@ -1105,8 +1105,14 @@ static void *output_thread(void *arg) {
 				} else {
 					snd_pcm_sframes_t w = snd_pcm_writei(pcmp, alsa.write_buf, out_frames);
 					if (w < 0) {
-						if (w != -EAGAIN && (err = snd_pcm_recover(pcmp, w, 1)) < 0) {
-							LOG_WARN("recover failed: %s", snd_strerror(err));
+						if (w != -EAGAIN && ((err = snd_pcm_recover(pcmp, w, 1)) < 0)) {
+							static unsigned recover_count = 0;
+							LOG_WARN("recover failed: %s [%u]", snd_strerror(err), ++recover_count);
+							if (recover_count >= 10) {				
+								recover_count = 0;
+								alsa_close(pcmp);
+								pcmp = NULL;
+							}
 						}
 						break;
 					} else {
@@ -1154,8 +1160,14 @@ static void *output_thread(void *arg) {
 				// only used in S32_LE non mmap LE case, write the 32 samples straight with writei, no need for intermediate buffer
 				snd_pcm_sframes_t w = snd_pcm_writei(pcmp, silence ? silencebuf : outputbuf->readp, out_frames);
 				if (w < 0) {
-					if (w != -EAGAIN && (err = snd_pcm_recover(pcmp, w, 1)) < 0) {
-						LOG_WARN("recover failed: %s", snd_strerror(err));
+					if (w != -EAGAIN && ((err = snd_pcm_recover(pcmp, w, 1)) < 0)) {
+						static unsigned recover_count = 0;
+						LOG_WARN("recover failed: %s [%u]", snd_strerror(err), ++recover_count);
+						if (recover_count >= 10) {				
+							recover_count = 0;
+							alsa_close(pcmp);
+							pcmp = NULL;
+						}
 					}
 					break;
 				} else {
