@@ -20,7 +20,11 @@
 
 // packet formats for slimproto
 
+#ifndef SUN
 #pragma pack(push, 1)
+#else
+#pragma pack(1)
+#endif
 
 // from S:N:Slimproto _hello_handler
 struct HELO_packet {
@@ -145,4 +149,8 @@ struct serv_packet {
 	// possible sync group
 };
 
+#ifndef SUN
 #pragma pack(pop)
+#else
+#pragma pack()
+#endif

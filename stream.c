@@ -283,7 +283,9 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 #if LINUX || OSX
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
+#ifdef PTHREAD_STACK_MIN	
 	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + STREAM_THREAD_STACK_SIZE);
+#endif
 	pthread_create(&thread, &attr, stream_thread, NULL);
 	pthread_attr_destroy(&attr);
 #endif

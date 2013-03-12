@@ -103,21 +103,26 @@ void decode_init(log_level level, const char *opt) {
 	// register codecs
 	// alc,wma,wmap,wmal,aac,spt,ogg,ogf,flc,aif,pcm,mp3
 	i = 0;
+#ifndef SUN
 	if (!opt || strstr(opt, "aac"))  codecs[i++] = register_faad();
+#endif
 	if (!opt || strstr(opt, "ogg"))  codecs[i++] = register_vorbis();
 	if (!opt || strstr(opt, "flac")) codecs[i++] = register_flac();
 	if (!opt || strstr(opt, "pcm"))  codecs[i++] = register_pcm();
 
 	// try mad then mpg for mp3 unless command line option passed
 	if ( !opt || strstr(opt, "mp3") || strstr(opt, "mad"))                codecs[i] = register_mad();
+#ifndef SUN
 	if ((!opt || strstr(opt, "mp3") || strstr(opt, "mpg")) && !codecs[i]) codecs[i] = register_mpg();
-
+#endif
 	mutex_create(decode.mutex);
 
 #if LINUX || OSX
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
+#ifdef PTHREAD_STACK_MIN
 	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + DECODE_THREAD_STACK_SIZE);
+#endif
 	pthread_create(&thread, &attr, decode_thread, NULL);
 	pthread_attr_destroy(&attr);
 #endif

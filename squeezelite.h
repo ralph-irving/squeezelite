@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v1.0rc4-211"
+#define VERSION "v1.0-212"
 
 // build detection
 #if defined(linux)
@@ -33,6 +33,12 @@
 #define LINUX     0
 #define OSX       0
 #define WIN       1
+#elif defined (__sun)
+#define SUN       1
+#define LINUX     1
+#define PORTAUDIO 1
+#define OSX       0
+#define WIN       0
 #else
 #error unknown target
 #endif
@@ -45,7 +51,10 @@
 #define PORTAUDIO 1
 #endif
 
-#if LINUX && !defined(SELFPIPE)
+#if SUN
+#define EVENTFD   0
+#define WINEVENT  0
+#elif LINUX && !defined(SELFPIPE)
 #define EVENTFD   1
 #define SELFPIPE  0
 #define WINEVENT  0
@@ -104,8 +113,8 @@
 
 #if defined LITTLE_ENDIAN
 #undef LITTLE_ENDIAN
-#endif
 #define LITTLE_ENDIAN (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -126,6 +135,9 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #include <signal.h>
+#if SUN
+#include <sys/types.h>
+#endif /* SUN */
 
 #define STREAM_THREAD_STACK_SIZE  64 * 1024
 #define DECODE_THREAD_STACK_SIZE 128 * 1024
@@ -134,10 +146,17 @@
 #define closesocket(s) close(s)
 #define last_error() errno
 
+#ifdef SUN
+typedef uint8_t  u8_t;
+typedef uint16_t u16_t;
+typedef uint32_t u32_t;
+typedef uint64_t u64_t;
+#else
 typedef u_int8_t  u8_t;
 typedef u_int16_t u16_t;
 typedef u_int32_t u32_t;
 typedef u_int64_t u64_t;
+#endif /* SUN */
 typedef int16_t   s16_t;
 typedef int32_t   s32_t;
 typedef int64_t   s64_t;
@@ -239,7 +258,7 @@ struct wake {
 #if LINUX && __WORDSIZE == 64
 #define FMT_u64 "%lu"
 #define FMT_x64 "%lx"
-#elif __GLIBC_HAVE_LONG_LONG || defined __GNUC__ || WIN
+#elif __GLIBC_HAVE_LONG_LONG || defined __GNUC__ || WIN || SUN
 #define FMT_u64 "%llu"
 #define FMT_x64 "%llx"
 #else

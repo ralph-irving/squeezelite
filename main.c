@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
 	unsigned stream_buf_size = STREAMBUF_SIZE;
 	unsigned output_buf_size =  OUTPUTBUF_SIZE;
 	unsigned max_rate = 0;
-#if LINUX
+#if LINUX || SUN
 	bool daemonize = false;
 #endif
 #if ALSA
@@ -223,9 +223,12 @@ int main(int argc, char **argv) {
 			list_devices();
 			exit(0);
 			break;
-#if LINUX
+#if LINUX || SUN
 		case 'z':
 			daemonize = true;
+#if SUN
+			init_daemonize();
+#endif /* SUN */
 			break;
 #endif
 		case 't':
@@ -256,7 +259,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-#if LINUX
+#if LINUX || SUN
 	if (daemonize) {
 		if (daemon(0, logfile ? 1 : 0)) {
 			fprintf(stderr, "error daemonizing: %s\n", strerror(errno));

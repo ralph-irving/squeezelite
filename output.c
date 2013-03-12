@@ -35,11 +35,6 @@
 #endif
 #endif
 
-#if defined LITTLE_ENDIAN
-#undef LITTLE_ENDIAN
-#endif
-#define LITTLE_ENDIAN (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
-
 #if ALSA
 
 #define MAX_SILENCE_FRAMES 1024
@@ -68,7 +63,63 @@ static u8_t silencebuf[MAX_SILENCE_FRAMES * BYTES_PER_FRAME];
 #endif // ALSA
 
 #if PORTAUDIO
+#if SUN
+typedef int PaDeviceIndex;
+typedef double PaTime;
 
+typedef struct PaStreamParameters
+{
+    /** A valid device index in the range 0 to (Pa_GetDeviceCount()-1)
+     specifying the device to be used or the special constant
+     paUseHostApiSpecificDeviceSpecification which indicates that the actual
+     device(s) to use are specified in hostApiSpecificStreamInfo.
+     This field must not be set to paNoDevice.
+    */
+    PaDeviceIndex device;
+
+    /** The number of channels of sound to be delivered to the
+     stream callback or accessed by Pa_ReadStream() or Pa_WriteStream().
+     It can range from 1 to the value of maxInputChannels in the
+     PaDeviceInfo record for the device specified by the device parameter.
+    */
+    int channelCount;
+
+    /** The sample format of the buffer provided to the stream callback,
+     a_ReadStream() or Pa_WriteStream(). It may be any of the formats described
+     by the PaSampleFormat enumeration.
+    */
+    PaSampleFormat sampleFormat;
+
+    /** The desired latency in seconds. Where practical, implementations should
+     configure their latency based on these parameters, otherwise they may
+     choose the closest viable latency instead. Unless the suggested latency
+     is greater than the absolute upper limit for the device implementations
+     should round the suggestedLatency up to the next practical value - ie to
+     provide an equal or higher latency than suggestedLatency wherever possible.
+     Actual latency values for an open stream may be retrieved using the
+     inputLatency and outputLatency fields of the PaStreamInfo structure
+     returned by Pa_GetStreamInfo().
+     @see default*Latency in PaDeviceInfo, *Latency in PaStreamInfo
+    */
+    PaTime suggestedLatency;
+
+} PaStreamParameters;
+
+/* Portaudio stream */
+static PaStreamParameters outputParam;
+static PaStream *stream;
+
+/* Stream sample rate */
+static u32_t stream_sample_rate;
+
+static void decode_portaudio_openstream(void);
+
+static int paContinue=0; /* Signal that the stream should continue invoking the callback and processing audio. */
+static int paComplete=1; /* Signal that the stream should stop invoking the callback and finish once all output samples have played. */
+
+static unsigned long paFramesPerBuffer = 8192L;
+static unsigned long paNumberOfBuffers = 3L;
+#endif /* SUN */
 #define MAX_SILENCE_FRAMES 102400 // silencebuf not used in pa case so set large
 
 // ouput device
@@ -352,7 +403,11 @@ void list_devices(void) {
 	}
 
 	printf("Output devices:\n");
+#ifndef SUN
 	for (i = 0; i < Pa_GetDeviceCount(); ++i) {
+#else
+	for (i = 0; i < Pa_CountDevices(); ++i) {
+#endif /* SUN */
 		printf("  %i - %s\n", i, Pa_GetDeviceInfo(i)->name);
 	}
 	printf("\n");
@@ -367,13 +422,21 @@ static int pa_device_id(const char *device) {
 	int i;
 
 	if (!strncmp(device, "default", 7)) {
+#ifndef SUN
 		return Pa_GetDefaultOutputDevice();
+#else
+		return Pa_GetDefaultOutputDeviceID();
+#endif /* SUN */
 	}
 	if (len >= 1 && len <= 2 && device[0] > '0' && device[0] <= '9') {
 		return atoi(device);
 	}
 
+#ifndef SUN
 	for (i = 0; i < Pa_GetDeviceCount(); ++i) {
+#else
+	for (i = 0; i < Pa_CountDevices(); ++i) {
+#endif /* SUN */
 		if (!strncmp(Pa_GetDeviceInfo(i)->name, device, len)) {
 			return i;
 		}
@@ -382,13 +445,21 @@ static int pa_device_id(const char *device) {
 	return -1;
 }
 
+#ifndef SUN
 static int pa_callback(const void *pa_input, void *pa_output, unsigned long pa_frames_wanted, 
-					   const PaStreamCallbackTimeInfo *timeInfo, PaStreamCallbackFlags statusFlags, void *userData);
-
+			   const PaStreamCallbackTimeInfo *timeInfo, PaStreamCallbackFlags statusFlags, void *userData);
+#else
+static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_wanted, 
+			   PaTimestamp outTime, void *userData);
+#endif /* SUN */
 static bool test_open(const char *device, u32_t *max_rate) {
 	PaStreamParameters outputParameters;
 	PaError err;
+#ifndef SUN
 	u32_t rates[] = { 384000, 352800, 192000, 176400, 96000, 88200, 48000, 44100, 0 };
+#else
+	u32_t rates[] = { 96000, 48000, 44100, 32000, 24000, 22050, 16000, 11025, 8000, 0};
+#endif /* SUN */
 	int device_id, i;
 
 	if ((device_id = pa_device_id(device)) == -1) {
@@ -399,10 +470,10 @@ static bool test_open(const char *device, u32_t *max_rate) {
 	outputParameters.device = device_id;
 	outputParameters.channelCount = 2;
 	outputParameters.sampleFormat = paInt32;
+#ifndef SUN
 	outputParameters.suggestedLatency =
 		output.latency ? (double)output.latency/(double)1000 : Pa_GetDeviceInfo(outputParameters.device)->defaultHighOutputLatency;
 	outputParameters.hostApiSpecificStreamInfo = NULL;
-
 	// check supported sample rates
 	// Note this does not appear to work on OSX - it always returns paNoError...
 	for (i = 0; rates[i]; ++i) {
@@ -411,9 +482,17 @@ static bool test_open(const char *device, u32_t *max_rate) {
 			break;
 		}
 	}
+#else
+	*max_rate = rates[1]; /* Default to 48000 for now */
+#endif
 
+#ifndef SUN
 	if ((err = Pa_OpenStream(&pa.stream, NULL, &outputParameters, (double)*max_rate, paFramesPerBufferUnspecified,
 							 paNoFlag, pa_callback, NULL)) != paNoError) {
+#else
+	if ((err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device, outputParameters.channelCount, outputParameters.sampleFormat, NULL, (double)*max_rate, paFramesPerBuffer, paNumberOfBuffers,
+							 paNoFlag, pa_callback, NULL)) != paNoError) {
+#endif /* SUN */
 		LOG_WARN("error opening stream: %s", Pa_GetErrorText(err));
 		return false;
 	}
@@ -482,10 +561,11 @@ void _pa_open(void) {
 		outputParameters.device = device_id;
 		outputParameters.channelCount = 2;
 		outputParameters.sampleFormat = paInt32;
+#ifndef SUN
 		outputParameters.suggestedLatency =
 			output.latency ? (double)output.latency/(double)1000 : Pa_GetDeviceInfo(outputParameters.device)->defaultHighOutputLatency;
 		outputParameters.hostApiSpecificStreamInfo = NULL;
-		
+#endif /* SUN */
 #if OSX
 		// enable pro mode which aims to avoid resampling if possible for non built in devices
 		// see http://code.google.com/p/squeezelite/issues/detail?id=11 for reason for not doing with built in device
@@ -503,23 +583,35 @@ void _pa_open(void) {
 #endif
 	}
 
-	if (!err && 
+	if (!err &&
+#ifndef SUN
 		(err = Pa_OpenStream(&pa.stream, NULL, &outputParameters, (double)output.current_sample_rate, paFramesPerBufferUnspecified,
-							 paPrimeOutputBuffersUsingStreamCallback, pa_callback, NULL)) != paNoError) {
+							paPrimeOutputBuffersUsingStreamCallback, pa_callback, NULL)) != paNoError) {
+#else
+		(err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device, outputParameters.channelCount,
+							outputParameters.sampleFormat, NULL, (double)output.current_sample_rate, paFramesPerBuffer,
+							paNumberOfBuffers, paNoFlag, pa_callback, NULL)) != paNoError) {
+
+#endif /* SUN */
 		LOG_WARN("error opening device %i - %s : %s", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name, 
 				 Pa_GetErrorText(err));
 	}
 
 	if (!err) {
+#ifndef SUN
 		LOG_INFO("opened device %i - %s at %u latency %u ms", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name,
 				 (unsigned int)Pa_GetStreamInfo(pa.stream)->sampleRate, (unsigned int)(Pa_GetStreamInfo(pa.stream)->outputLatency * 1000));
+#else
+		LOG_INFO("opened device %i - %s at %u fpb %u nbf %u", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name,
+				 (unsigned int)output.current_sample_rate, paFramesPerBuffer, paNumberOfBuffers);
 
+#endif
 		pa.rate = output.current_sample_rate;
-
+#ifndef SUN
 		if ((err = Pa_SetStreamFinishedCallback(pa.stream, pa_stream_finished)) != paNoError) {
 			LOG_WARN("error setting finish callback: %s", Pa_GetErrorText(err));
 		}
-	
+#endif /* SUN */	
 		if ((err = Pa_StartStream(pa.stream)) != paNoError) {
 			LOG_WARN("error starting stream: %s", Pa_GetErrorText(err));
 		}
@@ -667,8 +759,14 @@ static void *output_thread(void *arg) {
 #endif // ALSA
 
 #if PORTAUDIO
+#ifndef SUN
 	static int pa_callback(const void *pa_input, void *pa_output, unsigned long pa_frames_wanted, 
-						   const PaStreamCallbackTimeInfo *time_info, PaStreamCallbackFlags statusFlags, void *userData) {
+			   const PaStreamCallbackTimeInfo *time_info, PaStreamCallbackFlags statusFlags, void *userData)
+#else
+	static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_wanted, 
+			   PaTimestamp outTime, void *userData)
+#endif /* SUN */
+{
 
 		u8_t *optr = (u8_t *)pa_output;
 		frames_t avail = pa_frames_wanted;
@@ -749,7 +847,11 @@ static void *output_thread(void *arg) {
 		output.device_frames = delay;
 #endif
 #if PORTAUDIO
+#ifndef SUN
 		output.device_frames = (unsigned)((time_info->outputBufferDacTime - Pa_GetStreamTime(pa.stream)) * output.current_sample_rate);
+#else
+		output.device_frames = 0;
+#endif
 #endif
 		output.updated = gettime_ms();
 
@@ -1214,6 +1316,9 @@ static void *output_thread(void *arg) {
 
 		if (pa.rate != output.current_sample_rate) {
 			UNLOCK;
+#ifdef SUN							
+			pa_stream_finished (userData);
+#endif
 			return paComplete;
 		} else {
 			UNLOCK;

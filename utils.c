@@ -25,6 +25,16 @@
 #include <net/if.h>
 #include <netdb.h>
 #endif
+#if SUN
+#include <sys/socket.h>
+#include <sys/sockio.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <net/if.h>
+#include <net/if_arp.h>
+#include <net/if_dl.h>
+#include <net/if_types.h>
+#endif
 #if WIN
 #include <iphlpapi.h>
 #endif
@@ -67,7 +77,11 @@ u32_t gettime_ms(void) {
 #else
 #if LINUX
 	struct timespec ts;
+#ifdef CLOCK_MONOTONIC
 	if (!clock_gettime(CLOCK_MONOTONIC, &ts)) {
+#else
+	if (!clock_gettime(CLOCK_REALTIME, &ts)) {
+#endif
 		return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 	}
 #endif
@@ -78,7 +92,7 @@ u32_t gettime_ms(void) {
 }
 
 // mac address
-#if LINUX
+#if LINUX && !defined(SUN)
 // search first 4 interfaces returned by IFCONF
 void get_mac(u8_t mac[]) {
     struct ifconf ifc;
@@ -111,6 +125,60 @@ void get_mac(u8_t mac[]) {
 	}
 
 	close(s);
+}
+#endif
+
+#if SUN
+void get_mac(u8_t mac[]) {
+	int                     i;
+	struct  arpreq          parpreq;
+	struct  sockaddr_in     sa;
+	struct  sockaddr_in     *psa;
+	struct  in_addr         inaddr;
+	struct  hostent         *phost;
+	char                    hostname[MAXHOSTNAMELEN];
+	unsigned char           *ptr;
+	char                    **paddrs;
+	int                     sock;
+	int                     status=0;
+
+	mac[0] = mac[1] = mac[2] = mac[3] = mac[4] = mac[5] = 0;
+
+	gethostname(hostname,  MAXHOSTNAMELEN);
+
+	phost = gethostbyname(hostname);
+
+	paddrs = phost->h_addr_list;
+	memcpy(&inaddr.s_addr, *paddrs, sizeof(inaddr.s_addr));
+
+	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+	if(sock == -1)
+	{
+		mac[5] = 1;
+		return;
+	}
+
+	memset(&parpreq, 0, sizeof(struct arpreq));
+	psa = (struct sockaddr_in *) &parpreq.arp_pa;
+	memset(psa, 0, sizeof(struct sockaddr_in));
+	psa->sin_family = AF_INET;
+	memcpy(&psa->sin_addr, *paddrs, sizeof(struct in_addr));
+
+	status = ioctl(sock, SIOCGARP, &parpreq);
+
+	if(status == -1)
+	{
+		mac[5] = 2;
+		return;
+	}
+
+	mac[0] = (unsigned char) parpreq.arp_ha.sa_data[0];
+	mac[1] = (unsigned char) parpreq.arp_ha.sa_data[1];
+	mac[2] = (unsigned char) parpreq.arp_ha.sa_data[2];
+	mac[3] = (unsigned char) parpreq.arp_ha.sa_data[3];
+	mac[4] = (unsigned char) parpreq.arp_ha.sa_data[4];
+	mac[5] = (unsigned char) parpreq.arp_ha.sa_data[5];
 }
 #endif
 
