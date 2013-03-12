@@ -76,15 +76,6 @@ typedef struct PaStreamParameters
 
 } PaStreamParameters;
 
-/* Portaudio stream */
-static PaStreamParameters outputParam;
-static PaStream *stream;
-
-/* Stream sample rate */
-static u32_t stream_sample_rate;
-
-static void decode_portaudio_openstream(void);
-
 static int paContinue=0; /* Signal that the stream should continue invoking the callback and processing audio. */
 static int paComplete=1; /* Signal that the stream should stop invoking the callback and finish once all output */
 			 /* samples have played. */
@@ -430,10 +421,11 @@ static bool test_open(const char *device, u32_t *max_rate) {
 	PaError err;
 #ifndef SUN
 	u32_t rates[] = { 384000, 352800, 192000, 176400, 96000, 88200, 48000, 44100, 0 };
+	int i;
 #else
 	u32_t rates[] = { 96000, 48000, 44100, 32000, 24000, 22050, 16000, 11025, 8000, 0};
 #endif /* SUN */
-	int device_id, i;
+	int device_id;
 
 	if ((device_id = pa_device_id(device)) == -1) {
 		LOG_INFO("device %s not found", device);
@@ -463,7 +455,7 @@ static bool test_open(const char *device, u32_t *max_rate) {
 	if ((err = Pa_OpenStream(&pa.stream, NULL, &outputParameters, (double)*max_rate, paFramesPerBufferUnspecified,
 							 paNoFlag, pa_callback, NULL)) != paNoError) {
 #else
-	if ((err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device, outputParameters.channelCount, outputParameters.sampleFormat, NULL, (double)*max_rate, output.latency, paNumberOfBuffers,
+	if ((err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device, outputParameters.channelCount, outputParameters.sampleFormat, NULL, (double)*max_rate, paFramesPerBuffer, paNumberOfBuffers,
 							 paNoFlag, pa_callback, NULL)) != paNoError) {
 #endif /* SUN */
 		LOG_WARN("error opening stream: %s", Pa_GetErrorText(err));
@@ -562,7 +554,7 @@ void _pa_open(void) {
 							paPrimeOutputBuffersUsingStreamCallback, pa_callback, NULL)) != paNoError) {
 #else
 		(err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device, outputParameters.channelCount,
-							outputParameters.sampleFormat, NULL, (double)output.current_sample_rate, output.latency,
+							outputParameters.sampleFormat, NULL, (double)output.current_sample_rate, paFramesPerBuffer,
 							paNumberOfBuffers, paNoFlag, pa_callback, NULL)) != paNoError) {
 
 #endif /* SUN */
@@ -576,7 +568,7 @@ void _pa_open(void) {
 				 (unsigned int)Pa_GetStreamInfo(pa.stream)->sampleRate, (unsigned int)(Pa_GetStreamInfo(pa.stream)->outputLatency * 1000));
 #else
 		LOG_INFO("opened device %i - %s at %u fpb %u nbf %u", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name,
-				 (unsigned int)output.current_sample_rate, output.latency, paNumberOfBuffers);
+				 (unsigned int)output.current_sample_rate, paFramesPerBuffer, paNumberOfBuffers);
 
 #endif
 		pa.rate = output.current_sample_rate;
@@ -1414,14 +1406,15 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 #if PORTAUDIO
 	output.latency = latency;
 #if SUN
-	/* If -a not specified use the default */
-	if ( output.latency == 0 )
-	       output.latency = paFramesPerBuffer;
+	/* If -a specified override the default for paFramesPerBuffer */
+	if ( latency != 0 )
+	       paFramesPerBuffer = latency;
 #endif	
 	pa.stream = NULL;
 
+#ifndef SUN
 	LOG_INFO("requested latency: %u", output.latency);
-
+#endif
  	if ((err = Pa_Initialize()) != paNoError) {
 		LOG_WARN("error initialising port audio: %s", Pa_GetErrorText(err));
 		return;

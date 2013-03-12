@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v1.0-213"
+#define VERSION "v1.0-214"
 
 // build detection
 #if defined(linux)
@@ -300,6 +300,10 @@ u16_t unpackn(u16_t *src);
 void set_nosigpipe(sockfd s);
 #else
 #define set_nosigpipe(s)
+#endif
+#if SUN
+void init_daemonize(void);
+int daemon(int,int);
 #endif
 #if WIN
 void winsock_init(void);
