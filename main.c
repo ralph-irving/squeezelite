@@ -34,7 +34,11 @@ static void usage(const char *argv0) {
 		   "  -a <b>:<c>:<f>:<m>\tSpecify ALSA params to open output device, b = buffer time in ms, c = period count, f sample format (16|24|24_3|32), m = use mmap (0|1)\n"
 #endif
 #if PORTAUDIO
+#if SUN
+		   "  -a <frames per buf>\tSpecify output target frames per buffer in 8 byte samples: 8192 default\n"
+#else
 		   "  -a <latency>\t\tSpecify output target latency in ms\n"
+#endif
 #endif
 		   "  -b <stream>:<output>\tSpecify internal Stream and Output buffer sizes in Kbytes\n"
 		   "  -c <codec1>,<codec2>\tRestrict codecs those specified, otherwise loads all available codecs; known codecs: flac,pcm,mp3,ogg,aac (mad,mpg for specific mp3 codec)\n"

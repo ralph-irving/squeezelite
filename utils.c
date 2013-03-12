@@ -130,14 +130,11 @@ void get_mac(u8_t mac[]) {
 
 #if SUN
 void get_mac(u8_t mac[]) {
-	int                     i;
 	struct  arpreq          parpreq;
-	struct  sockaddr_in     sa;
 	struct  sockaddr_in     *psa;
 	struct  in_addr         inaddr;
 	struct  hostent         *phost;
 	char                    hostname[MAXHOSTNAMELEN];
-	unsigned char           *ptr;
 	char                    **paddrs;
 	int                     sock;
 	int                     status=0;

@@ -69,38 +69,9 @@ typedef double PaTime;
 
 typedef struct PaStreamParameters
 {
-    /** A valid device index in the range 0 to (Pa_GetDeviceCount()-1)
-     specifying the device to be used or the special constant
-     paUseHostApiSpecificDeviceSpecification which indicates that the actual
-     device(s) to use are specified in hostApiSpecificStreamInfo.
-     This field must not be set to paNoDevice.
-    */
     PaDeviceIndex device;
-
-    /** The number of channels of sound to be delivered to the
-     stream callback or accessed by Pa_ReadStream() or Pa_WriteStream().
-     It can range from 1 to the value of maxInputChannels in the
-     PaDeviceInfo record for the device specified by the device parameter.
-    */
     int channelCount;
-
-    /** The sample format of the buffer provided to the stream callback,
-     a_ReadStream() or Pa_WriteStream(). It may be any of the formats described
-     by the PaSampleFormat enumeration.
-    */
     PaSampleFormat sampleFormat;
-
-    /** The desired latency in seconds. Where practical, implementations should
-     configure their latency based on these parameters, otherwise they may
-     choose the closest viable latency instead. Unless the suggested latency
-     is greater than the absolute upper limit for the device implementations
-     should round the suggestedLatency up to the next practical value - ie to
-     provide an equal or higher latency than suggestedLatency wherever possible.
-     Actual latency values for an open stream may be retrieved using the
-     inputLatency and outputLatency fields of the PaStreamInfo structure
-     returned by Pa_GetStreamInfo().
-     @see default*Latency in PaDeviceInfo, *Latency in PaStreamInfo
-    */
     PaTime suggestedLatency;
 
 } PaStreamParameters;
@@ -115,11 +86,13 @@ static u32_t stream_sample_rate;
 static void decode_portaudio_openstream(void);
 
 static int paContinue=0; /* Signal that the stream should continue invoking the callback and processing audio. */
-static int paComplete=1; /* Signal that the stream should stop invoking the callback and finish once all output samples have played. */
+static int paComplete=1; /* Signal that the stream should stop invoking the callback and finish once all output */
+			 /* samples have played. */
 
-static unsigned long paFramesPerBuffer = 8192L;
-static unsigned long paNumberOfBuffers = 3L;
+static unsigned paFramesPerBuffer = 8192;
+static unsigned paNumberOfBuffers = 3;
 #endif /* SUN */
+
 #define MAX_SILENCE_FRAMES 102400 // silencebuf not used in pa case so set large
 
 // ouput device
@@ -490,7 +463,7 @@ static bool test_open(const char *device, u32_t *max_rate) {
 	if ((err = Pa_OpenStream(&pa.stream, NULL, &outputParameters, (double)*max_rate, paFramesPerBufferUnspecified,
 							 paNoFlag, pa_callback, NULL)) != paNoError) {
 #else
-	if ((err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device, outputParameters.channelCount, outputParameters.sampleFormat, NULL, (double)*max_rate, paFramesPerBuffer, paNumberOfBuffers,
+	if ((err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device, outputParameters.channelCount, outputParameters.sampleFormat, NULL, (double)*max_rate, output.latency, paNumberOfBuffers,
 							 paNoFlag, pa_callback, NULL)) != paNoError) {
 #endif /* SUN */
 		LOG_WARN("error opening stream: %s", Pa_GetErrorText(err));
@@ -589,7 +562,7 @@ void _pa_open(void) {
 							paPrimeOutputBuffersUsingStreamCallback, pa_callback, NULL)) != paNoError) {
 #else
 		(err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device, outputParameters.channelCount,
-							outputParameters.sampleFormat, NULL, (double)output.current_sample_rate, paFramesPerBuffer,
+							outputParameters.sampleFormat, NULL, (double)output.current_sample_rate, output.latency,
 							paNumberOfBuffers, paNoFlag, pa_callback, NULL)) != paNoError) {
 
 #endif /* SUN */
@@ -603,7 +576,7 @@ void _pa_open(void) {
 				 (unsigned int)Pa_GetStreamInfo(pa.stream)->sampleRate, (unsigned int)(Pa_GetStreamInfo(pa.stream)->outputLatency * 1000));
 #else
 		LOG_INFO("opened device %i - %s at %u fpb %u nbf %u", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name,
-				 (unsigned int)output.current_sample_rate, paFramesPerBuffer, paNumberOfBuffers);
+				 (unsigned int)output.current_sample_rate, output.latency, paNumberOfBuffers);
 
 #endif
 		pa.rate = output.current_sample_rate;
@@ -1440,6 +1413,11 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 
 #if PORTAUDIO
 	output.latency = latency;
+#if SUN
+	/* If -a not specified use the default */
+	if ( output.latency == 0 )
+	       output.latency = paFramesPerBuffer;
+#endif	
 	pa.stream = NULL;
 
 	LOG_INFO("requested latency: %u", output.latency);

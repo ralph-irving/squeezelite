@@ -1,5 +1,5 @@
 # Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
-CFLAGS  ?= -fPIC -I`pwd`/include -O3 -g -I`pwd`/include
+CFLAGS  ?= -fPIC -Wall -I`pwd`/include -O3 -g -I`pwd`/include
 LDFLAGS ?= -lpthread -lsocket -lnsl -ldl -lrt -lm -g -L`pwd`/lib -lportaudio
 EXECUTABLE ?= squeezelite
 
