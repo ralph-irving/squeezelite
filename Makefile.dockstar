@@ -1,6 +1,6 @@
 # Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
-CFLAGS  ?= -Wall -DLITTLE_ENDIAN -fPIC -O2 $(OPTS)
-LDFLAGS ?= -lasound -lpthread -ldl -lrt
+CFLAGS  ?= -s -Wall -DLITTLE_ENDIAN -fPIC -O3 -march=armv5te $(OPTS)
+LDFLAGS ?= -s -lasound -lpthread -ldl -lrt
 EXECUTABLE ?= squeezelite
 
 SOURCES = main.c slimproto.c utils.c output.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c
