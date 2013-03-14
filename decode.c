@@ -111,9 +111,8 @@ void decode_init(log_level level, const char *opt) {
 
 	// try mad then mpg for mp3 unless command line option passed
 	if ( !opt || strstr(opt, "mp3") || strstr(opt, "mad"))                codecs[i] = register_mad();
-#ifndef SUN
 	if ((!opt || strstr(opt, "mp3") || strstr(opt, "mpg")) && !codecs[i]) codecs[i] = register_mpg();
-#endif
+
 	mutex_create(decode.mutex);
 
 #if LINUX || OSX
