@@ -23,7 +23,9 @@
 #include "squeezelite.h"
 
 #include <fcntl.h>
-
+#if SUN
+#include <signal.h>
+#endif
 static log_level loglevel;
 
 static struct buffer buf;
@@ -269,7 +271,9 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 		LOG_ERROR("unable to malloc buffer");
 		exit(0);
 	}
-	
+#if SUN
+	signal(SIGPIPE, SIG_IGN);	/* Force sockets to return -1 with EPIPE on pipe signal */
+#endif
 	stream.state = STOPPED;
 	stream.header = malloc(MAX_HEADER);
 	*stream.header = '\0';

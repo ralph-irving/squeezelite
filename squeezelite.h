@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v1.0-214"
+#define VERSION "v1.0-215"
 
 // build detection
 #if defined(linux)
@@ -54,6 +54,7 @@
 #if SUN
 #define EVENTFD   0
 #define WINEVENT  0
+#define SELFPIPE  1
 #elif LINUX && !defined(SELFPIPE)
 #define EVENTFD   1
 #define SELFPIPE  0

@@ -3,7 +3,7 @@ CFLAGS  ?= -fPIC -Wall -I`pwd`/include -O3 -g -I`pwd`/include
 LDFLAGS ?= -lpthread -lsocket -lnsl -ldl -lrt -lm -g -L`pwd`/lib -lportaudio
 EXECUTABLE ?= squeezelite
 
-SOURCES = main.c slimproto.c utils.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c output.c daemonize.c # faad.c mpg.c
+SOURCES = main.c slimproto.c utils.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c output.c daemonize.c faad.c # mpg.c
 DEPS    = squeezelite.h
 
 OBJECTS = $(SOURCES:.c=.o)
