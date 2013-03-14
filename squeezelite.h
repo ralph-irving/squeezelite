@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v1.0-215"
+#define VERSION "v1.0-216"
 
 // build detection
 #if defined(linux)
@@ -37,6 +37,7 @@
 #define SUN       1
 #define LINUX     1
 #define PORTAUDIO 1
+#define PA18API   1
 #define OSX       0
 #define WIN       0
 #else
