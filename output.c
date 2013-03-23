@@ -42,7 +42,7 @@
 
 static snd_pcm_format_t fmts[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S24_LE, SND_PCM_FORMAT_S24_3LE, SND_PCM_FORMAT_S16_LE,
 								   SND_PCM_FORMAT_UNKNOWN };
-#if LITTLE_ENDIAN
+#if SL_LITTLE_ENDIAN
 #define NATIVE_FORMAT SND_PCM_FORMAT_S32_LE
 #else
 #define NATIVE_FORMAT SND_PCM_FORMAT_S32_BE
@@ -148,10 +148,22 @@ void list_devices(void) {
 	printf("\n");
 }
 
+static void *alsa_error_handler(const char *file, int line, const char *function, int err, const char *fmt, ...) {
+	va_list args;
+	if ((loglevel >= lINFO && err == 0) || loglevel >= lDEBUG) {
+		fprintf(stderr, "%s ALSA %s:%d ", logtime(), function, line);
+		va_start(args, fmt);
+		vfprintf(stderr, fmt, args);
+		fprintf(stderr, "\n");
+		fflush(stderr);
+	}
+	return NULL;
+}
+
 static void alsa_close(snd_pcm_t *pcmp) {
 	int err;
 	if ((err = snd_pcm_close(pcmp)) < 0) {
-		LOG_ERROR("snd_pcm_close error: %s", snd_strerror(err));
+		LOG_INFO("snd_pcm_close error: %s", snd_strerror(err));
 	}
 }
 
@@ -551,7 +563,7 @@ void _pa_open(void) {
 	if (!err &&
 #ifndef PA18API
 		(err = Pa_OpenStream(&pa.stream, NULL, &outputParameters, (double)output.current_sample_rate, paFramesPerBufferUnspecified,
-							paPrimeOutputBuffersUsingStreamCallback, pa_callback, NULL)) != paNoError) {
+							paPrimeOutputBuffersUsingStreamCallback | paDitherOff, pa_callback, NULL)) != paNoError) {
 #else
 		(err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device, outputParameters.channelCount,
 							outputParameters.sampleFormat, NULL, (double)output.current_sample_rate, paFramesPerBuffer,
@@ -643,13 +655,13 @@ static void *output_thread(void *arg) {
 		if (state == SND_PCM_STATE_XRUN) {
 			LOG_INFO("XRUN");
 			if ((err = snd_pcm_recover(pcmp, -EPIPE, 1)) < 0) {
-				LOG_WARN("XRUN recover failed: %s", snd_strerror(err));
+				LOG_INFO("XRUN recover failed: %s", snd_strerror(err));
 			}
 			start = true;
 			continue;
 		} else if (state == SND_PCM_STATE_SUSPENDED) {
 			if ((err = snd_pcm_recover(pcmp, -ESTRPIPE, 1)) < 0) {
-				LOG_WARN("SUSPEND recover failed: %s", snd_strerror(err));
+				LOG_INFO("SUSPEND recover failed: %s", snd_strerror(err));
 			}
 		} else if (state == SND_PCM_STATE_DISCONNECTED) {
 			LOG_INFO("Device %s no longer available", output.device);
@@ -662,7 +674,7 @@ static void *output_thread(void *arg) {
 		if (start && alsa.mmap) {
 			if ((err = snd_pcm_start(pcmp)) < 0) {
 				if ((err = snd_pcm_recover(pcmp, err, 1)) < 0) {
-					LOG_WARN("start error: %s", snd_strerror(err));
+					LOG_INFO("start error: %s", snd_strerror(err));
 				}
 			} else {
 				start = false;
@@ -689,7 +701,7 @@ static void *output_thread(void *arg) {
 		if (avail < alsa.period_size) {
 			if ((err = snd_pcm_wait(pcmp, 1000)) < 0) {
 				if ((err = snd_pcm_recover(pcmp, err, 1)) < 0) {
-					LOG_WARN("pcm wait error: %s", snd_strerror(err));
+					LOG_INFO("pcm wait error: %s", snd_strerror(err));
 				}
 				start = true;
 				continue;
@@ -971,7 +983,7 @@ static void *output_thread(void *arg) {
 				case SND_PCM_FORMAT_S16_LE:
 					{
 						u32_t *optr = (u32_t *)(void *)outputptr;
-#if LITTLE_ENDIAN
+#if SL_LITTLE_ENDIAN
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							while (cnt--) {
 								*(optr++) = (*(inputptr) & 0xffff0000) | (*(inputptr+1) >> 16 & 0x0000ffff);
@@ -1007,7 +1019,7 @@ static void *output_thread(void *arg) {
 				case SND_PCM_FORMAT_S24_LE: 
 					{
 						u32_t *optr = (u32_t *)(void *)outputptr;
-#if LITTLE_ENDIAN
+#if SL_LITTLE_ENDIAN
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							while (cnt--) {
 								*(optr++) = *(inputptr++) >> 8;
@@ -1054,7 +1066,7 @@ static void *output_thread(void *arg) {
 									while (cnt >= 2) {
 										s32_t l1 = *(inputptr++); s32_t r1 = *(inputptr++);
 										s32_t l2 = *(inputptr++); s32_t r2 = *(inputptr++);
-#if LITTLE_ENDIAN
+#if SL_LITTLE_ENDIAN
 										*(o_ptr++) = (l1 & 0xffffff00) >>  8 | (r1 & 0x0000ff00) << 16;
 										*(o_ptr++) = (r1 & 0xffff0000) >> 16 | (l2 & 0x00ffff00) <<  8;
 										*(o_ptr++) = (l2 & 0xff000000) >> 24 | (r2 & 0xffffff00);
@@ -1090,7 +1102,7 @@ static void *output_thread(void *arg) {
 									while (cnt >= 2) {
 										s32_t l1 = gain(gainL, *(inputptr++)); s32_t r1 = gain(gainR, *(inputptr++));
 										s32_t l2 = gain(gainL, *(inputptr++)); s32_t r2 = gain(gainR, *(inputptr++));
-#if LITTLE_ENDIAN
+#if SL_LITTLE_ENDIAN
 										*(o_ptr++) = (l1 & 0xffffff00) >>  8 | (r1 & 0x0000ff00) << 16;
 										*(o_ptr++) = (r1 & 0xffff0000) >> 16 | (l2 & 0x00ffff00) <<  8;
 										*(o_ptr++) = (l2 & 0xff000000) >> 24 | (r2 & 0xffffff00);
@@ -1123,7 +1135,7 @@ static void *output_thread(void *arg) {
 				case SND_PCM_FORMAT_S32_LE:
 					{
 						u32_t *optr = (u32_t *)(void *)outputptr;
-#if LITTLE_ENDIAN
+#if SL_LITTLE_ENDIAN
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							memcpy(outputptr, inputptr, cnt * BYTES_PER_FRAME);
 						} else {
@@ -1401,6 +1413,8 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 
 	LOG_INFO("requested buffer_time: %u period_count: %u format: %s mmap: %u", output.buffer_time, output.period_count, 
 			 alsa_sample_fmt ? alsa_sample_fmt : "any", alsa.mmap);
+
+	snd_lib_error_set_handler((snd_lib_error_handler_t)alsa_error_handler);
 #endif
 
 #if PORTAUDIO

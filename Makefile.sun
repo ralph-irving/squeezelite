@@ -1,4 +1,5 @@
-# Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
+# Solaris SPARC portaudio v18 api
+CC = gcc
 CFLAGS  ?= -fPIC -Wall -O3 -I`pwd`/include -g
 LDFLAGS ?= -lpthread -lsocket -lnsl -ldl -lrt -lm -L`pwd`/lib -lportaudio -g
 EXECUTABLE ?= squeezelite

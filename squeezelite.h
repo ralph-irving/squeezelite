@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v1.0-218"
+#define VERSION "v1.1beta1-219"
 
 // build detection
 #if defined(linux)
@@ -113,9 +113,8 @@
 #define OUTPUT_RT_PRIORITY 45
 #endif
 
-#if defined LITTLE_ENDIAN
-#undef LITTLE_ENDIAN
-#define LITTLE_ENDIAN (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+#ifndef SUN
+#define SL_LITTLE_ENDIAN (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 #endif
 
 #include <stdio.h>

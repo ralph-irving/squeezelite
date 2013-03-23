@@ -27,7 +27,7 @@ static log_level loglevel;
 
 #define MAXBUF 4096
 
-#if LITTLE_ENDIAN
+#if SL_LITTLE_ENDIAN
 #define LOCAL_PLAYER_IP   0x0100007f // 127.0.0.1
 #define LOCAL_PLAYER_PORT 0x9b0d     // 3483
 #else
