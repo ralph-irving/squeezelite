@@ -421,6 +421,7 @@ static void slimproto_run() {
 	u32_t now;
 	static u32_t last = 0;
 	event_handle ehandles[2];
+	int timeouts = 0;
 
 	set_readwake_handles(ehandles, sock, wake_e);
 
@@ -470,6 +471,14 @@ static void slimproto_run() {
 			if (ev == EVENT_WAKE) {
 				wake = true;
 			}
+
+			timeouts = 0;
+
+		} else if (++timeouts > 35) {
+
+			// expect message from server every 5 seconds, but 30 seconds on mysb.com so timeout after 35 seconds
+			LOG_INFO("No messages from server - connection dead");
+			return;
 		}
 
 		// update playback state when woken or every 100ms

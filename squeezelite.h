@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v1.1beta1-219"
+#define VERSION "v1.1beta1-222"
 
 // build detection
 #if defined(linux)
