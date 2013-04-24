@@ -18,7 +18,7 @@
  *
  */
 
-#define VERSION "v1.1-228"
+#define VERSION "v1.1-230"
 
 // build detection
 #if defined(linux)
@@ -446,7 +446,11 @@ void list_devices(void);
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count, const char *alsa_sample_fmt, bool mmap, unsigned max_rate, unsigned rt_priority);
 #endif
 #if PORTAUDIO
+#ifndef PA18API
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, unsigned max_rate);
+#else
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned pa_frames, unsigned pa_nbufs, unsigned max_rate);
+#endif /* PA18API */
 #endif
 void output_flush(void);
 void output_close(void);

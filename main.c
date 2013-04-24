@@ -35,7 +35,7 @@ static void usage(const char *argv0) {
 #endif
 #if PORTAUDIO
 #if PA18API
-		   "  -a <frames per buf>\tSpecify output target frames per buffer in 8 byte samples: 8192 default\n"
+		   "  -a <frames>:<buffers>\tSpecify output target 8 byte frames per buffer, number of buffers\n"
 #else
 		   "  -a <latency>\t\tSpecify output target latency in ms\n"
 #endif
@@ -117,7 +117,12 @@ int main(int argc, char **argv) {
 	unsigned rt_priority = OUTPUT_RT_PRIORITY;
 #endif
 #if PORTAUDIO
+#ifndef PA18API
 	unsigned pa_latency = 0;
+#else
+	unsigned pa_frames = 0;
+	unsigned pa_nbufs = 0;
+#endif /* PA18API */
 #endif
 	
 	log_level log_output = lWARN;
@@ -160,7 +165,14 @@ int main(int argc, char **argv) {
 				if (m) alsa_mmap = atoi(m);
 #endif
 #if PORTAUDIO
+#ifndef PA18API
 				pa_latency = (unsigned)atoi(optarg);
+#else
+				char *t = next_param(optarg, ':');
+				char *c = next_param(NULL, ':');
+				if (t) pa_frames  = atoi(t);
+				if (c) pa_nbufs = atoi(c);
+#endif
 #endif
 			}
 			break;
@@ -282,7 +294,11 @@ int main(int argc, char **argv) {
 				max_rate, rt_priority);
 #endif
 #if PORTAUDIO
+#ifndef PA18API
 	output_init(log_output, output_device, output_buf_size, pa_latency, max_rate);
+#else
+	output_init(log_output, output_device, output_buf_size, pa_frames, pa_nbufs, max_rate);
+#endif /* PA18API */
 #endif
 
 	decode_init(log_decode, codecs);

@@ -1372,7 +1372,13 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 				 const char *alsa_sample_fmt, bool mmap, unsigned max_rate, unsigned rt_priority) {
 #endif
 #if PORTAUDIO
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, unsigned max_rate) {
+#ifndef PA18API
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, unsigned max_rate)
+#else
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned pa_frames,
+		unsigned pa_nbufs, unsigned max_rate)
+#endif /* PA18API */
+{
 	PaError err;
 #endif
 	loglevel = level;
@@ -1418,12 +1424,15 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 #endif
 
 #if PORTAUDIO
+#ifndef PA18API
 	output.latency = latency;
-#if PA18API
-	/* If -a specified override the default for paFramesPerBuffer */
-	if ( latency != 0 )
-	       paFramesPerBuffer = latency;
-#endif	
+#else
+	if ( pa_frames != 0 )
+		paFramesPerBuffer = pa_frames;
+	if ( pa_nbufs != 0 )
+		paNumberOfBuffers = pa_nbufs;
+#endif /* PA18API */
+
 	pa.stream = NULL;
 
 #ifndef PA18API
