@@ -80,8 +80,8 @@ static int paContinue=0; /* Signal that the stream should continue invoking the 
 static int paComplete=1; /* Signal that the stream should stop invoking the callback and finish once all output */
 			 /* samples have played. */
 
-static unsigned paFramesPerBuffer = 8192;
-static unsigned paNumberOfBuffers = 3;
+static unsigned paFramesPerBuffer = 8820;
+static unsigned paNumberOfBuffers = 4;
 #endif /* PA18API */
 
 #define MAX_SILENCE_FRAMES 102400 // silencebuf not used in pa case so set large
