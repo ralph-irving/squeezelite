@@ -653,6 +653,7 @@ void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name) {
     struct sockaddr_in serv_addr;
 	static char fixed_cap[128], var_cap[128] = "";
 	bool reconnect = false;
+	unsigned failed_connect = 0;
 	int i;
 
 	wake_create(wake_e);
@@ -697,8 +698,13 @@ void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name) {
 
 		if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
 
-			LOG_INFO("unable to connect to server");
+			LOG_INFO("unable to connect to server %u", failed_connect++);
 			sleep(5);
+
+			// rediscover server if it was not set at startup
+			if (!addr && failed_connect > 5) {
+				slimproto_ip = serv_addr.sin_addr.s_addr = discover_server();
+			}
 
 		} else {
 
@@ -707,6 +713,8 @@ void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name) {
 			set_nosigpipe(sock);
 
 			var_cap[0] = '\0';
+
+			failed_connect = 0;
 
 #if !WIN
 			// check if this is a local player now we are connected & signal to server via 'loc' format
@@ -734,7 +742,6 @@ void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name) {
 
 			if (name) {
 				sendSETDName(name);
-				name = NULL;
 			}
 
 			slimproto_run();
