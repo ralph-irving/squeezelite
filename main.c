@@ -35,7 +35,7 @@ static void usage(const char *argv0) {
 #endif
 #if PORTAUDIO
 #if PA18API
-		   "  -a <frames>:<buffers>\tSpecify output target 8 byte frames per buffer, number of buffers\n"
+		   "  -a <frames>:<buffers>\tSpecify output target 4 byte frames per buffer, number of buffers\n"
 #else
 		   "  -a <latency>\t\tSpecify output target latency in ms\n"
 #endif
