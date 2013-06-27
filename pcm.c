@@ -27,11 +27,27 @@ extern struct buffer *outputbuf;
 extern struct streamstate stream;
 extern struct outputstate output;
 extern struct decodestate decode;
+extern struct processstate process;
 
 #define LOCK_S   mutex_lock(streambuf->mutex)
 #define UNLOCK_S mutex_unlock(streambuf->mutex)
 #define LOCK_O   mutex_lock(outputbuf->mutex)
 #define UNLOCK_O mutex_unlock(outputbuf->mutex)
+#if PROCESS
+#define LOCK_O_direct   if (decode.direct) mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_direct if (decode.direct) mutex_unlock(outputbuf->mutex)
+#define LOCK_O_not_direct   if (!decode.direct) mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_not_direct if (!decode.direct) mutex_unlock(outputbuf->mutex)
+#define IF_DIRECT(x)    if (decode.direct) { x }
+#define IF_PROCESS(x)   if (!decode.direct) { x }
+#else
+#define LOCK_O_direct   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_direct mutex_unlock(outputbuf->mutex)
+#define LOCK_O_not_direct
+#define UNLOCK_O_not_direct
+#define IF_DIRECT(x)    { x }
+#define IF_PROCESS(x)
+#endif
 
 #define MAX_DECODE_FRAMES 4096
 
@@ -51,35 +67,56 @@ static decode_state pcm_decode(void) {
 	u8_t  *iptr;
 	
 	LOCK_S;
-	LOCK_O;
+	LOCK_O_direct;
 
 	in = min(_buf_used(streambuf), _buf_cont_read(streambuf)) / (channels * sample_size);
-	out = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
+
+	IF_DIRECT(
+		out = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
+	);
+	IF_PROCESS(
+		out = process.max_in_frames;
+	);
 
 	if (stream.state <= DISCONNECT && in == 0) {
-		UNLOCK_O;
+		UNLOCK_O_direct;
 		UNLOCK_S;
 		return DECODE_COMPLETE;
 	}
 
 	if (decode.new_stream) {
 		LOG_INFO("setting track_start");
-		output.next_sample_rate = sample_rate; 
+		LOCK_O_not_direct;
+ 		output.next_sample_rate = decode_newstream(sample_rate, output.max_sample_rate);
 		output.track_start = outputbuf->writep;
 		if (output.fade_mode) _checkfade(true);
 		decode.new_stream = false;
+		UNLOCK_O_not_direct;
+		IF_PROCESS(
+			out = process.max_in_frames;
+		);
 	}
 
 	frames = min(in, out);
 	frames = min(frames, MAX_DECODE_FRAMES);
 
-	optr = (u32_t *)outputbuf->writep;
+	IF_DIRECT(
+		optr = (u32_t *)outputbuf->writep;
+	);
+	IF_PROCESS(
+		optr = (u32_t *)process.inbuf;
+	);
+
 	iptr = (u8_t *)streambuf->readp;
 
 	count = frames * channels;
 
 	if (channels == 2) {
- 		if (sample_size == 2) {
+		if (sample_size == 1) {
+			while (count--) {
+				*optr++ = *iptr++ << 24;
+			}
+		} else if (sample_size == 2) {
 			if (bigendian) {
 				while (count--) {
 					*optr++ = *(iptr) << 24 | *(iptr+1) << 16;
@@ -103,13 +140,27 @@ static decode_state pcm_decode(void) {
 					iptr += 3;
 				}
 			}
-		} else if (sample_size == 1) {
-			while (count--) {
-				*optr++ = *iptr++ << 24;
+		} else if (sample_size == 4) {
+			if (bigendian) {
+				while (count--) {
+					*optr++ = *(iptr) << 24 | *(iptr+1) << 16 | *(iptr+2) << 8 | *(iptr+3);
+					iptr += 4;
+				}
+			} else {
+				while (count--) {
+					*optr++ = *(iptr) | *(iptr+1) << 8 | *(iptr+2) << 16 | *(iptr+3) << 24;
+					iptr += 4;
+				}
 			}
 		}
 	} else if (channels == 1) {
- 		if (sample_size == 2) {
+		if (sample_size == 1) {
+			while (count--) {
+				*optr = *iptr++ << 24;
+				*(optr+1) = *optr;
+				optr += 2;
+			}
+		} else if (sample_size == 2) {
 			if (bigendian) {
 				while (count--) {
 					*optr = *(iptr) << 24 | *(iptr+1) << 16;
@@ -141,11 +192,21 @@ static decode_state pcm_decode(void) {
 					optr += 2;
 				}
 			}
-		} else if (sample_size == 1) {
-			while (count--) {
-				*optr = *iptr++ << 24;
-				*(optr+1) = *optr;
-				optr += 2;
+		} else if (sample_size == 4) {
+			if (bigendian) {
+				while (count--) {
+					*optr++ = *(iptr) << 24 | *(iptr+1) << 16 | *(iptr+2) << 8 | *(iptr+3);
+					*(optr+1) = *optr;
+					iptr += 4;
+					optr += 2;
+				}
+			} else {
+				while (count--) {
+					*optr++ = *(iptr) | *(iptr+1) << 8 | *(iptr+2) << 16 | *(iptr+3) << 24;
+					*(optr+1) = *optr;
+					iptr += 4;
+					optr += 2;
+				}
 			}
 		}
 	} else {
@@ -155,9 +216,15 @@ static decode_state pcm_decode(void) {
 	LOG_SDEBUG("decoded %u frames", frames);
 
 	_buf_inc_readp(streambuf, frames * channels * sample_size);
-	_buf_inc_writep(outputbuf, frames * BYTES_PER_FRAME);
 
-	UNLOCK_O;
+	IF_DIRECT(
+		_buf_inc_writep(outputbuf, frames * BYTES_PER_FRAME);
+	);
+	IF_PROCESS(
+		process.in_frames = frames;
+	);
+
+	UNLOCK_O_direct;
 	UNLOCK_S;
 
 	return DECODE_RUNNING;

@@ -58,11 +58,23 @@ extern struct buffer *outputbuf;
 extern struct streamstate stream;
 extern struct outputstate output;
 extern struct decodestate decode;
+extern struct processstate process;
 
 #define LOCK_S   mutex_lock(streambuf->mutex)
 #define UNLOCK_S mutex_unlock(streambuf->mutex)
 #define LOCK_O   mutex_lock(outputbuf->mutex)
 #define UNLOCK_O mutex_unlock(outputbuf->mutex)
+#if PROCESS
+#define LOCK_O_direct   if (decode.direct) mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_direct if (decode.direct) mutex_unlock(outputbuf->mutex)
+#define IF_DIRECT(x)    if (decode.direct) { x }
+#define IF_PROCESS(x)   if (!decode.direct) { x }
+#else
+#define LOCK_O_direct   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_direct mutex_unlock(outputbuf->mutex)
+#define IF_DIRECT(x)    { x }
+#define IF_PROCESS(x)
+#endif
 
 // based on libmad minimad.c scale
 static inline u32_t scale(mad_fixed_t sample) {
@@ -160,6 +172,7 @@ static decode_state mad_decode(void) {
 		size_t frames;
 		s32_t *iptrl;
 		s32_t *iptrr;
+		unsigned max_frames;
 
 		if (m->mad_frame_decode(&m->frame, &m->stream) == -1) {
 			decode_state ret;
@@ -183,19 +196,28 @@ static decode_state mad_decode(void) {
 
 		m->mad_synth_frame(&m->synth, &m->frame);
 
-		LOCK_O;
-		
 		if (decode.new_stream) {
+			LOCK_O;
 			LOG_INFO("setting track_start");
-			output.next_sample_rate = m->synth.pcm.samplerate;
+			output.next_sample_rate = decode_newstream(m->synth.pcm.samplerate, output.max_sample_rate);
 			output.track_start = outputbuf->writep;
 			if (output.fade_mode) _checkfade(true);
 			decode.new_stream = false;
+			UNLOCK_O;
 		}
+
+		LOCK_O_direct;
+
+		IF_DIRECT(
+			max_frames = _buf_space(outputbuf) / BYTES_PER_FRAME;
+		);
+		IF_PROCESS(
+			max_frames = process.max_in_frames - process.in_frames;
+		);
 		
-		if (m->synth.pcm.length > _buf_space(outputbuf) / BYTES_PER_FRAME) {
+		if (m->synth.pcm.length > max_frames) {
 			LOG_WARN("too many samples - dropping samples");
-			m->synth.pcm.length = _buf_space(outputbuf) / BYTES_PER_FRAME;
+			m->synth.pcm.length = max_frames;
 		}
 		
 		frames = m->synth.pcm.length;
@@ -222,18 +244,36 @@ static decode_state mad_decode(void) {
 		LOG_SDEBUG("write %u frames", frames);
 
 		while (frames > 0) {
-			size_t f = min(frames, _buf_cont_write(outputbuf) / BYTES_PER_FRAME);
-			s32_t *optr = (s32_t *)outputbuf->writep;
-			size_t count = f;
+			size_t f, count;
+			s32_t *optr;
+
+			IF_DIRECT(
+				f = min(frames, _buf_cont_write(outputbuf) / BYTES_PER_FRAME);
+				optr = (s32_t *)outputbuf->writep;
+			);
+			IF_PROCESS(
+				f = min(frames, process.max_in_frames - process.in_frames);
+				optr = (s32_t *)((u8_t *)process.inbuf + process.in_frames * BYTES_PER_FRAME);
+			);
+
+			count = f;
+
 			while (count--) {
 				*optr++ = scale(*iptrl++);
 				*optr++ = scale(*iptrr++);
 			}
+
 			frames -= f;
-			_buf_inc_writep(outputbuf, f * BYTES_PER_FRAME);
+
+			IF_DIRECT(
+				_buf_inc_writep(outputbuf, f * BYTES_PER_FRAME);
+			);
+			IF_PROCESS(
+				process.in_frames += f;
+			);
 		}
 
-		UNLOCK_O;
+		UNLOCK_O_direct;
 	}
 
 	return eos ? DECODE_COMPLETE : DECODE_RUNNING;

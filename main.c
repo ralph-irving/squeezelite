@@ -26,12 +26,12 @@
 
 static void usage(const char *argv0) {
 	printf(TITLE " See -t for license terms\n"
-		   "Usage: %s [options] [<server>]\n"
-		   "  <server>\t\tConnect to specified server, otherwise uses autodiscovery to find server\n"
+		   "Usage: %s [options]\n"
+		   "  -s <server>\t\tConnect to specified server, otherwise uses autodiscovery to find server\n"
 		   "  -o <output device>\tSpecify output device, default \"default\"\n"
 		   "  -l \t\t\tList output devices\n"
 #if ALSA
-		   "  -a <b>:<c>:<f>:<m>\tSpecify ALSA params to open output device, b = buffer time in ms, c = period count, f sample format (16|24|24_3|32), m = use mmap (0|1)\n"
+		   "  -a <b>:<p>:<f>:<m>\tSpecify ALSA params to open output device, b = buffer time in ms or size in bytes, p = period count or size in bytes, f sample format (16|24|24_3|32), m = use mmap (0|1)\n"
 #endif
 #if PORTAUDIO
 #if PA18API
@@ -50,7 +50,17 @@ static void usage(const char *argv0) {
 		   "  -p <priority>\t\tSet real time priority of output thread (1-99)\n"
 #endif
 		   "  -r <rate>\t\tMax sample rate for output device, enables output device to be off when squeezelite is started\n"
-#if LINUX
+#if RESAMPLE
+		   "  -u [params]\t\tUpsample to max rate for device, params = <quality>:<flags>:<attenuation>:<precision>:<passband_end>:<stopband_start>:<phase_response>,\n" 
+		   "  \t\t\t quality = (v|h|m|l|q)(|L|I|M)(|s),\n"
+		   "  \t\t\t flags = num in hex,\n"
+		   "  \t\t\t attenuation = attenuation in dB to apply (default is -1db if not explicitly set),\n"
+		   "  \t\t\t precision = number of bits precision (NB. HQ = 20. VHQ = 28),\n"
+		   "  \t\t\t passband_end = number in percent (0dB pt. bandwidth to preserve. nyquist = 100%%),\n"
+		   "  \t\t\t stopband_start = number in percent (Aliasing/imaging control. > passband_end),\n"
+		   "  \t\t\t phase_response = 0-100 (0 = minimum / 50 = linear / 100 = maximum)\n"
+#endif
+#if LINUX || SUN
 		   "  -z \t\t\tDaemonize\n"
 #endif
 		   "  -t \t\t\tLicense terms\n"
@@ -80,22 +90,6 @@ static void sighandler(int signum) {
 	signal(signum, SIG_DFL);
 }
 
-static char *next_param(char *src, char c) {
-	static char *str = NULL;
-	char *ptr, *ret;
-	if (src) str = src;
- 	if (str && (ptr = strchr(str, c))) {
-		ret = str;
-		*ptr = '\0';
-		str = ptr + 1;
-	} else {
-		ret = str;
-		str = NULL;
-	}
-
-	return ret && ret[0] ? ret : NULL;
-}
-
 int main(int argc, char **argv) {
 	char *server = NULL;
 	char *output_device = "default";
@@ -104,14 +98,15 @@ int main(int argc, char **argv) {
 	char *logfile = NULL;
 	u8_t mac[6];
 	unsigned stream_buf_size = STREAMBUF_SIZE;
-	unsigned output_buf_size =  OUTPUTBUF_SIZE;
+	unsigned output_buf_size = 0; // set later
 	unsigned max_rate = 0;
+	char *upsample = NULL;
 #if LINUX || SUN
 	bool daemonize = false;
 #endif
 #if ALSA
-	unsigned alsa_buffer_time = ALSA_BUFFER_TIME;
-	unsigned alsa_period_count = ALSA_PERIOD_COUNT;
+	unsigned alsa_buffer = ALSA_BUFFER_TIME;
+	unsigned alsa_period = ALSA_PERIOD_COUNT;
 	char *alsa_sample_fmt = NULL;
 	bool alsa_mmap = true;
 	unsigned rt_priority = OUTPUT_RT_PRIORITY;
@@ -137,10 +132,14 @@ int main(int argc, char **argv) {
 
 	while (optind < argc && strlen(argv[optind]) >= 2 && argv[optind][0] == '-') {
 		char *opt = argv[optind] + 1;
-		if (strstr("oabcdfmnpr", opt) && optind < argc - 1) {
+		if (strstr("oabcdfmnprs", opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
 			optind += 2;
-		} else if (strstr("ltwz", opt)) {
+#if RESAMPLE
+		} else if (strstr("ltuz", opt)) {
+#else
+		} else if (strstr("ltz", opt)) {
+#endif
 			optarg = NULL;
 			optind += 1;
 		} else {
@@ -159,8 +158,8 @@ int main(int argc, char **argv) {
 				char *c = next_param(NULL, ':');
 				char *s = next_param(NULL, ':');
 				char *m = next_param(NULL, ':');
-				if (t) alsa_buffer_time  = atoi(t) * 1000;
-				if (c) alsa_period_count = atoi(c);
+				if (t) alsa_buffer = atoi(t);
+				if (c) alsa_period = atoi(c);
 				if (s) alsa_sample_fmt = s;
 				if (m) alsa_mmap = atoi(m);
 #endif
@@ -223,6 +222,9 @@ int main(int argc, char **argv) {
 		case 'r':
 			max_rate = atoi(optarg);
 			break;
+		case 's':
+			server = optarg;
+			break;
 		case 'n':
 			name = optarg;
 			break;
@@ -239,6 +241,15 @@ int main(int argc, char **argv) {
 			list_devices();
 			exit(0);
 			break;
+#if RESAMPLE
+		case 'u':
+			if (optind < argc && argv[optind] && argv[optind][0] != '-') {
+				upsample = argv[optind++];
+			} else {
+				upsample = "";
+			}
+			break;
+#endif
 #if LINUX || SUN
 		case 'z':
 			daemonize = true;
@@ -264,9 +275,12 @@ int main(int argc, char **argv) {
 	signal(SIGHUP, sighandler);
 #endif
 
-	// remaining argument should be a server address
-	if (argc == optind + 1) {
-		server = argv[optind];
+	// set the output buffer size if not specified on the command line to take account of upsampling
+	if (!output_buf_size) {
+		output_buf_size = OUTPUTBUF_SIZE;
+		if (upsample) {
+			output_buf_size *= max_rate ? max_rate / 44100 : 8;
+		}
 	}
 
 	if (logfile) {
@@ -290,7 +304,7 @@ int main(int argc, char **argv) {
 	stream_init(log_stream, stream_buf_size);
 
 #if ALSA
-	output_init(log_output, output_device, output_buf_size, alsa_buffer_time, alsa_period_count, alsa_sample_fmt, alsa_mmap, 
+	output_init(log_output, output_device, output_buf_size, alsa_buffer, alsa_period, alsa_sample_fmt, alsa_mmap, 
 				max_rate, rt_priority);
 #endif
 #if PORTAUDIO
@@ -302,6 +316,12 @@ int main(int argc, char **argv) {
 #endif
 
 	decode_init(log_decode, codecs);
+
+#if RESAMPLE
+	if (upsample) {
+		process_init(upsample);
+	}
+#endif
 
 	slimproto(log_slimproto, server ? server_addr(server) : 0, mac, name);
 	

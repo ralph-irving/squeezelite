@@ -223,6 +223,7 @@ static void process_strm(u8_t *pkt, int len) {
 		sendSTAT("STMt", strm->replay_gain); // STMt replay_gain is no longer used to track latency, but support it
 		break;
 	case 'q':
+		decode_flush();
 		output_flush();
 		status.frames_played = 0;
 		stream_disconnect();
@@ -230,6 +231,7 @@ static void process_strm(u8_t *pkt, int len) {
 		buf_flush(streambuf);
 		break;
 	case 'f':
+		decode_flush();
 		output_flush();
 		status.frames_played = 0;
 		if (stream_disconnect()) {

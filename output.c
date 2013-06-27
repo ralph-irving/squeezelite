@@ -52,6 +52,7 @@ static snd_pcm_format_t fmts[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S24_LE,
 static struct {
 	char device[MAX_DEVICE_LEN + 1];
 	snd_pcm_format_t format;
+	snd_pcm_uframes_t buffer_size;
 	snd_pcm_uframes_t period_size;
 	unsigned rate;
 	bool mmap;
@@ -219,7 +220,7 @@ static bool pcm_probe(const char *device) {
 	return true;
 }
 
-static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate, unsigned buffer_time, unsigned period_count) {
+static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate, unsigned alsa_buffer, unsigned alsa_period) {
 	int err;
 	snd_pcm_hw_params_t *hw_params;
 	snd_pcm_hw_params_alloca(&hw_params);
@@ -307,18 +308,36 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 		return err;
 	}
 
-	// set buffer time and period count
-	unsigned count = period_count;
-	if ((err = snd_pcm_hw_params_set_periods_near(*pcmp, hw_params, &count, 0)) < 0) {
-		LOG_ERROR("unable to set period size %s", snd_strerror(err));
-		return err;
+	// set period size - value of < 50 treated as period count, otherwise size in bytes
+	if (alsa_period < 50) {
+		unsigned count = alsa_period;
+		if ((err = snd_pcm_hw_params_set_periods_near(*pcmp, hw_params, &count, 0)) < 0) {
+			LOG_ERROR("unable to set period count %s", snd_strerror(err));
+			return err;
+		}
+	} else {
+		snd_pcm_uframes_t size = alsa_period;
+		int dir = 0;
+		if ((err = snd_pcm_hw_params_set_period_size_near(*pcmp, hw_params, &size, &dir)) < 0) {
+			LOG_ERROR("unable to set period size %s", snd_strerror(err));
+			return err;
+		}
 	}
 
-	unsigned time = buffer_time;
-	int dir = 1;
-	if ((err = snd_pcm_hw_params_set_buffer_time_near(*pcmp, hw_params, &time, &dir)) < 0) {
-		LOG_ERROR("unable to set buffer time %s", snd_strerror(err));
-		return err;
+	// set buffer size - value of < 500 treated as buffer time in ms, otherwise size in bytes
+	if (alsa_buffer < 500) {
+		unsigned time = alsa_buffer * 1000;
+		int dir = 0;
+		if ((err = snd_pcm_hw_params_set_buffer_time_near(*pcmp, hw_params, &time, &dir)) < 0) {
+			LOG_ERROR("unable to set buffer time %s", snd_strerror(err));
+			return err;
+		}
+	} else {
+		snd_pcm_uframes_t size = alsa_buffer;
+		if ((err = snd_pcm_hw_params_set_buffer_size_near(*pcmp, hw_params, &size)) < 0) {
+			LOG_ERROR("unable to set buffer size %s", snd_strerror(err));
+			return err;
+		}
 	}
 
 	// get period_size
@@ -328,13 +347,12 @@ static int alsa_open(snd_pcm_t **pcmp, const char *device, unsigned sample_rate,
 	}
 
 	// get buffer_size
-	snd_pcm_uframes_t buffer_size;
-	if ((err = snd_pcm_hw_params_get_buffer_size(hw_params, &buffer_size)) < 0) {
+	if ((err = snd_pcm_hw_params_get_buffer_size(hw_params, &alsa.buffer_size)) < 0) {
 		LOG_ERROR("unable to get buffer size: %s", snd_strerror(err));
 		return err;
 	}
 
-	LOG_INFO("buffer time: %u period count: %u buffer size: %u period size: %u", time, count, buffer_size, alsa.period_size);
+	LOG_INFO("buffer: %u period: %u -> buffer size: %u period size: %u", alsa_buffer, alsa_period, alsa.buffer_size, alsa.period_size);
 
 	// create an intermediate buffer for non mmap case for all but NATIVE_FORMAT
 	// this is used to pack samples into the output format before calling writei
@@ -643,7 +661,7 @@ static void *output_thread(void *arg) {
 
 		if (!pcmp || alsa.rate != output.current_sample_rate) {
 			LOG_INFO("open output device: %s", output.device);
-			if (!!alsa_open(&pcmp, output.device, output.current_sample_rate, output.buffer_time, output.period_count)) {
+			if (!!alsa_open(&pcmp, output.device, output.current_sample_rate, output.buffer, output.period)) {
 				sleep(5);
 				continue;
 			}
@@ -761,7 +779,14 @@ static void *output_thread(void *arg) {
 		silence = false;
 
 		// start when threshold met, note: avail * 4 may need tuning
-		if (output.state == OUTPUT_BUFFER && frames > avail * 4 && frames > output.threshold * output.next_sample_rate / 100) {
+		if (output.state == OUTPUT_BUFFER && frames > output.threshold * output.next_sample_rate / 100 &&
+#if ALSA
+			frames > alsa.buffer_size * 2
+#endif
+#if PORTAUDIO
+			frames > avail * 4 
+#endif	
+			) {
 			output.state = OUTPUT_RUNNING;
 			wake_controller();
 		}
@@ -1368,7 +1393,7 @@ void _checkfade(bool start) {
 
 #if ALSA
 static pthread_t thread;
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count,
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned alsa_buffer, unsigned alsa_period,
 				 const char *alsa_sample_fmt, bool mmap, unsigned max_rate, unsigned rt_priority) {
 #endif
 #if PORTAUDIO
@@ -1405,8 +1430,8 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 	alsa.mmap = mmap;
 	alsa.write_buf = NULL;
 	alsa.format = 0;
-	output.buffer_time = buffer_time;
-	output.period_count = period_count;
+	output.buffer = alsa_buffer;
+	output.period = alsa_period;
 
 	memset(silencebuf, 0, sizeof(silencebuf)); 
 
@@ -1417,7 +1442,7 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 		if (!strcmp(alsa_sample_fmt, "16")) alsa.format = SND_PCM_FORMAT_S16_LE;
 	}
 
-	LOG_INFO("requested buffer_time: %u period_count: %u format: %s mmap: %u", output.buffer_time, output.period_count, 
+	LOG_INFO("requested alsa_buffer: %u alsa_period: %u format: %s mmap: %u", output.buffer, output.period, 
 			 alsa_sample_fmt ? alsa_sample_fmt : "any", alsa.mmap);
 
 	snd_lib_error_set_handler((snd_lib_error_handler_t)alsa_error_handler);

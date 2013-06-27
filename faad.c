@@ -61,11 +61,23 @@ extern struct buffer *outputbuf;
 extern struct streamstate stream;
 extern struct outputstate output;
 extern struct decodestate decode;
+extern struct processstate process;
 
 #define LOCK_S   mutex_lock(streambuf->mutex)
 #define UNLOCK_S mutex_unlock(streambuf->mutex)
 #define LOCK_O   mutex_lock(outputbuf->mutex)
 #define UNLOCK_O mutex_unlock(outputbuf->mutex)
+#if PROCESS
+#define LOCK_O_direct   if (decode.direct) mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_direct if (decode.direct) mutex_unlock(outputbuf->mutex)
+#define IF_DIRECT(x)    if (decode.direct) { x }
+#define IF_PROCESS(x)   if (!decode.direct) { x }
+#else
+#define LOCK_O_direct   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_direct mutex_unlock(outputbuf->mutex)
+#define IF_DIRECT(x)    { x }
+#define IF_PROCESS(x)
+#endif
 
 // minimal code for mp4 file parsing to extract audio config and find media data
 
@@ -334,7 +346,7 @@ static decode_state faad_decode(void) {
 
 			LOCK_O;
 			LOG_INFO("setting track_start");
-			output.next_sample_rate = samplerate;
+			output.next_sample_rate = decode_newstream(samplerate, output.max_sample_rate);
 			output.track_start = outputbuf->writep;
 			if (output.fade_mode) _checkfade(true);
 			decode.new_stream = false;
@@ -417,8 +429,6 @@ static decode_state faad_decode(void) {
 		return DECODE_RUNNING;
 	}
 
-	LOCK_O;
-
 	frames = info.samples / info.channels;
 
 	if (a->skip) {
@@ -445,16 +455,25 @@ static decode_state faad_decode(void) {
 
 	LOG_SDEBUG("write %u frames", frames);
 
+	LOCK_O_direct;
+
 	while (frames > 0) {
-		frames_t f = _buf_cont_write(outputbuf) / BYTES_PER_FRAME;
+		frames_t f;
 		frames_t count;
 		s32_t *optr;
+
+		IF_DIRECT(
+			f = _buf_cont_write(outputbuf) / BYTES_PER_FRAME;
+			optr = (s32_t *)outputbuf->writep;
+		);
+		IF_PROCESS(
+			f = process.max_in_frames;
+			optr = (s32_t *)process.inbuf;
+		);
 
 		f = min(f, frames);
 		count = f;
 		
-		optr = (s32_t *)outputbuf->writep;
-
 		if (info.channels == 2) {
 			while (count--) {
 				*optr++ = *iptr++ << 8;
@@ -470,10 +489,17 @@ static decode_state faad_decode(void) {
 		}
 
 		frames -= f;
-		_buf_inc_writep(outputbuf, f * BYTES_PER_FRAME);
+
+		IF_DIRECT(
+			_buf_inc_writep(outputbuf, f * BYTES_PER_FRAME);
+		);
+		IF_PROCESS(
+			process.in_frames = f;
+			if (frames) LOG_ERROR("unhandled case");
+		);
 	}
 
-	UNLOCK_O;
+	UNLOCK_O_direct;
 
 	return DECODE_RUNNING;
 }

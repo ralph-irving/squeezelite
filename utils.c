@@ -70,6 +70,23 @@ void logprint(const char *fmt, ...) {
 	fflush(stderr);
 }
 
+// cmdline parsing
+char *next_param(char *src, char c) {
+	static char *str = NULL;
+	char *ptr, *ret;
+	if (src) str = src;
+ 	if (str && (ptr = strchr(str, c))) {
+		ret = str;
+		*ptr = '\0';
+		str = ptr + 1;
+	} else {
+		ret = str;
+		str = NULL;
+	}
+
+	return ret && ret[0] ? ret : NULL;
+}
+
 // clock
 u32_t gettime_ms(void) {
 #if WIN

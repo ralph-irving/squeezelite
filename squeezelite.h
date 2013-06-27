@@ -18,7 +18,9 @@
  *
  */
 
-#define VERSION "v1.2-239"
+// make may define: PORTAUDIO, SELFPIPE or RESAMPLE to influence build
+
+#define VERSION "v1.2-resample-beta2-248"
 
 // build detection
 #if defined(linux)
@@ -72,6 +74,14 @@
 #define WINEVENT  1
 #endif
 
+#if defined(RESAMPLE)
+#undef  RESAMPLE
+#define RESAMPLE  1 // resampling
+#define PROCESS   1 // any sample processing (only resampling at present)
+#else
+#define PROCESS   0
+#endif
+
 // dynamically loaded libraries
 #if LINUX
 #define LIBFLAC "libFLAC.so.8"
@@ -108,7 +118,7 @@
 #define MAX_HEADER 4096 // do not reduce as icy-meta max is 4080
 
 #if ALSA
-#define ALSA_BUFFER_TIME  20000
+#define ALSA_BUFFER_TIME  40
 #define ALSA_PERIOD_COUNT 4
 #define OUTPUT_RT_PRIORITY 45
 #endif
@@ -243,7 +253,7 @@ typedef int sockfd;
 #define wake_clear(e) char c[10]; read(e, &c, 10)
 #define wake_close(e) close(e.fds[0]); close(e.fds[1])
 struct wake { 
-  int fds[2];
+	int fds[2];
 };
 #endif
 
@@ -287,6 +297,7 @@ void logprint(const char *fmt, ...);
 // utils.c (non logging)
 typedef enum { EVENT_TIMEOUT = 0, EVENT_READ, EVENT_WAKE } event_type;
 
+char *next_param(char *src, char c);
 u32_t gettime_ms(void);
 void get_mac(u8_t *mac);
 void set_nonblock(sockfd s);
@@ -380,7 +391,22 @@ struct decodestate {
 	decode_state state;
 	bool new_stream;
 	mutex_type mutex;
+#if PROCESS
+	bool direct;
+	bool process;
+#endif
 };
+
+#if PROCESS
+struct processstate {
+	u8_t *inbuf, *outbuf;
+	unsigned max_in_frames, max_out_frames;
+	unsigned in_frames, out_frames;
+	unsigned sample_factor;
+	unsigned sample_rate;
+	unsigned long total_in, total_out;
+};
+#endif
 
 struct codec {
 	char id;
@@ -394,7 +420,27 @@ struct codec {
 
 void decode_init(log_level level, const char *opt);
 void decode_close(void);
+void decode_flush(void);
+unsigned decode_newstream(unsigned sample_rate, unsigned max_sample_rate);
 void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t endianness);
+
+#if PROCESS
+// process.c
+void process_samples(void);
+void process_drain(void);
+void process_flush(void);
+unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned max_sample_rate);
+void process_init(char *opt);
+#endif
+
+#if RESAMPLE
+// resample.c
+void resample_samples(struct processstate *process);
+bool resample_drain(struct processstate *process);
+bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, unsigned max_sample_rate);
+void resample_flush(void);
+bool resample_init(char *opt);
+#endif
 
 // output.c
 typedef enum { OUTPUT_OFF = -1, OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNING, 
@@ -408,8 +454,8 @@ struct outputstate {
 	output_state state;
 	const char *device;
 #if ALSA
-	unsigned buffer_time;
-	unsigned period_count;
+	unsigned buffer;
+	unsigned period;
 #endif
 	bool  track_started; 
 #if PORTAUDIO
@@ -443,7 +489,7 @@ struct outputstate {
 
 void list_devices(void);
 #if ALSA
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned buffer_time, unsigned period_count, const char *alsa_sample_fmt, bool mmap, unsigned max_rate, unsigned rt_priority);
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned alsa_buffer, unsigned alsa_period, const char *alsa_sample_fmt, bool mmap, unsigned max_rate, unsigned rt_priority);
 #endif
 #if PORTAUDIO
 #ifndef PA18API

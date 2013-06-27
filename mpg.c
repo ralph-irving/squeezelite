@@ -51,25 +51,51 @@ extern struct buffer *outputbuf;
 extern struct streamstate stream;
 extern struct outputstate output;
 extern struct decodestate decode;
+extern struct processstate process;
 
 #define LOCK_S   mutex_lock(streambuf->mutex)
 #define UNLOCK_S mutex_unlock(streambuf->mutex)
 #define LOCK_O   mutex_lock(outputbuf->mutex)
 #define UNLOCK_O mutex_unlock(outputbuf->mutex)
+#if PROCESS
+#define LOCK_O_direct   if (decode.direct) mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_direct if (decode.direct) mutex_unlock(outputbuf->mutex)
+#define LOCK_O_not_direct   if (!decode.direct) mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_not_direct if (!decode.direct) mutex_unlock(outputbuf->mutex)
+#define IF_DIRECT(x)    if (decode.direct) { x }
+#define IF_PROCESS(x)   if (!decode.direct) { x }
+#else
+#define LOCK_O_direct   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_direct mutex_unlock(outputbuf->mutex)
+#define LOCK_O_not_direct
+#define UNLOCK_O_not_direct
+#define IF_DIRECT(x)    { x }
+#define IF_PROCESS(x)
+#endif
 
 static decode_state mpg_decode(void) {
 	size_t bytes, space, size;
 	int ret;
+	u8_t *write_buf;
 
 	LOCK_S;
-	LOCK_O;
+	LOCK_O_direct;
 	bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
-	space = min(_buf_space(outputbuf), _buf_cont_write(outputbuf));
+
+	IF_DIRECT(
+		space = min(_buf_space(outputbuf), _buf_cont_write(outputbuf));
+		write_buf = outputbuf->writep;
+	);
+	IF_PROCESS(
+		space = process.max_in_frames;
+		write_buf = process.inbuf;
+	);
+
 	bytes = min(bytes, READ_SIZE);
 	space = min(space, WRITE_SIZE);
 
 	if (stream.state <= DISCONNECT && bytes == 0) {
-		UNLOCK_O;
+		UNLOCK_O_direct;
 		UNLOCK_S;
 		return DECODE_COMPLETE;
 	}
@@ -78,7 +104,12 @@ static decode_state mpg_decode(void) {
 		space = (space / BYTES_PER_FRAME) * 4;
 	}
 
-	ret = m->mpg123_decode(m->h, streambuf->readp, bytes, outputbuf->writep, space, &size);
+	// only get the new stream information on first call so we can reset decode.direct appropriately
+	if (decode.new_stream) {
+		space = 0;
+	}
+
+	ret = m->mpg123_decode(m->h, streambuf->readp, bytes, write_buf, space, &size);
 
 	if (ret == MPG123_NEW_FORMAT) {
 
@@ -89,10 +120,12 @@ static decode_state mpg_decode(void) {
 			m->mpg123_getformat(m->h, &rate, &channels, &enc);
 			
 			LOG_INFO("setting track_start");
-			output.next_sample_rate = rate;
+			LOCK_O_not_direct;
+			output.next_sample_rate = decode_newstream(rate, output.max_sample_rate);
 			output.track_start = outputbuf->writep;
 			if (output.fade_mode) _checkfade(true);
 			decode.new_stream = false;
+			UNLOCK_O_not_direct;
 
 		} else {
 			LOG_WARN("format change mid stream - not supported");
@@ -105,17 +138,23 @@ static decode_state mpg_decode(void) {
 		s32_t *optr;
 		size_t count = size / 2;
 		size = count * 4;
-		iptr = (s16_t *)outputbuf->writep + count;
-		optr = (s32_t *)outputbuf->writep + count;
+		iptr = (s16_t *)write_buf + count;
+		optr = (s32_t *)write_buf + count;
 		while (count--) {
 			*--optr = *--iptr << 16;
 		}
 	}
 
 	_buf_inc_readp(streambuf, bytes);
-	_buf_inc_writep(outputbuf, size);
 
-	UNLOCK_O;
+	IF_DIRECT(
+		_buf_inc_writep(outputbuf, size);
+	);
+	IF_PROCESS(
+		process.in_frames = size / BYTES_PER_FRAME;
+	);
+
+	UNLOCK_O_direct;
 	UNLOCK_S;
 
 	LOG_SDEBUG("write %u frames", size / BYTES_PER_FRAME);

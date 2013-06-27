@@ -55,11 +55,23 @@ extern struct buffer *outputbuf;
 extern struct streamstate stream;
 extern struct outputstate output;
 extern struct decodestate decode;
+extern struct processstate process;
 
 #define LOCK_S   mutex_lock(streambuf->mutex)
 #define UNLOCK_S mutex_unlock(streambuf->mutex)
 #define LOCK_O   mutex_lock(outputbuf->mutex)
 #define UNLOCK_O mutex_unlock(outputbuf->mutex)
+#if PROCESS
+#define LOCK_O_direct   if (decode.direct) mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_direct if (decode.direct) mutex_unlock(outputbuf->mutex)
+#define IF_DIRECT(x)    if (decode.direct) { x }
+#define IF_PROCESS(x)   if (!decode.direct) { x }
+#else
+#define LOCK_O_direct   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_direct mutex_unlock(outputbuf->mutex)
+#define IF_DIRECT(x)    { x }
+#define IF_PROCESS(x)
+#endif
 
 static FLAC__StreamDecoderReadStatus read_cb(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], size_t *want, void *client_data) {
 	size_t bytes;
@@ -89,27 +101,42 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 	FLAC__int32 *lptr = (FLAC__int32 *)buffer[0];
 	FLAC__int32 *rptr = (FLAC__int32 *)buffer[channels > 1 ? 1 : 0];
 	
-	LOCK_O;
-
 	if (decode.new_stream) {
+		LOCK_O;
 		LOG_INFO("setting track_start");
-		output.next_sample_rate = frame->header.sample_rate;
+		output.next_sample_rate = decode_newstream(frame->header.sample_rate, output.max_sample_rate);
 		output.track_start = outputbuf->writep;
 		if (output.fade_mode) _checkfade(true);
 		decode.new_stream = false;
+		UNLOCK_O;
 	}
 
+	LOCK_O_direct;
+
 	while (frames > 0) {
-		frames_t f = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
+		frames_t f;
 		frames_t count;
-		u32_t *optr;
+		s32_t *optr;
+
+		IF_DIRECT( 
+			optr = (s32_t *)outputbuf->writep; 
+			f = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME; 
+		);
+		IF_PROCESS(
+			optr = (s32_t *)process.inbuf;
+			f = process.max_in_frames;
+		);
 
 		f = min(f, frames);
 
 		count = f;
-		optr = (u32_t *)outputbuf->writep;
 
-		if (bits_per_sample == 16) {
+		if (bits_per_sample == 8) {
+			while (count--) {
+				*optr++ = *lptr++ << 24;
+				*optr++ = *rptr++ << 24;
+			}
+		} else if (bits_per_sample == 16) {
 			while (count--) {
 				*optr++ = *lptr++ << 16;
 				*optr++ = *rptr++ << 16;
@@ -119,15 +146,27 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 				*optr++ = *lptr++ << 8;
 				*optr++ = *rptr++ << 8;
 			}
+		} else if (bits_per_sample == 32) {
+			while (count--) {
+				*optr++ = *lptr++;
+				*optr++ = *rptr++;
+			}
 		} else {
 			LOG_ERROR("unsupported bits per sample: %u", bits_per_sample);
 		}
 
 		frames -= f;
-		_buf_inc_writep(outputbuf, f * BYTES_PER_FRAME);
+
+		IF_DIRECT(
+			_buf_inc_writep(outputbuf, f * BYTES_PER_FRAME);
+		);
+		IF_PROCESS(
+			process.in_frames = f;
+			if (frames) LOG_ERROR("unhandled case");
+		);
 	}
 
-	UNLOCK_O;
+	UNLOCK_O_direct;
 
 	return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
 }

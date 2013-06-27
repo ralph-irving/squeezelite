@@ -48,11 +48,27 @@ extern struct buffer *outputbuf;
 extern struct streamstate stream;
 extern struct outputstate output;
 extern struct decodestate decode;
+extern struct processstate process;
 
 #define LOCK_S   mutex_lock(streambuf->mutex)
 #define UNLOCK_S mutex_unlock(streambuf->mutex)
 #define LOCK_O   mutex_lock(outputbuf->mutex)
 #define UNLOCK_O mutex_unlock(outputbuf->mutex)
+#if PROCESS
+#define LOCK_O_direct   if (decode.direct) mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_direct if (decode.direct) mutex_unlock(outputbuf->mutex)
+#define LOCK_O_not_direct   if (!decode.direct) mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_not_direct if (!decode.direct) mutex_unlock(outputbuf->mutex)
+#define IF_DIRECT(x)    if (decode.direct) { x }
+#define IF_PROCESS(x)   if (!decode.direct) { x }
+#else
+#define LOCK_O_direct   mutex_lock(outputbuf->mutex)
+#define UNLOCK_O_direct mutex_unlock(outputbuf->mutex)
+#define LOCK_O_not_direct
+#define UNLOCK_O_not_direct
+#define IF_DIRECT(x)    { x }
+#define IF_PROCESS(x)
+#endif
 
 // called with mutex locked within vorbis_decode to avoid locking O before S
 static size_t _read_cb(void *ptr, size_t size, size_t nmemb, void *datasource) {
@@ -77,14 +93,21 @@ static decode_state vorbis_decode(void) {
 	bool end;
 	frames_t frames;
 	int bytes, s, n;
+	u8_t *write_buf;
 
 	LOCK_S;
-	LOCK_O;
+	LOCK_O_direct;
 	end = (stream.state <= DISCONNECT);
-	frames = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
+
+	IF_DIRECT(
+		frames = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
+	);
+	IF_PROCESS(
+		frames = process.max_in_frames;
+	);
 
 	if (!frames && end) {
-		UNLOCK_O;
+		UNLOCK_O_direct;
 		UNLOCK_S;
 		return DECODE_COMPLETE;
 	}
@@ -104,7 +127,7 @@ static decode_state vorbis_decode(void) {
 
 		if ((err = v->ov_open_callbacks(streambuf, v->vf, NULL, 0, cbs)) < 0) {
 			LOG_WARN("open_callbacks error: %d", err);
-			UNLOCK_O;
+			UNLOCK_O_direct;
 			UNLOCK_S;
 			return DECODE_COMPLETE;
 		}
@@ -112,16 +135,22 @@ static decode_state vorbis_decode(void) {
 		info = v->ov_info(v->vf, -1);
 
 		LOG_INFO("setting track_start");
-		output.next_sample_rate = info->rate; 
+		LOCK_O_not_direct;
+		output.next_sample_rate = decode_newstream(info->rate, output.max_sample_rate); 
 		output.track_start = outputbuf->writep;
 		if (output.fade_mode) _checkfade(true);
 		decode.new_stream = false;
+		UNLOCK_O_not_direct;
+
+		IF_PROCESS(
+			frames = process.max_in_frames;
+		);
 
 		channels = info->channels;
 
 		if (channels > 2) {
 			LOG_WARN("too many channels: %d", channels);
-			UNLOCK_O;
+			UNLOCK_O_direct;
 			UNLOCK_S;
 			return DECODE_ERROR;
 		}
@@ -129,15 +158,22 @@ static decode_state vorbis_decode(void) {
 
 	bytes = frames * 2 * channels; // samples returned are 16 bits
 
+	IF_DIRECT(
+		write_buf = outputbuf->writep;
+	);
+	IF_PROCESS(
+		write_buf = process.inbuf;
+	);
+
 	// write the decoded frames into outputbuf even though they are 16 bits per sample, then unpack them
 	if (v->ov_read) {
 #if SL_LITTLE_ENDIAN
-		n = v->ov_read(v->vf, (char *)outputbuf->writep, bytes, 0, 2, 1, &s);
+		n = v->ov_read(v->vf, (char *)write_buf, bytes, 0, 2, 1, &s);
 #else
-		n = v->ov_read(v->vf, (char *)outputbuf->writep, bytes, 1, 2, 1, &s);
+		n = v->ov_read(v->vf, (char *)write_buf, bytes, 1, 2, 1, &s);
 #endif
 	} else {
-		n = v->ov_read_tremor(v->vf, (char *)outputbuf->writep, bytes, &s);
+		n = v->ov_read_tremor(v->vf, (char *)write_buf, bytes, &s);
 	}
 
 	if (n > 0) {
@@ -150,8 +186,8 @@ static decode_state vorbis_decode(void) {
 		count = frames * channels;
 
 		// work backward to unpack samples to 4 bytes per sample
-		iptr = (s16_t *)outputbuf->writep + count;
-		optr = (s32_t *)outputbuf->writep + frames * 2;
+		iptr = (s16_t *)write_buf + count;
+		optr = (s32_t *)write_buf + frames * 2;
 
 		if (channels == 2) {
 			while (count--) {
@@ -164,26 +200,31 @@ static decode_state vorbis_decode(void) {
 			}
 		}
 
-		_buf_inc_writep(outputbuf, frames * BYTES_PER_FRAME);
+		IF_DIRECT(
+			_buf_inc_writep(outputbuf, frames * BYTES_PER_FRAME);
+		);
+		IF_PROCESS(
+			process.in_frames = frames;
+		);
 
 		LOG_SDEBUG("wrote %u frames", frames);
 
 	} else if (n == 0) {
 
 		LOG_INFO("end of stream");
-		UNLOCK_O;
+		UNLOCK_O_direct;
 		UNLOCK_S;
 		return DECODE_COMPLETE;
 	
 	} else {
 
 		LOG_INFO("ov_read error: %d", n);
-		UNLOCK_O;
+		UNLOCK_O_direct;
 		UNLOCK_S;
 		return DECODE_COMPLETE;
 	}
 
-	UNLOCK_O;
+	UNLOCK_O_direct;
 	UNLOCK_S;
 
 	return DECODE_RUNNING;
