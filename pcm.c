@@ -60,6 +60,95 @@ static u32_t sample_size;
 static u32_t channels;
 static bool  bigendian;
 
+typedef enum { UNKNOWN = 0, WAVE, AIFF } header_format;
+
+void _check_header(void) {
+	u8_t *ptr = streambuf->readp;
+	unsigned bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
+	header_format format = UNKNOWN;
+
+	// simple parsing of wav and aiff headers and get to samples
+
+	if (bytes > 12) {
+		if (!memcmp(ptr, "RIFF", 4) && !memcmp(ptr+8, "WAVE", 4)) {
+			LOG_INFO("WAVE");
+			format = WAVE;
+		} else if (!memcmp(ptr, "FORM", 4) && (!memcmp(ptr+8, "AIFF", 4) || !memcmp(ptr+8, "AIFC", 4))) {
+			LOG_INFO("AIFF");
+			format = AIFF;
+		}
+	}
+
+	if (format != UNKNOWN) {
+		ptr   += 12;
+		bytes -= 12;
+
+		while (bytes >= 8) {
+			char id[5];
+			unsigned len;
+			memcpy(id, ptr, 4);
+			id[4] = '\0';
+			
+			if (format == WAVE) {
+				len = *(ptr+4) | *(ptr+5) << 8 | *(ptr+6) << 16| *(ptr+7) << 24;
+			} else {
+				len = *(ptr+4) << 24 | *(ptr+5) << 16 | *(ptr+6) << 8 | *(ptr+7);
+			}
+				
+			LOG_INFO("header: %s len: %d", id, len);
+
+			if (format == WAVE && !memcmp(ptr, "data", 4)) {
+				ptr += 8;
+				_buf_inc_readp(streambuf, ptr - streambuf->readp);
+				return;
+			}
+
+			if (format == AIFF && !memcmp(ptr, "SSND", 4) && bytes >= 16) {
+				unsigned offset = *(ptr+8) << 24 | *(ptr+9) << 16 | *(ptr+10) << 8 | *(ptr+11);
+				// following 4 bytes is blocksize - ignored
+				ptr += 8 + 8;
+				_buf_inc_readp(streambuf, ptr + offset - streambuf->readp);
+				return;
+			}
+
+			if (format == WAVE && !memcmp(ptr, "fmt ", 4) && bytes >= 24) {
+				// override the server parsed values with our own
+				channels    = *(ptr+10) | *(ptr+11) << 8;
+				sample_rate = *(ptr+12) | *(ptr+13) << 8 | *(ptr+14) << 16 | *(ptr+15) << 24;
+				sample_size = (*(ptr+22) | *(ptr+23) << 8) / 8;
+				bigendian   = 0;
+				LOG_INFO("pcm size: %u rate: %u chan: %u bigendian: %u", sample_size, sample_rate, channels, bigendian);
+			}
+
+			if (format == AIFF && !memcmp(ptr, "COMM", 4) && bytes >= 26) {
+				int exponent;
+				// override the server parsed values with our own
+				channels    = *(ptr+8) << 8 | *(ptr+9);
+				sample_size = (*(ptr+14) << 8 | *(ptr+15)) / 8;
+				bigendian   = 1;
+				// sample rate is encoded as IEEE 80 bit extended format
+				// make some assumptions to simplify processing - only use first 32 bits of mantissa
+				exponent = ((*(ptr+16) & 0x7f) << 8 | *(ptr+17)) - 16383 - 31;
+				sample_rate  = *(ptr+18) << 24 | *(ptr+19) << 16 | *(ptr+20) << 8 | *(ptr+21);
+				while (exponent < 0) { sample_rate >>= 1; ++exponent; }
+				while (exponent > 0) { sample_rate <<= 1; --exponent; }
+				LOG_INFO("pcm size: %u rate: %u chan: %u bigendian: %u", sample_size, sample_rate, channels, bigendian);
+			}
+
+			if (bytes >= len + 8) {
+				ptr   += len + 8;
+				bytes -= (len + 8);
+			} else {
+				LOG_WARN("run out of data");
+				return;
+			}
+		}
+
+	} else {
+		LOG_WARN("unknown format - can't parse header");
+	}
+}
+
 static decode_state pcm_decode(void) {
 	size_t in, out;
 	frames_t frames, count;
@@ -67,6 +156,11 @@ static decode_state pcm_decode(void) {
 	u8_t  *iptr;
 	
 	LOCK_S;
+
+	if (decode.new_stream && stream.state == STREAMING_FILE) {
+		_check_header();
+	}
+
 	LOCK_O_direct;
 
 	in = min(_buf_used(streambuf), _buf_cont_read(streambuf)) / (channels * sample_size);
