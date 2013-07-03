@@ -1011,12 +1011,12 @@ static void *output_thread(void *arg) {
 #if SL_LITTLE_ENDIAN
 						if (gainL == FIXED_ONE && gainR == FIXED_ONE) {
 							while (cnt--) {
-								*(optr++) = (*(inputptr) & 0xffff0000) | (*(inputptr+1) >> 16 & 0x0000ffff);
+								*(optr++) = (*(inputptr) >> 16 & 0x0000ffff) | (*(inputptr + 1) & 0xffff0000);
 								inputptr += 2;
 							}
 						} else {
 							while (cnt--) {
-								*(optr++) = (gain(gainL, *(inputptr)) & 0xffff0000) | (gain(gainR, *(inputptr+1)) >> 16 & 0x0000ffff);
+								*(optr++) =  (gain(gainL, *(inputptr)) >> 16 & 0x0000ffff) | (gain(gainR, *(inputptr+1)) & 0xffff0000);
 								inputptr += 2;
 							}
 						}
