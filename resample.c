@@ -31,7 +31,7 @@
 #define LIBSOXR "libsoxr.so.0"
 #endif
 #if OSX
-#define LIBSOXR "libsoxr.so.0"
+#define LIBSOXR "libsoxr.0.dylib"
 #endif
 #if WIN
 #define LIBSOXR "libsoxr.dll"

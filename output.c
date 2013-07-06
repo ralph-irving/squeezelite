@@ -692,6 +692,13 @@ static void *output_thread(void *arg) {
 		if (start && alsa.mmap) {
 			if ((err = snd_pcm_start(pcmp)) < 0) {
 				if ((err = snd_pcm_recover(pcmp, err, 1)) < 0) {
+					if (err == -ENODEV) {
+						LOG_INFO("Device %s no longer available", output.device);
+						alsa_close(pcmp);
+						pcmp = NULL;
+						probe_device = true;
+						continue;
+					}
 					LOG_INFO("start error: %s", snd_strerror(err));
 				}
 			} else {
