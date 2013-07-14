@@ -357,7 +357,10 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 
 	LOG_INFO("connecting to %s:%d", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 
-    if (connect(sock, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+	set_nonblock(sock);
+	set_nosigpipe(sock);
+
+    if (connect_timeout(sock, (struct sockaddr *) &addr, sizeof(addr), 10) < 0) {
 		LOG_INFO("unable to connect to server");
 		LOCK;
 		stream.state = DISCONNECT;
@@ -365,9 +368,6 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 		UNLOCK;
 		return;
 	}
-
-	set_nonblock(sock);
-	set_nosigpipe(sock);
 
 	buf_flush(streambuf);
 

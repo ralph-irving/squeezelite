@@ -36,7 +36,7 @@ static log_level loglevel;
 #endif
 
 static sockfd sock = -1;
-static in_addr_t slimproto_ip;
+static in_addr_t slimproto_ip = 0;
 
 extern struct buffer *streambuf;
 extern struct buffer *outputbuf;
@@ -78,12 +78,17 @@ char *new_server_cap;
 
 void send_packet(u8_t *packet, size_t len) {
 	u8_t *ptr = packet;
+	unsigned try = 0;
 	ssize_t n;
 
-	// may block
 	while (len) {
 		n = send(sock, ptr, len, MSG_NOSIGNAL);
-		if (n < 0) {
+		if (n <= 0) {
+			if (n < 0 && last_error() == EAGAIN && try < 10) {
+				LOG_DEBUG("retrying (%d) writing to socket", ++try);
+				usleep(1000);
+				continue;
+			}
 			LOG_INFO("failed writing to socket: %s", strerror(last_error()));
 			return;
 		}
@@ -282,8 +287,8 @@ static void process_strm(u8_t *pkt, int len) {
 			u16_t port = strm->server_port; // keep in network byte order
 			if (ip == 0) ip = slimproto_ip; 
 
-			LOG_INFO("strm s autostart: %c transition period: %u transition type: %u", 
-					 strm->autostart, strm->transition_period, strm->transition_type - '0');
+			LOG_INFO("strm s autostart: %c transition period: %u transition type: %u codec: %c", 
+					 strm->autostart, strm->transition_period, strm->transition_type - '0', strm->format);
 
 			autostart = strm->autostart - '0';
 			sendSTAT("STMf", 0);
@@ -291,7 +296,15 @@ static void process_strm(u8_t *pkt, int len) {
 				LOG_WARN("header too long: %u", header_len);
 				break;
 			}
-			codec_open(strm->format, strm->pcm_sample_size, strm->pcm_sample_rate, strm->pcm_channels, strm->pcm_endianness);
+			if (strm->format != '?') {
+				codec_open(strm->format, strm->pcm_sample_size, strm->pcm_sample_rate, strm->pcm_channels, strm->pcm_endianness);
+			} else if (autostart >= 2) {
+				// extension to slimproto to allow server to detect codec from response header and send back in codc message
+				LOG_INFO("streaming unknown codec");
+			} else {
+				LOG_WARN("unknown codec requires autostart >= 2");
+				break;
+			}
 			if (ip == LOCAL_PLAYER_IP && port == LOCAL_PLAYER_PORT) {
 				// extension to slimproto for LocalPlayer - header is filename not http header, don't expect cont
 				stream_file(header, header_len, strm->threshold * 1024);
@@ -332,6 +345,13 @@ static void process_cont(u8_t *pkt, int len) {
 		UNLOCK_S;
 		wake_controller();
 	}
+}
+
+static void process_codc(u8_t *pkt, int len) {
+	struct codc_packet *codc = (struct codc_packet *)pkt;
+
+	LOG_INFO("codc: %c", codc->format);
+	codec_open(codc->format, codc->pcm_sample_size, codc->pcm_sample_rate, codc->pcm_channels, codc->pcm_endianness);
 }
 
 static void process_aude(u8_t *pkt, int len) {
@@ -395,6 +415,7 @@ struct handler {
 static struct handler handlers[] = {
 	{ "strm", process_strm },
 	{ "cont", process_cont },
+	{ "codc", process_codc },
 	{ "aude", process_aude },
 	{ "audg", process_audg },
 	{ "serv", process_serv },
@@ -439,6 +460,9 @@ static void slimproto_run() {
 				if (expect > 0) {
 					int n = recv(sock, buffer + got, expect, 0);
 					if (n <= 0) {
+						if (n < 0 && last_error() == EAGAIN) {
+							continue;
+						}
 						LOG_INFO("error reading from socket: %s", n ? strerror(last_error()) : "closed");
 						return;
 					}
@@ -451,6 +475,9 @@ static void slimproto_run() {
 				} else if (expect == 0) {
 					int n = recv(sock, buffer + got, 2 - got, 0);
 					if (n <= 0) {
+						if (n < 0 && last_error() == EAGAIN) {
+							continue;
+						}
 						LOG_INFO("error reading from socket: %s", n ? strerror(last_error()) : "closed");
 						return;
 					}
@@ -651,11 +678,12 @@ in_addr_t discover_server(void) {
 	return s.sin_addr.s_addr;
 }
 
-void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name) {
+void slimproto(log_level level, char *server, u8_t mac[6], const char *name) {
     struct sockaddr_in serv_addr;
 	static char fixed_cap[128], var_cap[128] = "";
 	bool reconnect = false;
 	unsigned failed_connect = 0;
+	unsigned slimproto_port = 0;
 	int i;
 
 	wake_create(wake_e);
@@ -663,7 +691,17 @@ void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name) {
 	loglevel = level;
 	running = true;
 
-	slimproto_ip = addr ? addr : discover_server();
+	if (server) {
+		server_addr(server, &slimproto_ip, &slimproto_port);
+	}
+
+	if (!slimproto_ip) {
+		slimproto_ip = discover_server();
+	}
+
+	if (!slimproto_port) {
+		slimproto_port = PORT;
+	}
 
 	if (!running) return;
 
@@ -681,7 +719,7 @@ void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name) {
 	memset(&serv_addr, 0, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = slimproto_ip;
-	serv_addr.sin_port = htons(PORT);
+	serv_addr.sin_port = htons(slimproto_port);
 
 	LOG_INFO("connecting to %s:%d", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
 
@@ -698,21 +736,22 @@ void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name) {
 
 		sock = socket(AF_INET, SOCK_STREAM, 0);
 
-		if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+		set_nonblock(sock);
+		set_nosigpipe(sock);
+
+		if (connect_timeout(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr), 5) < 0) {
 
 			LOG_INFO("unable to connect to server %u", failed_connect++);
 			sleep(5);
 
 			// rediscover server if it was not set at startup
-			if (!addr && failed_connect > 5) {
+			if (!server && failed_connect > 5) {
 				slimproto_ip = serv_addr.sin_addr.s_addr = discover_server();
 			}
 
 		} else {
 
 			LOG_INFO("connected");
-
-			set_nosigpipe(sock);
 
 			var_cap[0] = '\0';
 

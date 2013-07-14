@@ -27,7 +27,7 @@
 static void usage(const char *argv0) {
 	printf(TITLE " See -t for license terms\n"
 		   "Usage: %s [options]\n"
-		   "  -s <server>\t\tConnect to specified server, otherwise uses autodiscovery to find server\n"
+		   "  -s <server>[:<port>]\tConnect to specified server, otherwise uses autodiscovery to find server\n"
 		   "  -o <output device>\tSpecify output device, default \"default\"\n"
 		   "  -l \t\t\tList output devices\n"
 #if ALSA
@@ -323,7 +323,7 @@ int main(int argc, char **argv) {
 	}
 #endif
 
-	slimproto(log_slimproto, server ? server_addr(server) : 0, mac, name);
+	slimproto(log_slimproto, server, mac, name);
 	
 	decode_close();
 	stream_close();

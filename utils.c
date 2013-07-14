@@ -245,23 +245,62 @@ void set_nonblock(sockfd s) {
 #endif
 }
 
-in_addr_t server_addr(const char *server) {
-	in_addr_t ip = 0;
-	struct addrinfo *res;
+// connect for socket already set to non blocking with timeout in seconds
+int connect_timeout(sockfd sock, const struct sockaddr *addr, socklen_t addrlen, int timeout) {
+	fd_set w, e;
+	struct timeval tval;
+
+	if (connect(sock, addr, addrlen) < 0) {
+#if !WIN
+		if (last_error() != EINPROGRESS) {
+#else
+		if (last_error() != WSAEWOULDBLOCK) {
+#endif
+			return -1;
+		}
+	}
+
+	FD_ZERO(&w);
+	FD_SET(sock, &w);
+	e = w;
+	tval.tv_sec = timeout;
+	tval.tv_usec = 0;
+
+	// only return 0 if w set and sock error is zero
+	if (select(sock + 1, NULL, &w, &e, timeout ? &tval : NULL) == 1 && FD_ISSET(sock, &w)) {
+		int	error = 0;
+		socklen_t len = sizeof(error);
+		getsockopt(sock, SOL_SOCKET, SO_ERROR, (void *)&error, &len);
+		return error;
+	}
+
+	return -1;
+}
+
+void server_addr(char *server, in_addr_t *ip_ptr, unsigned *port_ptr) {
+	struct addrinfo *res = NULL;
 	struct addrinfo hints;
+	const char *port = NULL;
 	
+	if (strtok(server, ":")) {
+		port = strtok(NULL, ":");
+		if (port) {
+			*port_ptr = atoi(port);
+		}
+	}
+
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_INET;
 	
 	getaddrinfo(server, NULL, &hints, &res);
 	
 	if (res && res->ai_addr) {
-		ip = ((struct sockaddr_in*)res->ai_addr)->sin_addr.s_addr;
+		*ip_ptr = ((struct sockaddr_in*)res->ai_addr)->sin_addr.s_addr;
 	} 
 	
-	freeaddrinfo(res);
-
-	return ip;
+	if (res) {
+		freeaddrinfo(res);
+	}
 }
 
 void set_readwake_handles(event_handle handles[], sockfd s, event_event e) {

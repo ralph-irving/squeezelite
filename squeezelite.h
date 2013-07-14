@@ -20,7 +20,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE or RESAMPLE to influence build
 
-#define VERSION "v1.2-253"
+#define VERSION "v1.3-dev-254"
 
 // build detection
 #if defined(linux)
@@ -301,7 +301,8 @@ char *next_param(char *src, char c);
 u32_t gettime_ms(void);
 void get_mac(u8_t *mac);
 void set_nonblock(sockfd s);
-in_addr_t server_addr(const char *server);
+int connect_timeout(sockfd sock, const struct sockaddr *addr, socklen_t addrlen, int timeout);
+void server_addr(char *server, in_addr_t *ip_ptr, unsigned *port_ptr);
 void set_readwake_handles(event_handle handles[], sockfd s, event_event e);
 event_type wait_readwake(event_handle handles[], int timeout);
 void packN(u32_t *dest, u32_t val);
@@ -354,7 +355,7 @@ void buf_init(struct buffer *buf, size_t size);
 void buf_destroy(struct buffer *buf);
 
 // slimproto.c
-void slimproto(log_level level, in_addr_t addr, u8_t mac[6], const char *name);
+void slimproto(log_level level, char *server, u8_t mac[6], const char *name);
 void slimproto_stop(void);
 void wake_controller(void);
 
