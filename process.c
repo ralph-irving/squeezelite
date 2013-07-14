@@ -112,8 +112,7 @@ void process_drain(void) {
 
 	} while (!done);
 
-	LOG_DEBUG("processing track complete - frames in: %lu out: %lu diff: %i", process.total_in, process.total_out,
-			  process.total_in * process.sample_factor - process.total_out);
+	LOG_DEBUG("processing track complete - frames in: %lu out: %lu", process.total_in, process.total_out);
 }	
 
 // new stream - called with decode mutex set
@@ -127,26 +126,41 @@ unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned max_
 
 	if (active) {
 
-		if (process.inbuf) free(process.inbuf);
-		if (process.outbuf) free(process.outbuf);
+		unsigned max_in_frames, max_out_frames;
+
+		process.in_frames = process.out_frames = 0;
+		process.total_in = process.total_out = 0;
+
+		max_in_frames = codec->min_space / BYTES_PER_FRAME ;
+
+		// increase size of output buffer by 10% as output rate is not an exact multiple of input rate
+		if (process.out_sample_rate % process.in_sample_rate == 0) {
+			max_out_frames = max_in_frames * process.out_sample_rate / process.in_sample_rate;
+		} else {
+			max_out_frames = (int)(1.1 * (float)max_in_frames * (float)process.out_sample_rate / (float)process.in_sample_rate);
+		}
+
+		if (process.max_in_frames != max_in_frames) {
+			LOG_DEBUG("creating process buf in frames: %u", max_in_frames);
+			if (process.inbuf) free(process.inbuf);
+			process.inbuf = malloc(max_in_frames * BYTES_PER_FRAME);
+			process.max_in_frames = max_in_frames;
+		}
 		
-		process.inbuf = malloc(codec->min_space);
-		process.outbuf = malloc(codec->min_space * process.sample_factor);
+		if (process.max_out_frames != max_out_frames) {
+			LOG_DEBUG("creating process buf out frames: %u", max_out_frames);
+			if (process.outbuf) free(process.outbuf);
+			process.outbuf = malloc(max_out_frames * BYTES_PER_FRAME);
+			process.max_out_frames = max_out_frames;
+		}
 		
 		if (!process.inbuf || !process.outbuf) {
 			LOG_ERROR("malloc fail creating process buffers");
 			*direct = true;
 			return raw_sample_rate;
 		}
-
-		process.sample_rate = raw_sample_rate;
-		process.max_in_frames = codec->min_space / BYTES_PER_FRAME ;
-		process.max_out_frames = codec->min_space / BYTES_PER_FRAME * process.sample_factor;
-
-		process.in_frames = process.out_frames = 0;
-		process.total_in = process.total_out = 0;
 		
-		return raw_sample_rate * process.sample_factor;
+		return process.out_sample_rate;
 	}
 
 	return raw_sample_rate;
@@ -166,6 +180,8 @@ void process_flush(void) {
 void process_init(char *opt) {
 
 	bool enabled = INIT_FUNC(opt);
+
+	memset(&process, 0, sizeof(process));
 
 	if (enabled) {
 		LOCK_D;

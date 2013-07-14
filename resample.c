@@ -57,6 +57,7 @@ struct soxr {
 	void (* soxr_delete)(soxr_t);
 	soxr_error_t (* soxr_process)(soxr_t, soxr_in_t, size_t, size_t *, soxr_out_t, size_t olen, size_t *);
 	size_t *(* soxr_num_clips)(soxr_t);
+	bool max_rate;
 };
 
 static struct soxr *r;
@@ -74,7 +75,8 @@ void resample_samples(struct processstate *process) {
 	
 	if (idone != process->in_frames) {
 		// should not get here if buffers are big enough...
-		LOG_ERROR("should not get here - partial sox process: %u of %u", (unsigned)idone, process->in_frames);
+		LOG_ERROR("should not get here - partial sox process: %u of %u processed %u of %u out",
+				  (unsigned)idone, process->in_frames, (unsigned)odone, process->max_out_frames);
 	}
 	
 	process->out_frames = odone;
@@ -122,11 +124,18 @@ bool resample_drain(struct processstate *process) {
 }
 
 bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, unsigned max_sample_rate) {
-	unsigned outrate = raw_sample_rate;
-	while (outrate <= max_sample_rate) outrate <<= 1;
-	outrate >>= 1;
+	unsigned outrate;
 
-	process->sample_factor = outrate / raw_sample_rate;
+	if (r->max_rate) {
+		outrate = max_sample_rate;
+	} else {
+		outrate = raw_sample_rate;
+		while (outrate <= max_sample_rate) outrate <<= 1;
+		outrate >>= 1;
+	}
+
+	process->in_sample_rate = raw_sample_rate;
+	process->out_sample_rate = outrate;
 
 	if (r->resampler) {
 		r->soxr_delete(r->resampler);
@@ -198,6 +207,7 @@ static bool load_soxr(void) {
 
 	r->resampler = NULL;
 	r->old_clips = 0;
+	r->max_rate = false;
 	r->soxr_io_spec = dlsym(handle, "soxr_io_spec");
 	r->soxr_quality_spec = dlsym(handle, "soxr_quality_spec");
 	r->soxr_create = dlsym(handle, "soxr_create");
@@ -215,7 +225,7 @@ static bool load_soxr(void) {
 }
 
 bool resample_init(char *opt) {
-	char *qual = NULL, *flags = NULL;
+	char *recipe = NULL, *flags = NULL;
 	char *atten = NULL;
 	char *precision = NULL, *passband_end = NULL, *stopband_begin = NULL, *phase_response = NULL;
 
@@ -225,7 +235,7 @@ bool resample_init(char *opt) {
 	}
 
 	if (opt) {
-		qual  = next_param(opt, ':');
+		recipe = next_param(opt, ':');
 		flags = next_param(NULL, ':');
 		atten = next_param(NULL, ':');
 		precision = next_param(NULL, ':');
@@ -245,16 +255,18 @@ bool resample_init(char *opt) {
 	r->q_stopband_begin = 0;
 	r->q_phase_response = -1;
 
-	if (qual && qual[0] != '\0') {
-		if (strchr(qual, 'v')) r->q_recipe = SOXR_VHQ;
-		if (strchr(qual, 'h')) r->q_recipe = SOXR_HQ;
-		if (strchr(qual, 'm')) r->q_recipe = SOXR_MQ;
-		if (strchr(qual, 'l')) r->q_recipe = SOXR_LQ;
-		if (strchr(qual, 'q')) r->q_recipe = SOXR_QQ;
-		if (strchr(qual, 'L')) r->q_recipe |= SOXR_LINEAR_PHASE;
-		if (strchr(qual, 'I')) r->q_recipe |= SOXR_INTERMEDIATE_PHASE;
-		if (strchr(qual, 'M')) r->q_recipe |= SOXR_MINIMUM_PHASE;
-		if (strchr(qual, 's')) r->q_recipe |= SOXR_STEEP_FILTER;
+	if (recipe && recipe[0] != '\0') {
+		if (strchr(recipe, 'v')) r->q_recipe = SOXR_VHQ;
+		if (strchr(recipe, 'h')) r->q_recipe = SOXR_HQ;
+		if (strchr(recipe, 'm')) r->q_recipe = SOXR_MQ;
+		if (strchr(recipe, 'l')) r->q_recipe = SOXR_LQ;
+		if (strchr(recipe, 'q')) r->q_recipe = SOXR_QQ;
+		if (strchr(recipe, 'L')) r->q_recipe |= SOXR_LINEAR_PHASE;
+		if (strchr(recipe, 'I')) r->q_recipe |= SOXR_INTERMEDIATE_PHASE;
+		if (strchr(recipe, 'M')) r->q_recipe |= SOXR_MINIMUM_PHASE;
+		if (strchr(recipe, 's')) r->q_recipe |= SOXR_STEEP_FILTER;
+		// X = async resampling to max_rate
+		if (strchr(recipe, 'X')) r->max_rate = true;
 	}
 
 	if (flags) {
@@ -284,7 +296,8 @@ bool resample_init(char *opt) {
 		r->q_phase_response = atof(phase_response);
 	}
 
-	LOG_INFO("resampling enabled recipe: 0x%02x, flags: 0x%02x, scale: %03.2f, precision: %03.1f, passband_end: %03.5f, stopband_begin: %03.5f, phase_response: %03.1f",
+	LOG_INFO("resampling %s recipe: 0x%02x, flags: 0x%02x, scale: %03.2f, precision: %03.1f, passband_end: %03.5f, stopband_begin: %03.5f, phase_response: %03.1f",
+			r->max_rate ? "async" : "sync",
 			r->q_recipe, r->q_flags, r->scale, r->q_precision, r->q_passband_end, r->q_stopband_begin, r->q_phase_response);
 
 	return true;

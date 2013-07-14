@@ -51,8 +51,8 @@ static void usage(const char *argv0) {
 #endif
 		   "  -r <rate>\t\tMax sample rate for output device, enables output device to be off when squeezelite is started\n"
 #if RESAMPLE
-		   "  -u [params]\t\tUpsample to max rate for device, params = <quality>:<flags>:<attenuation>:<precision>:<passband_end>:<stopband_start>:<phase_response>,\n" 
-		   "  \t\t\t quality = (v|h|m|l|q)(|L|I|M)(|s),\n"
+		   "  -u [params]\t\tUpsample, params = <recipe>:<flags>:<attenuation>:<precision>:<passband_end>:<stopband_start>:<phase_response>,\n" 
+		   "  \t\t\t recipe = (v|h|m|l|q)(|L|I|M)(|s), (|X) = async - resample to max rate for device, otherwise resample to max sync rate\n"
 		   "  \t\t\t flags = num in hex,\n"
 		   "  \t\t\t attenuation = attenuation in dB to apply (default is -1db if not explicitly set),\n"
 		   "  \t\t\t precision = number of bits precision (NB. HQ = 20. VHQ = 28),\n"

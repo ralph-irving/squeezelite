@@ -399,11 +399,14 @@ void list_devices(void) {
 	printf("Output devices:\n");
 #ifndef PA18API
 	for (i = 0; i < Pa_GetDeviceCount(); ++i) {
+		printf("  %i - %s [%s]\n", i, Pa_GetDeviceInfo(i)->name,
+			Pa_GetHostApiInfo(Pa_GetDeviceInfo(i)->hostApi)->name);
 #else
 	for (i = 0; i < Pa_CountDevices(); ++i) {
-#endif
 		printf("  %i - %s\n", i, Pa_GetDeviceInfo(i)->name);
+#endif
 	}
+
 	printf("\n");
 
  	if ((err = Pa_Terminate()) != paNoError) {
