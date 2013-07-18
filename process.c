@@ -135,7 +135,7 @@ unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned max_
 
 		// increase size of output buffer by 10% as output rate is not an exact multiple of input rate
 		if (process.out_sample_rate % process.in_sample_rate == 0) {
-			max_out_frames = max_in_frames * process.out_sample_rate / process.in_sample_rate;
+			max_out_frames = max_in_frames * (process.out_sample_rate / process.in_sample_rate);
 		} else {
 			max_out_frames = (int)(1.1 * (float)max_in_frames * (float)process.out_sample_rate / (float)process.in_sample_rate);
 		}
