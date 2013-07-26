@@ -1,0 +1,24 @@
+# Solaris SPARC portaudio v18 api
+CC = /opt/gcc/bin/gcc
+CPP = /opt/gcc/bin/cpp
+CFLAGS  ?= -fPIC -Wall -O3 -I`pwd`/include -DRESAMPLE -s
+LDFLAGS ?= -lpthread -lsocket -lnsl -ldl -lrt -lm -L`pwd`/lib -lportaudio -s
+EXECUTABLE ?= squeezelite
+
+SOURCES = main.c slimproto.c utils.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c output.c daemonize.c faad.c mpg.c resample.c process.c
+DEPS    = squeezelite.h
+
+OBJECTS = $(SOURCES:.c=.o)
+
+all: $(EXECUTABLE)
+
+$(EXECUTABLE): $(OBJECTS)
+	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
+
+$(OBJECTS): $(DEPS)
+
+.c.o:
+	$(CC) $(CFLAGS) $< -c -o $@
+
+clean:
+	rm -f $(OBJECTS) $(EXECUTABLE)
