@@ -20,7 +20,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE or RESAMPLE to influence build
 
-#define VERSION "v1.3-dev-262"
+#define VERSION "v1.3-dev-263"
 
 // build detection
 #if defined(linux)
@@ -461,6 +461,7 @@ struct outputstate {
 #if PORTAUDIO
 	bool  pa_reopen;
 	unsigned latency;
+	int osx_playnice;
 #endif
 	unsigned frames_played;
 	unsigned current_sample_rate;
@@ -493,7 +494,7 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 #endif
 #if PORTAUDIO
 #ifndef PA18API
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, unsigned max_rate);
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, int osx_playnice, unsigned max_rate);
 #else
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned pa_frames, unsigned pa_nbufs, unsigned max_rate);
 #endif /* PA18API */

@@ -1,6 +1,6 @@
 # Make with portaudio rather than direct alsa
-OPTS = -DPORTAUDIO
-LDFLAGS = -lportaudio -lpthread -ldl -lrt
+OPTS = -DPORTAUDIO -I./include
+LDFLAGS = -lasound -lpthread -ldl -lrt -L./lib -lportaudio
 EXECUTABLE = squeezelite-pa
 
 include Makefile

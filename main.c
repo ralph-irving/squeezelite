@@ -36,8 +36,10 @@ static void usage(const char *argv0) {
 #if PORTAUDIO
 #if PA18API
 		   "  -a <frames>:<buffers>\tSpecify output target 4 byte frames per buffer, number of buffers\n"
+#elif MAC
+		   "  -a <l>:<r>\t\tSpecify Portaudio params to open output device, l = target latency in ms, r = allow OSX to resample (0|1)\n"
 #else
-		   "  -a <latency>\t\tSpecify output target latency in ms\n"
+		   "  -a <l>\t\tSpecify Portaudio params to open output device, l = target latency in ms\n"
 #endif
 #endif
 		   "  -b <stream>:<output>\tSpecify internal Stream and Output buffer sizes in Kbytes\n"
@@ -114,6 +116,7 @@ int main(int argc, char **argv) {
 #if PORTAUDIO
 #ifndef PA18API
 	unsigned pa_latency = 0;
+	int pa_osx_playnice = -1;
 #else
 	unsigned pa_frames = 0;
 	unsigned pa_nbufs = 0;
@@ -165,7 +168,11 @@ int main(int argc, char **argv) {
 #endif
 #if PORTAUDIO
 #ifndef PA18API
-				pa_latency = (unsigned)atoi(optarg);
+				char *l = next_param(optarg, ':');
+				char *p = next_param(NULL, ':');
+				if (l) pa_latency = (unsigned)atoi(l);
+				if (p) pa_osx_playnice = atoi(p);
+
 #else
 				char *t = next_param(optarg, ':');
 				char *c = next_param(NULL, ':');
@@ -309,7 +316,7 @@ int main(int argc, char **argv) {
 #endif
 #if PORTAUDIO
 #ifndef PA18API
-	output_init(log_output, output_device, output_buf_size, pa_latency, max_rate);
+	output_init(log_output, output_device, output_buf_size, pa_latency, pa_osx_playnice, max_rate);
 #else
 	output_init(log_output, output_device, output_buf_size, pa_frames, pa_nbufs, max_rate);
 #endif /* PA18API */
