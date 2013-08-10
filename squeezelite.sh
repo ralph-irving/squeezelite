@@ -31,6 +31,7 @@ AUDIOCTL=/usr/sfw/bin/audioctl
 if [ -x ${AUDIOCTL} ]; then
 	${AUDIOCTL} =headphone
 	${AUDIOCTL} =46%
+	${AUDIOCTL} -speaker
 fi
 
 $INSTALL_DIR/bin/squeezelite $MAC $*

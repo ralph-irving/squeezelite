@@ -590,7 +590,7 @@ void _pa_open(void) {
 #else
 		(err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device, outputParameters.channelCount,
 							outputParameters.sampleFormat, NULL, (double)output.current_sample_rate, paFramesPerBuffer,
-							paNumberOfBuffers, paNoFlag, pa_callback, NULL)) != paNoError) {
+							paNumberOfBuffers, paDitherOff, pa_callback, NULL)) != paNoError) {
 
 #endif
 		LOG_WARN("error opening device %i - %s : %s", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name, 
