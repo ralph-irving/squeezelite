@@ -739,13 +739,13 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name) {
 		set_nonblock(sock);
 		set_nosigpipe(sock);
 
-		if (connect_timeout(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr), 5) < 0) {
+		if (connect_timeout(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr), 5) != 0) {
 
-			LOG_INFO("unable to connect to server %u", failed_connect++);
+			LOG_INFO("unable to connect to server %u", failed_connect);
 			sleep(5);
 
 			// rediscover server if it was not set at startup
-			if (!server && failed_connect > 5) {
+			if (!server && ++failed_connect > 5) {
 				slimproto_ip = serv_addr.sin_addr.s_addr = discover_server();
 			}
 

@@ -266,7 +266,7 @@ int connect_timeout(sockfd sock, const struct sockaddr *addr, socklen_t addrlen,
 	tval.tv_sec = timeout;
 	tval.tv_usec = 0;
 
-	// only return 0 if w set and sock error is zero
+	// only return 0 if w set and sock error is zero, otherwise return error code
 	if (select(sock + 1, NULL, &w, &e, timeout ? &tval : NULL) == 1 && FD_ISSET(sock, &w)) {
 		int	error = 0;
 		socklen_t len = sizeof(error);
