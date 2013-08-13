@@ -20,7 +20,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE or RESAMPLE to influence build
 
-#define VERSION "v1.3-dev-269"
+#define VERSION "v1.3-dev-270"
 
 // build detection
 #if defined(linux)
@@ -156,6 +156,7 @@
 #define thread_t pthread_t;
 #define closesocket(s) close(s)
 #define last_error() errno
+#define ERROR_WOULDBLOCK EWOULDBLOCK
 
 #ifdef SUN
 typedef uint8_t  u8_t;
@@ -217,6 +218,7 @@ typedef BOOL bool;
 #define usleep(x) Sleep(x/1000)
 #define sleep(x) Sleep(x*1000)
 #define last_error() WSAGetLastError()
+#define ERROR_WOULDBLOCK WSAEWOULDBLOCK
 #define open _open
 #define read _read
 

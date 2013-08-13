@@ -84,7 +84,7 @@ void send_packet(u8_t *packet, size_t len) {
 	while (len) {
 		n = send(sock, ptr, len, MSG_NOSIGNAL);
 		if (n <= 0) {
-			if (n < 0 && last_error() == EAGAIN && try < 10) {
+			if (n < 0 && last_error() == ERROR_WOULDBLOCK && try < 10) {
 				LOG_DEBUG("retrying (%d) writing to socket", ++try);
 				usleep(1000);
 				continue;
@@ -460,7 +460,7 @@ static void slimproto_run() {
 				if (expect > 0) {
 					int n = recv(sock, buffer + got, expect, 0);
 					if (n <= 0) {
-						if (n < 0 && last_error() == EAGAIN) {
+						if (n < 0 && last_error() == ERROR_WOULDBLOCK) {
 							continue;
 						}
 						LOG_INFO("error reading from socket: %s", n ? strerror(last_error()) : "closed");
@@ -475,7 +475,7 @@ static void slimproto_run() {
 				} else if (expect == 0) {
 					int n = recv(sock, buffer + got, 2 - got, 0);
 					if (n <= 0) {
-						if (n < 0 && last_error() == EAGAIN) {
+						if (n < 0 && last_error() == ERROR_WOULDBLOCK) {
 							continue;
 						}
 						LOG_INFO("error reading from socket: %s", n ? strerror(last_error()) : "closed");
