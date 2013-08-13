@@ -225,8 +225,12 @@ static void *stream_thread() {
 						LOG_INFO("end of stream");
 						_disconnect(DISCONNECT, DISCONNECT_OK);
 					}
-					if (n < 0 && last_error() != EAGAIN) {
-						LOG_INFO("error reading: %s", strerror(last_error()));
+					if (n < 0 && last_error() != EAGAIN
+#if WIN
+						&& last_error() != WSAEWOULDBLOCK
+#endif
+						) {
+						LOG_INFO("error reading: %s (%d)", strerror(last_error()),last_error());
 						_disconnect(DISCONNECT, REMOTE_DISCONNECT);
 					}
 					
