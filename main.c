@@ -43,7 +43,7 @@ static void usage(const char *argv0) {
 #endif
 #endif
 		   "  -b <stream>:<output>\tSpecify internal Stream and Output buffer sizes in Kbytes\n"
-		   "  -c <codec1>,<codec2>\tRestrict codecs those specified, otherwise loads all available codecs; known codecs: flac,pcm,mp3,ogg,aac (mad,mpg for specific mp3 codec)\n"
+		   "  -c <codec1>,<codec2>\tRestrict codecs to those specified, otherwise load all available codecs; known codecs: flac,pcm,mp3,ogg,aac (mad,mpg for specific mp3 codec)\n"
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output, level: info|debug|sdebug\n"
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"
