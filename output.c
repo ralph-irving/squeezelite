@@ -1354,6 +1354,9 @@ static void *output_thread(void *arg) {
 		if (output.state == OUTPUT_OFF) {
 			LOG_INFO("output off");
 			UNLOCK;
+#ifdef PA18API							
+			pa_stream_finished (userData);
+#endif
 			return paComplete;
 		} else if (pa.rate != output.current_sample_rate) {
 			UNLOCK;
