@@ -515,23 +515,30 @@ static void pa_stream_finished(void *userdata) {
 	}
 }
 
-static thread_type probe_thread;
-bool probe_thread_running = false;
+static thread_type monitor_thread;
+bool monitor_thread_running = false;
 
-static void *pa_probe() {
+static void *pa_monitor() {
 	bool output_off;
-	LOCK;
-	output_off = (output.state == OUTPUT_OFF);
-	UNLOCK;
 
-	while (probe_thread_running) {
-		LOCK;
+	LOCK;
+
+	if (monitor_thread_running) {
+		LOG_DEBUG("monitor thread already running");
+		UNLOCK;
+		return 0;
+	}
+
+	LOG_DEBUG("start monitor thread");
+
+	monitor_thread_running = true;
+	output_off = (output.state == OUTPUT_OFF);
+
+	while (monitor_thread_running) {
 		if (output_off) {
 			if (output.state != OUTPUT_OFF) {
 				LOG_INFO("output on");
-				probe_thread_running = false;
-				pa.stream = NULL;
-				_pa_open();
+				break;
 			}
 		} else {
 			// this is a hack to partially support hot plugging of devices
@@ -542,16 +549,23 @@ static void *pa_probe() {
 			pa.stream = NULL;
 			if (pa_device_id(output.device) != -1) {
 				LOG_INFO("device reopen");
-				probe_thread_running = false;
-				_pa_open();
+				break;
 			}
 		}
-		UNLOCK;
 
-		if (probe_thread_running) {
-			sleep(output_off ? 1 : 5);
-		}
+		UNLOCK;
+		sleep(output_off ? 1 : 5);
+		LOCK;
 	}
+
+	LOG_DEBUG("end monitor thread");
+
+	monitor_thread_running = false;
+	pa.stream = NULL;
+
+	_pa_open();
+
+	UNLOCK;
 
 	return 0;
 }
@@ -641,17 +655,14 @@ void _pa_open(void) {
 		}
 	}
 
-	if (err && !probe_thread_running) {
-		// create a thread to probe for the device
+	if (err && !monitor_thread_running) {
+		// create a thread to check for output state change or device return
 #if LINUX || OSX
-		pthread_create(&probe_thread, NULL, pa_probe, NULL);
+		pthread_create(&monitor_thread, NULL, pa_monitor, NULL);
 #endif
 #if WIN
-		probe_thread = CreateThread(NULL, OUTPUT_THREAD_STACK_SIZE, (LPTHREAD_START_ROUTINE)&pa_probe, NULL, 0, NULL);
+		monitor_thread = CreateThread(NULL, OUTPUT_THREAD_STACK_SIZE, (LPTHREAD_START_ROUTINE)&pa_monitor, NULL, 0, NULL);
 #endif
-		probe_thread_running = true;
-		UNLOCK;
-		return;
 	}
 }
 
@@ -1593,7 +1604,7 @@ void output_close(void) {
 #endif
 
 #if PORTAUDIO
-	probe_thread_running = false;
+	monitor_thread_running = false;
 
 	if (pa.stream) {
 		if ((err = Pa_AbortStream(pa.stream)) != paNoError) {
