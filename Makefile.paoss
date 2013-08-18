@@ -1,6 +1,6 @@
 # Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
 CFLAGS  ?= -Wall -DPORTAUDIO -DPA18API -fPIC -O3 -I`pwd`/include $(OPTS)
-LDFLAGS ?= -lasound -lpthread -ldl -lrt -L`pwd`/lib -lportaudio
+LDFLAGS ?= -lpthread -ldl -lrt -L`pwd`/lib -lportaudio
 EXECUTABLE ?= squeezelite
 
 SOURCES = main.c slimproto.c utils.c output.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c
