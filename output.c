@@ -1519,13 +1519,15 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 #endif
  	if ((err = Pa_Initialize()) != paNoError) {
 		LOG_WARN("error initialising port audio: %s", Pa_GetErrorText(err));
-		return;
+		UNLOCK;
+		exit(0);
 	}
 #endif
 
 	if (!max_rate) {
 		if (!test_open(output.device, &output.max_sample_rate)) {
 			LOG_ERROR("unable to open output device");
+			UNLOCK;
 			exit(0);
 		}
 	} else {
