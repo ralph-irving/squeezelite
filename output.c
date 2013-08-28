@@ -455,7 +455,7 @@ static bool test_open(const char *device, u32_t *max_rate) {
 	u32_t rates[] = { 384000, 352800, 192000, 176400, 96000, 88200, 48000, 44100, 0 };
 	int i;
 #else
-	u32_t rates[] = { 96000, 48000, 44100, 32000, 24000, 22050, 16000, 11025, 8000, 0};
+	u32_t rates[] = { 96000, 88200, 48000, 44100, 32000, 24000, 22050, 16000, 11025, 8000, 0};
 #endif
 	int device_id;
 
@@ -481,7 +481,7 @@ static bool test_open(const char *device, u32_t *max_rate) {
 		}
 	}
 #else
-	*max_rate = rates[1]; /* Default to 48000 for now */
+	*max_rate = rates[2]; /* Default to 48000 for now */
 #endif
 
 #ifndef PA18API
