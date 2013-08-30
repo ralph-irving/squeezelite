@@ -451,11 +451,9 @@ static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_
 static bool test_open(const char *device, u32_t *max_rate) {
 	PaStreamParameters outputParameters;
 	PaError err;
-#ifndef PA18API
 	u32_t rates[] = { 384000, 352800, 192000, 176400, 96000, 88200, 48000, 44100, 0 };
+#ifndef PA18API
 	int i;
-#else
-	u32_t rates[] = { 96000, 88200, 48000, 44100, 32000, 24000, 22050, 16000, 11025, 8000, 0};
 #endif
 	int device_id;
 
@@ -475,21 +473,31 @@ static bool test_open(const char *device, u32_t *max_rate) {
 	// check supported sample rates
 	// Note this does not appear to work on OSX - it always returns paNoError...
 	for (i = 0; rates[i]; ++i) {
-		if (Pa_IsFormatSupported(NULL, &outputParameters, (double)rates[i]) == paNoError) {
+		err = Pa_OpenStream(&pa.stream, NULL, &outputParameters, (double)rates[i],
+			paFramesPerBufferUnspecified, paNoFlag, pa_callback, NULL);
+		if (err == paNoError) {
+			Pa_CloseStream(pa.stream);
 			*max_rate = rates[i];
 			break;
 		}
 	}
+
+	if (!rates[i]) {
+		LOG_WARN("no available rate found");
+		return false;
+	}
+
 #else
-	*max_rate = rates[2]; /* Default to 48000 for now */
+	*max_rate = rates[6]; /* Default to 48000 for now */
 #endif
 
 #ifndef PA18API
 	if ((err = Pa_OpenStream(&pa.stream, NULL, &outputParameters, (double)*max_rate, paFramesPerBufferUnspecified,
 							 paNoFlag, pa_callback, NULL)) != paNoError) {
 #else
-	if ((err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device, outputParameters.channelCount, outputParameters.sampleFormat, NULL, (double)*max_rate, paFramesPerBuffer, paNumberOfBuffers,
-							 paNoFlag, pa_callback, NULL)) != paNoError) {
+	if ((err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device,
+		outputParameters.channelCount, outputParameters.sampleFormat, NULL, (double)*max_rate,
+		paFramesPerBuffer, paNumberOfBuffers, paNoFlag, pa_callback, NULL)) != paNoError) {
 #endif
 		LOG_WARN("error opening stream: %s", Pa_GetErrorText(err));
 		return false;
