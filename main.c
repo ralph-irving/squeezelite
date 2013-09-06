@@ -73,7 +73,9 @@ static void usage(const char *argv0) {
 		   "  -t \t\t\tLicense terms\n"
 		   "\n"
 		   "Build options: "
-#if LINUX
+#if SUN
+		   "SOLARIS"
+#elif LINUX
 		   "LINUX"
 #endif
 #if WIN
@@ -86,7 +88,11 @@ static void usage(const char *argv0) {
 		   " ALSA"
 #endif
 #if PORTAUDIO
+#if PA18API
+		   " PORTAUDIO18"
+#else
 		   " PORTAUDIO"
+#endif
 #endif
 #if EVENTFD
 		   " EVENTFD"
