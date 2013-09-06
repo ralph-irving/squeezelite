@@ -3,8 +3,8 @@ CFLAGS  ?= -Wall -fPIC -O2 $(OPTS)
 LDFLAGS ?= -lasound -lpthread -lm -ldl -lrt
 EXECUTABLE ?= squeezelite
 
-SOURCES = main.c slimproto.c utils.c output.c buffer.c stream.c decode.c process.c resample.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c
-DEPS    = squeezelite.h
+SOURCES = main.c slimproto.c utils.c output.c buffer.c stream.c decode.c process.c resample.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c ffmpeg.c
+DEPS    = squeezelite.h slimproto.h
 
 OBJECTS = $(SOURCES:.c=.o)
 

@@ -43,7 +43,12 @@ static void usage(const char *argv0) {
 #endif
 #endif
 		   "  -b <stream>:<output>\tSpecify internal Stream and Output buffer sizes in Kbytes\n"
-		   "  -c <codec1>,<codec2>\tRestrict codecs to those specified, otherwise load all available codecs; known codecs: flac,pcm,mp3,ogg,aac (mad,mpg for specific mp3 codec)\n"
+		   "  -c <codec1>,<codec2>\tRestrict codecs to those specified, otherwise load all available codecs; known codecs: "
+#if FFMPEG
+		   "flac,pcm,mp3,ogg,aac,wma,alac (mad,mpg for specific mp3 codec)\n"
+#else
+		   "flac,pcm,mp3,ogg,aac (mad,mpg for specific mp3 codec)\n"
+#endif
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output, level: info|debug|sdebug\n"
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"
@@ -66,7 +71,39 @@ static void usage(const char *argv0) {
 		   "  -z \t\t\tDaemonize\n"
 #endif
 		   "  -t \t\t\tLicense terms\n"
-		   "\n",
+		   "\n"
+		   "Build options: "
+#if LINUX
+		   "LINUX"
+#endif
+#if WIN
+		   "WIN"
+#endif
+#if OSX
+		   "OSX"
+#endif
+#if ALSA
+		   " ALSA"
+#endif
+#if PORTAUDIO
+		   " PORTAUDIO"
+#endif
+#if EVENTFD
+		   " EVENTFD"
+#endif
+#if SELFPIPE
+		   " SELFPIPE"
+#endif
+#if WINEVENT
+		   " WINEVENT"
+#endif
+#if RESAMPLE
+		   " RESAMPLE"
+#endif
+#if FFMPEG
+		   " FFMPEG"
+#endif
+		   "\n\n",
 		   argv0);
 }
 

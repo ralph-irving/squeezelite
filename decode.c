@@ -131,6 +131,10 @@ void decode_init(log_level level, const char *opt) {
 	// register codecs
 	// alc,wma,wmap,wmal,aac,spt,ogg,ogf,flc,aif,pcm,mp3
 	i = 0;
+#if FFMPEG
+	if (!opt || strstr(opt, "alac"))  codecs[i++] = register_ff("alc");
+	if (!opt || strstr(opt, "wma"))  codecs[i++] = register_ff("wma");
+#endif
 	if (!opt || strstr(opt, "aac"))  codecs[i++] = register_faad();
 	if (!opt || strstr(opt, "ogg"))  codecs[i++] = register_vorbis();
 	if (!opt || strstr(opt, "flac")) codecs[i++] = register_flac();
