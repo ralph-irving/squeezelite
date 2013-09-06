@@ -1,7 +1,7 @@
 # Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
 CFLAGS  ?= -Wall -fPIC -O2 $(OPTS) -I/opt/local/include -I./include -DRESAMPLE
 LDFLAGS ?= -lpthread -ldl -L/opt/local/lib -lportaudio
-EXECUTABLE ?= squeezelite
+EXECUTABLE ?= squeezelite-mac
 
 SOURCES = main.c slimproto.c utils.c output.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c resample.c process.c
 DEPS    = squeezelite.h
