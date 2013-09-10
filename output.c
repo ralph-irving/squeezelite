@@ -1591,7 +1591,9 @@ void output_flush(void) {
 	buf_flush(outputbuf);
 	LOCK;
 	output.fade = FADE_INACTIVE;
-	output.state = OUTPUT_STOPPED;
+	if (output.state != OUTPUT_OFF) {
+		output.state = OUTPUT_STOPPED;
+	}
 	output.frames_played = 0;
 	UNLOCK;
 }

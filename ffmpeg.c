@@ -25,21 +25,9 @@
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 
-// we try to load a range of ffmpeg library versions
-// note that this file must be compiled with header files of the same major version as the library loaded
-// (as structs accessed may change between major versions)
-
 #define LIBAVUTIL   "libavutil.so"
-#define LIBAVUTIL_MAX 52
-#define LIBAVUTIL_MIN 51
-
 #define LIBAVCODEC  "libavcodec.so"
-#define LIBAVCODEC_MAX 55
-#define LIBAVCODEC_MIN 53
-
 #define LIBAVFORMAT "libavformat.so"
-#define LIBAVFORMAT_MAX 55
-#define LIBAVFORMAT_MIN 53
 
 
 #define READ_SIZE  4096 * 4   // this is large enough to ensure ffmpeg always gets new data when decode is called
@@ -574,31 +562,25 @@ static bool load_ff() {
 	void *handle_codec = NULL, *handle_format = NULL, *handle_util = NULL;
 	char name[30];
 	char *err;
-	int i;
 
-	// attempt to load newest known versions of libraries first
-	for (i = LIBAVCODEC_MAX; i >= LIBAVCODEC_MIN && !handle_codec; --i) {
-		sprintf(name, "%s.%d", LIBAVCODEC, i);
-		handle_codec = dlopen(name, RTLD_NOW);
-	}
+	// we try to load the ffmpeg library version which matches the header file we are compiled with as structs differ between versions
+
+	sprintf(name, "%s.%d", LIBAVCODEC, LIBAVCODEC_VERSION_MAJOR);
+	handle_codec = dlopen(name, RTLD_NOW);
 	if (!handle_codec) {
 		LOG_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 
-	for (i = LIBAVFORMAT_MAX; i >= LIBAVFORMAT_MIN && !handle_format; --i) {
-		sprintf(name, "%s.%d", LIBAVFORMAT, i);
-		handle_format = dlopen(name, RTLD_NOW);
-	}
+	sprintf(name, "%s.%d", LIBAVFORMAT, LIBAVFORMAT_VERSION_MAJOR);
+	handle_format = dlopen(name, RTLD_NOW);
 	if (!handle_format) {
 		LOG_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 
-	for (i = LIBAVUTIL_MAX; i >= LIBAVUTIL_MIN && !handle_util; --i) {
-		sprintf(name, "%s.%d", LIBAVUTIL, i);
-		handle_util = dlopen(name, RTLD_NOW);
-	}
+	sprintf(name, "%s.%d", LIBAVUTIL, LIBAVUTIL_VERSION_MAJOR);
+	handle_util = dlopen(name, RTLD_NOW);
 	if (!handle_util) {
 		LOG_INFO("dlerror: %s", dlerror());
 		return false;
@@ -621,10 +603,6 @@ static bool load_ff() {
 	
 	ff->avcodec_v = ff->avcodec_version();
 	LOG_INFO("loaded "LIBAVCODEC" (%u.%u.%u)", ff->avcodec_v >> 16, (ff->avcodec_v >> 8) & 0xff, ff->avcodec_v & 0xff);
-	if (ff->avcodec_v >> 16 != LIBAVCODEC_VERSION_MAJOR) {
-		LOG_WARN("error: library major version (%u) differs from build headers (%u)", ff->avcodec_v >> 16, LIBAVCODEC_VERSION_MAJOR);
-		return false;
-	}
 
  	ff->avformat_version = dlsym(handle_format, "avformat_version");
  	ff->avformat_alloc_context = dlsym(handle_format, "avformat_alloc_context");
@@ -645,10 +623,6 @@ static bool load_ff() {
 
 	ff->avformat_v = ff->avformat_version();
 	LOG_INFO("loaded "LIBAVFORMAT" (%u.%u.%u)", ff->avformat_v >> 16, (ff->avformat_v >> 8) & 0xff, ff->avformat_v & 0xff);
-	if (ff->avformat_v >> 16 != LIBAVFORMAT_VERSION_MAJOR) {
-		LOG_WARN("error: library major version (%u) differs from build headers (%u)", ff->avformat_v >> 16, LIBAVFORMAT_VERSION_MAJOR);
-		return false;
-	}
 
 	ff->avutil_version = dlsym(handle_util, "avutil_version");
 	ff->av_log_set_callback = dlsym(handle_util, "av_log_set_callback");
@@ -664,10 +638,6 @@ static bool load_ff() {
 
 	ff->avutil_v = ff->avutil_version();
 	LOG_INFO("loaded "LIBAVUTIL" (%u.%u.%u)", ff->avutil_v >> 16, (ff->avutil_v >> 8) & 0xff, ff->avutil_v & 0xff);
-	if (ff->avutil_v >> 16 != LIBAVUTIL_VERSION_MAJOR) {
-		LOG_WARN("error: library major version (%u) differs from build headers (%u)", ff->avutil_v >> 16, LIBAVUTIL_VERSION_MAJOR);
-		return false;
-	}
 
 	return true;
 }
