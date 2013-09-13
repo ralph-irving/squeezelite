@@ -1033,12 +1033,19 @@ static void *output_thread(void *arg) {
 
 				if (alsa.mmap) {
 
+					snd_pcm_avail_update(pcmp);
+
 					if ((err = snd_pcm_mmap_begin(pcmp, &areas, &offset, &alsa_frames)) < 0) {
 						LOG_WARN("error from mmap_begin: %s", snd_strerror(err));
 						break;
 					}
 
 					out_frames = (frames_t)alsa_frames;
+
+					// temp for debugging mmap issues
+					if ((areas[0].first + offset * areas[0].step) % 8 != 0) {
+						LOG_ERROR("Error: mmap offset not multiple of 8!");
+					}
 				}
 
 				// perform crossfade buffer copying here as we do not know the actual out_frames value until here
