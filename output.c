@@ -900,7 +900,16 @@ static void *output_thread(void *arg) {
 #if ALSA
 		snd_pcm_sframes_t delay;
 		snd_pcm_delay(pcmp, &delay);
-		output.device_frames = delay;
+		if (delay >= 0) {
+			output.device_frames = delay;
+		} else {
+			LOG_WARN("snd_pcm_delay returns: %d", delay);
+			if (delay == -EPIPE) {
+				// EPIPE indicates underrun - attempt to recover
+				UNLOCK;
+				continue;
+			}
+		}
 #endif
 #if PORTAUDIO
 #ifndef PA18API
