@@ -243,6 +243,7 @@ static decode_state mad_decode(void) {
 			m->samples -= frames;
 			if (m->samples > 0 && eos && !(m->stream.next_frame[0] == 0xff && (m->stream.next_frame[1] & 0xf0) == 0xf0)) {
 				// this is the last frame to be decoded, but more samples expected so we must have skipped, remove padding
+				// note this only works if the padding is less than one frame of 1152 bytes otherswise some gap will remain
 				LOG_DEBUG("gapless: early end - trimming padding from end");
 				if (frames >= m->padding) {
 					frames -= m->padding;
