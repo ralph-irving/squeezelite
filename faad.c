@@ -39,6 +39,7 @@ struct faad {
 	void *stsc;
 	u32_t skip;
 	u64_t samples;
+	u64_t sttssamples;
 	bool  empty;
 	struct chunk_table *chunkinfo;
 	// faad symbols to be dynamically loaded
@@ -143,6 +144,21 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 			}
 		}
 
+		// extract the total number of samples from stts
+		if (!strcmp(type, "stts") && bytes > len) {
+			u32_t i;
+			u8_t *ptr = streambuf->readp + 12;
+			u32_t entries = unpackN((u32_t *)ptr);
+			ptr += 4;
+			for (i = 0; i < entries; ++i) {
+				u32_t count = unpackN((u32_t *)ptr);
+				u32_t size = unpackN((u32_t *)(ptr + 4));
+				a->sttssamples += count * size;
+				ptr += 8;
+			}
+			LOG_DEBUG("total number of samples contained in stts: " FMT_u64, a->sttssamples);
+		}
+
 		// stash sample to chunk info, assume it comes before stco
 		if (!strcmp(type, "stsc") && bytes > len && !a->chunkinfo) {
 			a->stsc = malloc(len - 12);
@@ -242,6 +258,10 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				u32_t b, c; u64_t d;
 				if (sscanf((const char *)(ptr + 16), "%x %x %x " FMT_x64, &b, &b, &c, &d) == 4) {
 					LOG_DEBUG("iTunSMPB start: %u end: %u samples: " FMT_u64, b, c, d);
+					if (a->sttssamples && a->sttssamples < b + c + d) {
+						LOG_DEBUG("reducing samples as stts count is less");
+						d = a->sttssamples - (b + c);
+					}
 					a->skip = b;
 					a->samples = d;
 				}
@@ -267,7 +287,8 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 			_buf_inc_readp(streambuf, consume);
 			a->pos += consume;
 			bytes -= consume;
-		} else if (!(!strcmp(type, "esds") || !strcmp(type, "stsc") || !strcmp(type, "stco"))) {
+		} else if ( !(!strcmp(type, "esds") || !strcmp(type, "stts") || !strcmp(type, "stsc") || 
+					 !strcmp(type, "stco") || !strcmp(type, "----")) ) {
 			LOG_DEBUG("type: %s len: %u consume: %u - partial consume: %u", type, len, consume, bytes);
 			_buf_inc_readp(streambuf, bytes);
 			a->pos += bytes;
@@ -522,6 +543,7 @@ static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	a->stsc = NULL;
 	a->skip = 0;
 	a->samples = 0;
+	a->sttssamples = 0;
 	a->empty = false;
 
 	if (a->hAac) {

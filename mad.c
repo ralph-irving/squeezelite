@@ -37,6 +37,7 @@ struct mad {
 	bool checkgapless;
 	u32_t skip;
 	u64_t samples;
+	u32_t padding;
 	// mad symbols to be dynamically loaded
 	void (* mad_stream_init)(struct mad_stream *);
 	void (* mad_frame_init)(struct mad_frame *);
@@ -128,6 +129,7 @@ static void _check_lame_header(size_t bytes) {
 		// add one frame to initial skip for this (empty) frame
 		m->skip    = enc_delay + 1152;
 		m->samples = frame_count * 1152 - enc_delay - enc_padding;
+		m->padding = enc_padding;
 		
 		LOG_INFO("gapless: skip: %u samples: " FMT_u64 " delay: %u padding: %u", m->skip, m->samples, enc_delay, enc_padding);
 	}
@@ -239,6 +241,16 @@ static decode_state mad_decode(void) {
 				frames = (size_t)m->samples;
 			}
 			m->samples -= frames;
+			if (m->samples > 0 && eos && !(m->stream.next_frame[0] == 0xff && (m->stream.next_frame[1] & 0xf0) == 0xf0)) {
+				// this is the last frame to be decoded, but more samples expected so we must have skipped, remove padding
+				LOG_DEBUG("gapless: early end - trimming padding from end");
+				if (frames >= m->padding) {
+					frames -= m->padding;
+				} else {
+					frames = 0;
+				}
+				m->samples = 0;
+			}
 		}
 
 		LOG_SDEBUG("write %u frames", frames);
