@@ -25,9 +25,9 @@
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 
-#define LIBAVUTIL   "libavutil.so"
-#define LIBAVCODEC  "libavcodec.so"
-#define LIBAVFORMAT "libavformat.so"
+#define LIBAVUTIL   "libavutil"
+#define LIBAVCODEC  "libavcodec"
+#define LIBAVFORMAT "libavformat"
 
 
 #define READ_SIZE  4096 * 4   // this is large enough to ensure ffmpeg always gets new data when decode is called
@@ -565,21 +565,36 @@ static bool load_ff() {
 
 	// we try to load the ffmpeg library version which matches the header file we are compiled with as structs differ between versions
 
-	sprintf(name, "%s.%d", LIBAVCODEC, LIBAVCODEC_VERSION_MAJOR);
+#if OSX
+	sprintf(name, "%s.%d.dylib", LIBAVCODEC, LIBAVCODEC_VERSION_MAJOR);
+#else
+	sprintf(name, "%s.so.%d", LIBAVCODEC, LIBAVCODEC_VERSION_MAJOR);
+#endif
+
 	handle_codec = dlopen(name, RTLD_NOW);
 	if (!handle_codec) {
 		LOG_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 
-	sprintf(name, "%s.%d", LIBAVFORMAT, LIBAVFORMAT_VERSION_MAJOR);
+#if OSX
+	sprintf(name, "%s.%d.dylib", LIBAVFORMAT, LIBAVFORMAT_VERSION_MAJOR);
+#else
+	sprintf(name, "%s.so.%d", LIBAVFORMAT, LIBAVFORMAT_VERSION_MAJOR);
+#endif
+
 	handle_format = dlopen(name, RTLD_NOW);
 	if (!handle_format) {
 		LOG_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 
-	sprintf(name, "%s.%d", LIBAVUTIL, LIBAVUTIL_VERSION_MAJOR);
+#if OSX
+	sprintf(name, "%s.%d.dylib", LIBAVUTIL, LIBAVUTIL_VERSION_MAJOR);
+#else
+	sprintf(name, "%s.so.%d", LIBAVUTIL, LIBAVUTIL_VERSION_MAJOR);
+#endif
+
 	handle_util = dlopen(name, RTLD_NOW);
 	if (!handle_util) {
 		LOG_INFO("dlerror: %s", dlerror());

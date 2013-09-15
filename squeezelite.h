@@ -20,7 +20,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE or RESAMPLE to influence build
 
-#define VERSION "v1.3-dev-291"
+#define VERSION "v1.3-dev-292"
 
 // build detection
 #if defined(linux)
@@ -83,11 +83,10 @@
 #define PROCESS   0
 #endif
 
-#if LINUX && defined(FFMPEG)
+#if defined(FFMPEG) && !WIN
 #undef FFMPEG
-#define FFMPEG    1 // ffmpeg only supported on linux at present
+#define FFMPEG    1
 #else
-#undef FFMPEG
 #define FFMPEG    0
 #endif
 
