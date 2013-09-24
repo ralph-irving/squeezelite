@@ -1,5 +1,5 @@
 # OSX build - adjust -I to point to header files for codecs and portaudio
-CFLAGS  = -arch x86_64 -arch i386 -Wall -fPIC -O2 -I./include -DRESAMPLE
+CFLAGS  = -arch x86_64 -arch i386 -Wall -fPIC -O2 -I./include $(OPTS)
 LDFLAGS = -arch x86_64 -arch i386 -lpthread libportaudio.a -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon
 
 EXECUTABLE ?= squeezelite-osx
