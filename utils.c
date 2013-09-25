@@ -112,10 +112,25 @@ u32_t gettime_ms(void) {
 #if LINUX && !defined(SUN)
 // search first 4 interfaces returned by IFCONF
 void get_mac(u8_t mac[]) {
+    char *utmac;
     struct ifconf ifc;
     struct ifreq *ifr, *ifend;
     struct ifreq ifreq;
     struct ifreq ifs[4];
+
+    utmac = getenv("UTMAC");
+    if (utmac)
+    {
+        if ( strlen(utmac) == 17 )
+        {
+            if (sscanf(utmac,"%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx",
+                &mac[0],&mac[1],&mac[2],&mac[3],&mac[4],&mac[5]) == 6)
+            {
+                return;
+            }
+        }
+
+    }
 
 	mac[0] = mac[1] = mac[2] = mac[3] = mac[4] = mac[5] = 0;
 
@@ -153,8 +168,23 @@ void get_mac(u8_t mac[]) {
 	struct  hostent         *phost;
 	char                    hostname[MAXHOSTNAMELEN];
 	char                    **paddrs;
+	char                    *utmac;
 	int                     sock;
 	int                     status=0;
+
+	utmac = getenv("UTMAC");
+	if (utmac)
+	{
+		if ( strlen(utmac) == 17 )
+		{
+			if (sscanf(utmac,"%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx",
+				&mac[0],&mac[1],&mac[2],&mac[3],&mac[4],&mac[5]) == 6)
+			{
+				return;
+			}
+		}
+
+	}
 
 	mac[0] = mac[1] = mac[2] = mac[3] = mac[4] = mac[5] = 0;
 
