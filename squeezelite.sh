@@ -20,12 +20,6 @@ if [ -z $DEVICES ]; then
 	exit 1
 fi
 
-if [ ! -z $UTMAC ]; then
-	MAC="-m $UTMAC"
-else
-	MAC=""
-fi
-
 AUDIOCTL=/usr/sfw/bin/audioctl
 
 if [ -x ${AUDIOCTL} ]; then
@@ -34,4 +28,4 @@ if [ -x ${AUDIOCTL} ]; then
 	${AUDIOCTL} -speaker
 fi
 
-$INSTALL_DIR/bin/squeezelite $MAC $*
+$INSTALL_DIR/bin/squeezelite $*
