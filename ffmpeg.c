@@ -597,7 +597,7 @@ static bool load_ff() {
 	}
 	
 	ff->avcodec_v = ff->avcodec_version();
-	LOG_INFO("loaded "LIBAVCODEC" (%u.%u.%u)", ff->avcodec_v >> 16, (ff->avcodec_v >> 8) & 0xff, ff->avcodec_v & 0xff);
+	LOG_INFO("loaded "LIBAVCODEC" (%u.%u.%u)", LIBAVCODEC_VERSION_MAJOR, ff->avcodec_v >> 16, (ff->avcodec_v >> 8) & 0xff, ff->avcodec_v & 0xff);
 
  	ff->avformat_version = dlsym(handle_format, "avformat_version");
  	ff->avformat_alloc_context = dlsym(handle_format, "avformat_alloc_context");
@@ -617,7 +617,7 @@ static bool load_ff() {
 	}
 
 	ff->avformat_v = ff->avformat_version();
-	LOG_INFO("loaded "LIBAVFORMAT" (%u.%u.%u)", ff->avformat_v >> 16, (ff->avformat_v >> 8) & 0xff, ff->avformat_v & 0xff);
+	LOG_INFO("loaded "LIBAVFORMAT" (%u.%u.%u)", LIBAVFORMAT_VERSION_MAJOR, ff->avformat_v >> 16, (ff->avformat_v >> 8) & 0xff, ff->avformat_v & 0xff);
 
 	ff->avutil_version = dlsym(handle_util, "avutil_version");
 	ff->av_log_set_callback = dlsym(handle_util, "av_log_set_callback");
@@ -632,7 +632,7 @@ static bool load_ff() {
 	}
 
 	ff->avutil_v = ff->avutil_version();
-	LOG_INFO("loaded "LIBAVUTIL" (%u.%u.%u)", ff->avutil_v >> 16, (ff->avutil_v >> 8) & 0xff, ff->avutil_v & 0xff);
+	LOG_INFO("loaded "LIBAVUTIL" (%u.%u.%u)", LIBAVUTIL_VERSION_MAJOR, ff->avutil_v >> 16, (ff->avutil_v >> 8) & 0xff, ff->avutil_v & 0xff);
 
 	return true;
 }
