@@ -67,6 +67,9 @@ static void usage(const char *argv0) {
 		   "  \t\t\t stopband_start = number in percent (Aliasing/imaging control. > passband_end),\n"
 		   "  \t\t\t phase_response = 0-100 (0 = minimum / 50 = linear / 100 = maximum)\n"
 #endif
+#if VISEXPORT
+		   "  -v \t\t\tVisulizer support\n"
+#endif
 #if LINUX || SUN
 		   "  -z \t\t\tDaemonize\n"
 #endif
@@ -108,6 +111,9 @@ static void usage(const char *argv0) {
 #endif
 #if FFMPEG
 		   " FFMPEG"
+#endif
+#if VISEXPORT
+		   " VISEXPORT"
 #endif
 		   "\n\n",
 		   argv0);
@@ -165,6 +171,9 @@ int main(int argc, char **argv) {
 	unsigned pa_nbufs = 0;
 #endif /* PA18API */
 #endif
+#if VISEXPORT
+	bool visexport = false;
+#endif
 	
 	log_level log_output = lWARN;
 	log_level log_stream = lWARN;
@@ -181,11 +190,14 @@ int main(int argc, char **argv) {
 		if (strstr("oabcdfmnprs", opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
 			optind += 2;
+		} else if (strstr("ltz"
 #if RESAMPLE
-		} else if (strstr("ltuz", opt)) {
-#else
-		} else if (strstr("ltz", opt)) {
+						  "u"
 #endif
+#if VISEXPORT
+						  "v"
+#endif
+						  , opt)) {
 			optarg = NULL;
 			optind += 1;
 		} else {
@@ -300,6 +312,11 @@ int main(int argc, char **argv) {
 			}
 			break;
 #endif
+#if VISEXPORT
+		case 'v':
+			visexport = true;
+			break;
+#endif
 #if LINUX || SUN
 		case 'z':
 			daemonize = true;
@@ -363,6 +380,12 @@ int main(int argc, char **argv) {
 #else
 	output_init(log_output, output_device, output_buf_size, pa_frames, pa_nbufs, max_rate);
 #endif /* PA18API */
+#endif
+
+#if VISEXPORT
+	if (visexport) {
+		output_vis_init(mac);
+	}
 #endif
 
 	decode_init(log_decode, codecs);

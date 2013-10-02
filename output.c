@@ -34,6 +34,10 @@
 #include <pa_mac_core.h>
 #endif
 #endif
+#if VISEXPORT && !ALSA
+#include <sys/mman.h>
+#include <fcntl.h>
+#endif
 
 #if ALSA
 
@@ -94,6 +98,26 @@ static struct {
 } pa;
 
 #endif // PORTAUDIO
+
+#if VISEXPORT
+
+#define VIS_BUF_SIZE 16384
+#define VIS_LOCK_NS  1000000 // ns to wait for vis wrlock
+
+static struct vis_t {
+	pthread_rwlock_t rwlock;
+	u32_t buf_size;
+	u32_t buf_index;
+	bool running;
+	u32_t rate;
+	time_t updated;
+	s16_t buffer[VIS_BUF_SIZE];
+} *vis_mmap = NULL;
+
+static char vis_shm_path[40];
+static int vis_fd = -1;
+
+#endif // VISEXPORT
 
 static log_level loglevel;
 
@@ -803,6 +827,13 @@ static void *output_thread(void *arg) {
 			pcmp = NULL;
 			output_off = true;
 			LOG_INFO("disabling output");
+#if VISEXPORT
+			if (vis_mmap) {
+				pthread_rwlock_wrlock(&vis_mmap->rwlock);
+				vis_mmap->running = false;
+				pthread_rwlock_unlock(&vis_mmap->rwlock);
+			}
+#endif
 			continue;
 		}
 
@@ -1363,6 +1394,60 @@ static void *output_thread(void *arg) {
 			}
 
 			size -= out_frames;
+
+#if VISEXPORT
+			// attempt to write audio to vis_mmap but do not wait more than VIS_LOCK_NS to get wrlock
+			// this can result in missing audio export to the mmap region, but this is preferable dropping audio
+			if (vis_mmap) {
+				int err;
+				err = pthread_rwlock_trywrlock(&vis_mmap->rwlock);
+				if (err) {
+					struct timespec ts;
+					clock_gettime(CLOCK_REALTIME, &ts);
+					ts.tv_nsec += VIS_LOCK_NS;
+					if (ts.tv_nsec > 1000000000) {
+						ts.tv_sec  += 1;
+						ts.tv_nsec -= 1000000000;
+					}
+					err = pthread_rwlock_timedwrlock(&vis_mmap->rwlock, &ts);
+				}
+
+				if (err) {
+					LOG_DEBUG("failed to get wrlock - skipping visulizer export");
+
+				} else {
+
+					if (silence) {
+						vis_mmap->running = false;
+					} else {
+						frames_t vis_cnt = out_frames;
+						s32_t *ptr = (s32_t *) outputbuf->readp;
+						unsigned i = vis_mmap->buf_index;
+
+						if (!output.current_replay_gain) {
+							while (vis_cnt--) {
+								vis_mmap->buffer[i++] = *(ptr++) >> 16;
+								vis_mmap->buffer[i++] = *(ptr++) >> 16;
+								if (i == VIS_BUF_SIZE) i = 0;
+							}
+						} else {
+							while (vis_cnt--) {
+								vis_mmap->buffer[i++] = gain(*(ptr++), output.current_replay_gain) >> 16;
+								vis_mmap->buffer[i++] = gain(*(ptr++), output.current_replay_gain) >> 16;
+								if (i == VIS_BUF_SIZE) i = 0;
+							}
+						}
+
+						vis_mmap->updated = time(NULL);
+						vis_mmap->running = true;
+						vis_mmap->buf_index = i;
+						vis_mmap->rate = output.current_sample_rate;
+					}
+
+					pthread_rwlock_unlock(&vis_mmap->rwlock);
+				}
+			}
+#endif
 			
 			if (!silence) {
 				_buf_inc_readp(outputbuf, out_frames * BYTES_PER_FRAME);
@@ -1475,7 +1560,7 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 #endif
 #if PORTAUDIO
 #ifndef PA18API
-	void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, int osx_playnice, unsigned max_rate) {
+void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, int osx_playnice, unsigned max_rate) {
 #else
 void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned pa_frames,
 		unsigned pa_nbufs, unsigned max_rate) {
@@ -1602,6 +1687,36 @@ void output_init(log_level level, const char *device, unsigned output_buf_size, 
 	UNLOCK;
 }
 
+#if VISEXPORT
+void output_vis_init(u8_t *mac) {
+	sprintf(vis_shm_path, "/squeezelite-%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+	LOCK;
+	vis_fd = shm_open(vis_shm_path, O_CREAT | O_RDWR, 0666);
+	if (vis_fd != -1) {
+		if (ftruncate(vis_fd, sizeof(struct vis_t)) == 0) {
+			vis_mmap = (struct vis_t *)mmap(NULL, sizeof(struct vis_t), PROT_READ | PROT_WRITE, MAP_SHARED, vis_fd, 0);
+		}
+	}
+	
+	if (vis_mmap > 0) {
+		pthread_rwlockattr_t attr;
+		pthread_rwlockattr_init(&attr);
+		pthread_rwlockattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+		pthread_rwlock_init(&vis_mmap->rwlock, &attr);
+		vis_mmap->buf_size = VIS_BUF_SIZE;
+		vis_mmap->running = false;
+		vis_mmap->rate = output.current_sample_rate;
+		pthread_rwlockattr_destroy(&attr);
+		LOG_INFO("opened visulizer shared memory as %s", vis_shm_path);
+	} else {
+		LOG_WARN("unable to open visualizer shared memory");
+		vis_mmap = NULL;
+	}
+	UNLOCK;
+}
+#endif
+
 void output_flush(void) {
 	LOG_INFO("flush output buffer");
 	buf_flush(outputbuf);
@@ -1643,6 +1758,18 @@ void output_close(void) {
 		LOG_WARN("error closing port audio: %s", Pa_GetErrorText(err));
 	}
 	UNLOCK;
+#endif
+
+#if VISEXPORT
+	if (vis_mmap) {
+		pthread_rwlock_destroy(&vis_mmap->rwlock);
+		munmap(vis_mmap, sizeof(struct vis_t));
+	}
+
+	if (vis_fd != -1) {
+		shm_unlink(vis_shm_path);
+		close(vis_fd);
+	}
 #endif
 
 	buf_destroy(outputbuf);
