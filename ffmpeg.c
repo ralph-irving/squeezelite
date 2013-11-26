@@ -47,14 +47,13 @@ struct ff_s {
 	unsigned mmsh_bytes_left;
 	unsigned mmsh_bytes_pad;
 	unsigned mmsh_packet_len;
-	// library versions
-	unsigned avcodec_v, avformat_v, avutil_v;
+#if !LINKALL
 	// ffmpeg symbols to be dynamically loaded from libavcodec
 	unsigned (* avcodec_version)(void);
 	AVCodec * (* avcodec_find_decoder)(int);
 	int attribute_align_arg (* avcodec_open2)(AVCodecContext *, const AVCodec *, AVDictionary **);
 	AVFrame * (* avcodec_alloc_frame)(void);
-	void (* avcodec_free_frame)(AVFrame *);
+	void (* avcodec_free_frame)(AVFrame **);
 	int attribute_align_arg (* avcodec_decode_audio4)(AVCodecContext *, AVFrame *, int *, const AVPacket *);
 	// ffmpeg symbols to be dynamically loaded from libavformat
 	unsigned (* avformat_version)(void);
@@ -75,7 +74,8 @@ struct ff_s {
 	void (* av_log_set_level)(int);
 	int  (* av_strerror)(int, char *, size_t);
 	void * (* av_malloc)(size_t);
-	void (* av_free)(void *);
+	void (* av_freep)(void *);
+#endif
 };
 
 static struct ff_s *ff;
@@ -105,10 +105,23 @@ extern struct processstate process;
 #define IF_PROCESS(x)
 #endif
 
+#if LINKALL
+#define AV(h, fn, ...)       (av_ ## fn)(__VA_ARGS__)
+#define AVIO(h, fn, ...)     (avio_ ## fn)(__VA_ARGS__)
+#define AVCODEC(h, fn, ...)  (avcodec_ ## fn)(__VA_ARGS__)
+#define AVFORMAT(h, fn, ...) (avformat_ ## fn)(__VA_ARGS__)
+#else
+#define AV(h, fn, ...)       (h)->av_##fn(__VA_ARGS__)
+#define AVIO(h, fn, ...)     (h)->avio_##fn(__VA_ARGS__)
+#define AVCODEC(h, fn, ...)  (h)->avcodec_##fn(__VA_ARGS__)
+#define AVFORMAT(h, fn, ...) (h)->avformat_##fn(__VA_ARGS__)
+#endif
+
+
 // our own version of useful error function not included in earlier ffmpeg versions
 static char *av__err2str(errnum) {
 	static char buf[64];
-	ff->av_strerror(errnum, buf, 64); 
+	AV(ff, strerror, errnum, buf, 64); 
 	return buf;
 }
 
@@ -251,13 +264,13 @@ static decode_state ff_decode(void) {
 		ff->mmsh_bytes_left = ff->mmsh_bytes_pad = ff->mmsh_packet_len = 0;
 
 		if (!ff->readbuf) {
-			ff->readbuf = ff->av_malloc(READ_SIZE +  FF_INPUT_BUFFER_PADDING_SIZE);
+			ff->readbuf = AV(ff, malloc, READ_SIZE +  FF_INPUT_BUFFER_PADDING_SIZE);
 		}
 
-		avio = ff->avio_alloc_context(ff->readbuf, READ_SIZE, 0, NULL, _read_data, NULL, NULL);
+		avio = AVIO(ff, alloc_context, ff->readbuf, READ_SIZE, 0, NULL, _read_data, NULL, NULL);
 		avio->seekable = 0;
 
-		ff->formatC = ff->avformat_alloc_context();
+		ff->formatC = AVFORMAT(ff, alloc_context);
 		if (ff->formatC == NULL) {
 			LOG_ERROR("null context");
 			return DECODE_ERROR;
@@ -266,7 +279,7 @@ static decode_state ff_decode(void) {
 		ff->formatC->pb = avio;
 		ff->formatC->flags |= AVFMT_FLAG_CUSTOM_IO | AVFMT_FLAG_NOPARSE;
 
-		o = ff->avformat_open_input(&ff->formatC, "", ff->input_format, NULL);
+		o = AVFORMAT(ff, open_input, &ff->formatC, "", ff->input_format, NULL);
 		if (o < 0) {
 			LOG_WARN("avformat_open_input: %d %s", o, av__err2str(o));
 			return DECODE_ERROR;
@@ -274,7 +287,7 @@ static decode_state ff_decode(void) {
 
 		LOG_INFO("format: name:%s lname:%s", ff->formatC->iformat->name, ff->formatC->iformat->long_name);
 	
-		o = ff->avformat_find_stream_info(ff->formatC, NULL);
+		o = AVFORMAT(ff, find_stream_info, ff->formatC, NULL);
 		if (o < 0) {
 			LOG_WARN("avformat_find_stream_info: %d %s", o, av__err2str(o));
 			return DECODE_ERROR;
@@ -307,19 +320,19 @@ static decode_state ff_decode(void) {
 
 		ff->codecC = av_stream->codec;
 
-		codec = ff->avcodec_find_decoder(ff->codecC->codec_id);
+		codec = AVCODEC(ff, find_decoder, ff->codecC->codec_id);
 
-		ff->avcodec_open2(ff->codecC, codec, NULL);
+		AVCODEC(ff, open2, ff->codecC, codec, NULL);
 
-		ff->frame = ff->avcodec_alloc_frame();
+		ff->frame = AVCODEC(ff, alloc_frame);
 
-		ff->avpkt = ff->av_malloc(sizeof(AVPacket));
+		ff->avpkt = AV(ff, malloc, sizeof(AVPacket));
 		if (ff->avpkt == NULL) {
 			LOG_ERROR("can't allocate avpkt");
 			return DECODE_ERROR;
 		}
 
-		ff->av_init_packet(ff->avpkt);
+		AV(ff, init_packet, ff->avpkt);
 		ff->avpkt->data = NULL;
 		ff->avpkt->size = 0;
 
@@ -334,7 +347,7 @@ static decode_state ff_decode(void) {
 
 	got_frame = 0;
 
-	if ((r = ff->av_read_frame(ff->formatC, ff->avpkt)) < 0) {
+	if ((r = AV(ff, read_frame, ff->formatC, ff->avpkt)) < 0) {
 		if (r == AVERROR_EOF) {
 			if (ff->end_of_stream) {
 				LOG_INFO("decode complete");
@@ -358,7 +371,7 @@ static decode_state ff_decode(void) {
 
 	while (pkt_c.size > 0 || got_frame) {
 
-		len = ff->avcodec_decode_audio4(ff->codecC, ff->frame, &got_frame, &pkt_c);
+		len = AVCODEC(ff, decode_audio4, ff->codecC, ff->frame, &got_frame, &pkt_c);
 		if (len < 0) {
 			LOG_ERROR("avcodec_decode_audio4 error: %i %s", len, av__err2str(len));
 			return DECODE_RUNNING;
@@ -491,27 +504,33 @@ static decode_state ff_decode(void) {
 		}
 	}
 
-	ff->av_free_packet(ff->avpkt);
+	AV(ff, free_packet, ff->avpkt);
 
 	return DECODE_RUNNING;
 }
 
 static void _free_ff_data(void) {
 	if (ff->formatC) {
-		if (ff->formatC->pb) ff->av_free(ff->formatC->pb);
-		ff->avformat_free_context(ff->formatC);
+		if (ff->formatC->pb) AV(ff, freep, &ff->formatC->pb);
+		AVFORMAT(ff, free_context, ff->formatC);
 		ff->formatC = NULL;
 	}
 
 	if (ff->frame) {
 		// ffmpeg version dependant free function
-		ff->avcodec_free_frame ? ff->avcodec_free_frame(ff->frame) : ff->av_free(ff->frame);
+#if !LINKALL
+		ff->avcodec_free_frame ? AVCODEC(ff, free_frame, &ff->frame) : AV(ff, freep, &ff->frame);
+#elif LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(54,28,0)
+		AVCODEC(ff, free_frame, &ff->frame);
+#else
+		AV(ff, freep, &ff->frame);
+#endif
 		ff->frame = NULL;
 	}
 
 	if (ff->avpkt) {
-		ff->av_free_packet(ff->avpkt);
-		ff->av_free(ff->avpkt);
+		AV(ff, free_packet, ff->avpkt);
+		AV(ff, freep, &ff->avpkt);
 		ff->avpkt = NULL;
 	}
 }
@@ -519,7 +538,7 @@ static void _free_ff_data(void) {
 static void ff_open_wma(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	_free_ff_data();
 
-	ff->input_format = ff->av_find_input_format("asf");
+	ff->input_format = AV(ff, find_input_format, "asf");
 	if (ff->input_format == NULL) {
 		LOG_ERROR("asf format not supported by ffmpeg library");
 	}
@@ -535,7 +554,7 @@ static void ff_open_wma(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 static void ff_open_alac(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	_free_ff_data();
 
-	ff->input_format = ff->av_find_input_format("mp4");
+	ff->input_format = AV(ff, find_input_format, "mp4");
 	if (ff->input_format == NULL) {
 		LOG_ERROR("mp4 format not supported by ffmpeg library");
 	}
@@ -550,12 +569,13 @@ static void ff_close(void) {
 	_free_ff_data();
 
 	if (ff->readbuf) {
-		ff->av_free(ff->readbuf); 
+		AV(ff, freep, &ff->readbuf); 
 		ff->readbuf = NULL;
 	}
 }
 
 static bool load_ff() {
+#if !LINKALL
 	void *handle_codec = NULL, *handle_format = NULL, *handle_util = NULL;
 	char name[30];
 	char *err;
@@ -583,9 +603,6 @@ static bool load_ff() {
 		return false;
 	}
 
-	ff = malloc(sizeof(struct ff_s));
-	memset(ff, 0, sizeof(struct ff_s));
-
 	ff->avcodec_version = dlsym(handle_codec, "avcodec_version");
 	ff->avcodec_find_decoder = dlsym(handle_codec, "avcodec_find_decoder");
 	ff->avcodec_open2 = dlsym(handle_codec, "avcodec_open2");
@@ -600,8 +617,7 @@ static bool load_ff() {
 		return false;
 	}
 	
-	ff->avcodec_v = ff->avcodec_version();
-	LOG_INFO("loaded "LIBAVCODEC" (%u.%u.%u)", LIBAVCODEC_VERSION_MAJOR, ff->avcodec_v >> 16, (ff->avcodec_v >> 8) & 0xff, ff->avcodec_v & 0xff);
+	LOG_INFO("loaded "LIBAVCODEC" (%u.%u.%u)", LIBAVCODEC_VERSION_MAJOR, ff->avcodec_version() >> 16, (ff->avcodec_version() >> 8) & 0xff, ff->avcodec_version() & 0xff);
 
  	ff->avformat_version = dlsym(handle_format, "avformat_version");
  	ff->avformat_alloc_context = dlsym(handle_format, "avformat_alloc_context");
@@ -618,23 +634,23 @@ static bool load_ff() {
 		return false;
 	}
 
-	ff->avformat_v = ff->avformat_version();
-	LOG_INFO("loaded "LIBAVFORMAT" (%u.%u.%u)", LIBAVFORMAT_VERSION_MAJOR, ff->avformat_v >> 16, (ff->avformat_v >> 8) & 0xff, ff->avformat_v & 0xff);
+	LOG_INFO("loaded "LIBAVFORMAT" (%u.%u.%u)", LIBAVFORMAT_VERSION_MAJOR, ff->avformat_version() >> 16, (ff->avformat_version() >> 8) & 0xff, ff->avformat_version() & 0xff);
 
 	ff->avutil_version = dlsym(handle_util, "avutil_version");
 	ff->av_log_set_callback = dlsym(handle_util, "av_log_set_callback");
 	ff->av_log_set_level = dlsym(handle_util, "av_log_set_level");
 	ff->av_strerror = dlsym(handle_util, "av_strerror");
 	ff->av_malloc = dlsym(handle_util, "av_malloc");
-	ff->av_free = dlsym(handle_util, "av_free");
+	ff->av_freep = dlsym(handle_util, "av_freep");
 
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
 		return false;
 	}
 
-	ff->avutil_v = ff->avutil_version();
-	LOG_INFO("loaded "LIBAVUTIL" (%u.%u.%u)", LIBAVUTIL_VERSION_MAJOR, ff->avutil_v >> 16, (ff->avutil_v >> 8) & 0xff, ff->avutil_v & 0xff);
+	LOG_INFO("loaded "LIBAVUTIL" (%u.%u.%u)", LIBAVUTIL_VERSION_MAJOR, ff->avutil_version() >> 16, (ff->avutil_version() >> 8) & 0xff, ff->avutil_version() & 0xff);
+
+#endif
 
 	return true;
 }
@@ -653,6 +669,13 @@ static bool registered = false;
 struct codec *register_ff(const char *codec) {
 	if (!registered) {
 
+		ff = malloc(sizeof(struct ff_s));
+		if (!ff) {
+			return NULL;
+		}
+
+		memset(ff, 0, sizeof(struct ff_s));
+
 		if (!load_ff()) {
 			return NULL;
 		}
@@ -669,9 +692,9 @@ struct codec *register_ff(const char *codec) {
 		default: break;
 		}
 
-		ff->av_log_set_callback(av_err_callback);
+		AV(ff, log_set_callback, av_err_callback);
 
-		ff->av_register_all();
+		AV(ff, register_all);
 		
 		registered = true;
 	}

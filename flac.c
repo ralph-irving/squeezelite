@@ -24,6 +24,7 @@
 
 struct flac {
 	FLAC__StreamDecoder *decoder;
+#if !LINKALL
 	// FLAC symbols to be dynamically loaded
 	const char **FLAC__StreamDecoderErrorStatusString;
 	const char **FLAC__StreamDecoderStateString;
@@ -44,6 +45,7 @@ struct flac {
 	);
 	FLAC__bool (* FLAC__stream_decoder_process_single)(FLAC__StreamDecoder *decoder);
 	FLAC__StreamDecoderState (* FLAC__stream_decoder_get_state)(const FLAC__StreamDecoder *decoder);
+#endif
 };
 
 static struct flac *f;
@@ -71,6 +73,14 @@ extern struct processstate process;
 #define UNLOCK_O_direct mutex_unlock(outputbuf->mutex)
 #define IF_DIRECT(x)    { x }
 #define IF_PROCESS(x)
+#endif
+
+#if LINKALL
+#define FLAC(h, fn, ...) (FLAC__ ## fn)(__VA_ARGS__)
+#define FLAC_A(h, a)     (FLAC__ ## a)
+#else
+#define FLAC(h, fn, ...) (h)->FLAC__##fn(__VA_ARGS__)
+#define FLAC_A(h, a)     (h)->FLAC__ ## a
 #endif
 
 static FLAC__StreamDecoderReadStatus read_cb(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], size_t *want, void *client_data) {
@@ -172,29 +182,29 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 }
 
 static void error_cb(const FLAC__StreamDecoder *decoder, FLAC__StreamDecoderErrorStatus status, void *client_data) {
-	LOG_INFO("flac error: %s", f->FLAC__StreamDecoderErrorStatusString[status]);
+	LOG_INFO("flac error: %s", FLAC_A(f, StreamDecoderErrorStatusString)[status]);
 }
 
 static void flac_open(u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t endianness) {
 	if (f->decoder) {
-		f->FLAC__stream_decoder_reset(f->decoder);
+		FLAC(f, stream_decoder_reset, f->decoder);
 	} else {
-		f->decoder = f->FLAC__stream_decoder_new();
+		f->decoder = FLAC(f, stream_decoder_new);
 	}
-	f->FLAC__stream_decoder_init_stream(f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
+	FLAC(f, stream_decoder_init_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
 }
 
 static void flac_close(void) {
-	f->FLAC__stream_decoder_delete(f->decoder);
+	FLAC(f, stream_decoder_delete, f->decoder);
 	f->decoder = NULL;
 }
 
 static decode_state flac_decode(void) {
-	bool ok = f->FLAC__stream_decoder_process_single(f->decoder);
-	FLAC__StreamDecoderState state = f->FLAC__stream_decoder_get_state(f->decoder);
+	bool ok = FLAC(f, stream_decoder_process_single, f->decoder);
+	FLAC__StreamDecoderState state = FLAC(f, stream_decoder_get_state, f->decoder);
 	
 	if (!ok && state != FLAC__STREAM_DECODER_END_OF_STREAM) {
-		LOG_INFO("flac error: %s", f->FLAC__StreamDecoderStateString[state]);
+		LOG_INFO("flac error: %s", FLAC_A(f, StreamDecoderStateString)[state]);
 	};
 	
 	if (state == FLAC__STREAM_DECODER_END_OF_STREAM) {
@@ -207,6 +217,7 @@ static decode_state flac_decode(void) {
 }
 
 static bool load_flac() {
+#if !LINKALL
 	void *handle = dlopen(LIBFLAC, RTLD_NOW);
 	char *err;
 
@@ -215,9 +226,6 @@ static bool load_flac() {
 		return false;
 	}
 
-	f = malloc(sizeof(struct flac));
-
-	f->decoder = NULL;
 	f->FLAC__StreamDecoderErrorStatusString = dlsym(handle, "FLAC__StreamDecoderErrorStatusString");
 	f->FLAC__StreamDecoderStateString = dlsym(handle, "FLAC__StreamDecoderStateString");
 	f->FLAC__stream_decoder_new = dlsym(handle, "FLAC__stream_decoder_new");
@@ -233,6 +241,8 @@ static bool load_flac() {
 	}
 
 	LOG_INFO("loaded "LIBFLAC);
+#endif
+
 	return true;
 }
 
@@ -246,6 +256,13 @@ struct codec *register_flac(void) {
 		flac_close,   // close
 		flac_decode,  // decode
 	};
+
+	f = malloc(sizeof(struct flac));
+	if (!f) {
+		return NULL;
+	}
+
+	f->decoder = NULL;
 
 	if (!load_flac()) {
 		return NULL;

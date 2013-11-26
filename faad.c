@@ -43,6 +43,7 @@ struct faad {
 	bool  empty;
 	struct chunk_table *chunkinfo;
 	// faad symbols to be dynamically loaded
+#if !LINKALL
 	NeAACDecConfigurationPtr (* NeAACDecGetCurrentConfiguration)(NeAACDecHandle);
 	unsigned char (* NeAACDecSetConfiguration)(NeAACDecHandle, NeAACDecConfigurationPtr);
 	NeAACDecHandle (* NeAACDecOpen)(void);
@@ -51,6 +52,7 @@ struct faad {
 	char (* NeAACDecInit2)(NeAACDecHandle, unsigned char *pBuffer, unsigned long, unsigned long *, unsigned char *);
 	void *(* NeAACDecDecode)(NeAACDecHandle, NeAACDecFrameInfo *, unsigned char *, unsigned long);
 	char *(* NeAACDecGetErrorMessage)(unsigned char);
+#endif
 };
 
 static struct faad *a;
@@ -78,6 +80,12 @@ extern struct processstate process;
 #define UNLOCK_O_direct mutex_unlock(outputbuf->mutex)
 #define IF_DIRECT(x)    { x }
 #define IF_PROCESS(x)
+#endif
+
+#if LINKALL
+#define NEAAC(h, fn, ...) (NeAACDec ## fn)(__VA_ARGS__)
+#else
+#define NEAAC(h, fn, ...) (h)->NeAACDec##fn(__VA_ARGS__)
 #endif
 
 // minimal code for mp4 file parsing to extract audio config and find media data
@@ -138,7 +146,7 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				return -1;
 			}
 			config_len = mp4_desc_length(&ptr);
-			if (a->NeAACDecInit2(a->hAac, ptr, config_len, samplerate_p, channels_p) == 0) {
+			if (NEAAC(a, Init2, a->hAac, ptr, config_len, samplerate_p, channels_p) == 0) {
 				LOG_DEBUG("playable aac track: %u", trak);
 				play = trak;
 			}
@@ -344,7 +352,7 @@ static decode_state faad_decode(void) {
 			}
 			
 			if (bytes_wrap >= 2) {
-				long n = a->NeAACDecInit(a->hAac, streambuf->readp, bytes_wrap, &samplerate, &channels);
+				long n = NEAAC(a, Init, a->hAac, streambuf->readp, bytes_wrap, &samplerate, &channels);
 				if (n < 0) {
 					found = -1;
 				} else {
@@ -394,15 +402,15 @@ static decode_state faad_decode(void) {
 		memcpy(buf, streambuf->readp, bytes_wrap);
 		memcpy(buf + bytes_wrap, streambuf->buf, WRAPBUF_LEN - bytes_wrap);
 
-		iptr = a->NeAACDecDecode(a->hAac, &info, buf, WRAPBUF_LEN);
+		iptr = NEAAC(a, Decode, a->hAac, &info, buf, WRAPBUF_LEN);
 
 	} else {
 
-		iptr = a->NeAACDecDecode(a->hAac, &info, streambuf->readp, bytes_wrap);
+		iptr = NEAAC(a, Decode, a->hAac, &info, streambuf->readp, bytes_wrap);
 	}
 
 	if (info.error) {
-		LOG_WARN("error: %u %s", info.error, a->NeAACDecGetErrorMessage(info.error));
+		LOG_WARN("error: %u %s", info.error, NEAAC(a, GetErrorMessage, info.error));
 	}
 
 	endstream = false;
@@ -547,22 +555,22 @@ static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	a->empty = false;
 
 	if (a->hAac) {
-		a->NeAACDecClose(a->hAac);
+		NEAAC(a, Close, a->hAac);
 	}
-	a->hAac = a->NeAACDecOpen();
+	a->hAac = NEAAC(a, Open);
 
-	conf = a->NeAACDecGetCurrentConfiguration(a->hAac);
+	conf = NEAAC(a, GetCurrentConfiguration, a->hAac);
 
 	conf->outputFormat = FAAD_FMT_24BIT;
 	conf->downMatrix = 1;
 
-	if (!a->NeAACDecSetConfiguration(a->hAac, conf)) {
+	if (!NEAAC(a, SetConfiguration, a->hAac, conf)) {
 		LOG_WARN("error setting config");
 	};
 }
 
 static void faad_close(void) {
-	a->NeAACDecClose(a->hAac);
+	NEAAC(a, Close, a->hAac);
 	a->hAac = NULL;
 	if (a->chunkinfo) {
 		free(a->chunkinfo);
@@ -575,6 +583,7 @@ static void faad_close(void) {
 }
 
 static bool load_faad() {
+#if !LINKALL
 	void *handle = dlopen(LIBFAAD, RTLD_NOW);
 	char *err;
 
@@ -583,11 +592,6 @@ static bool load_faad() {
 		return false;
 	}
 
-	a = malloc(sizeof(struct faad));
-
-	a->hAac = NULL;
-	a->chunkinfo = NULL;
-	a->stsc = NULL;
 	a->NeAACDecGetCurrentConfiguration = dlsym(handle, "NeAACDecGetCurrentConfiguration");
 	a->NeAACDecSetConfiguration = dlsym(handle, "NeAACDecSetConfiguration");
 	a->NeAACDecOpen = dlsym(handle, "NeAACDecOpen");
@@ -603,6 +607,8 @@ static bool load_faad() {
 	}
 
 	LOG_INFO("loaded "LIBFAAD"");
+#endif
+
 	return true;
 }
 
@@ -616,6 +622,15 @@ struct codec *register_faad(void) {
 		faad_close,   // close
 		faad_decode,  // decode
 	};
+
+	a = malloc(sizeof(struct faad));
+	if (!a) {
+		return NULL;
+	}
+
+	a->hAac = NULL;
+	a->chunkinfo = NULL;
+	a->stsc = NULL;
 
 	if (!load_faad()) {
 		return NULL;

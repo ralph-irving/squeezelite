@@ -28,6 +28,7 @@
 struct mpg {
 	mpg123_handle *h;
 	bool use16bit;
+#if !LINKALL
 	// mpg symbols to be dynamically loaded
 	int (* mpg123_init)(void);
 	int (* mpg123_feature)(const enum mpg123_feature_set);
@@ -40,6 +41,7 @@ struct mpg {
 	int (* mpg123_decode)(mpg123_handle *, const unsigned char *, size_t, unsigned char *, size_t, size_t *);
 	int (* mpg123_getformat)(mpg123_handle *, long *, int *, int *);
 	const char* (* mpg123_plain_strerror)(int);
+#endif
 };
 
 static struct mpg *m;
@@ -71,6 +73,12 @@ extern struct processstate process;
 #define UNLOCK_O_not_direct
 #define IF_DIRECT(x)    { x }
 #define IF_PROCESS(x)
+#endif
+
+#if LINKALL
+#define MPG123(h, fn, ...) (mpg123_ ## fn)(__VA_ARGS__)
+#else
+#define MPG123(h, fn, ...) (h)->mpg123_##fn(__VA_ARGS__)
 #endif
 
 static decode_state mpg_decode(void) {
@@ -109,7 +117,7 @@ static decode_state mpg_decode(void) {
 		space = 0;
 	}
 
-	ret = m->mpg123_decode(m->h, streambuf->readp, bytes, write_buf, space, &size);
+	ret = MPG123(m, decode, m->h, streambuf->readp, bytes, write_buf, space, &size);
 
 	if (ret == MPG123_NEW_FORMAT) {
 
@@ -117,7 +125,7 @@ static decode_state mpg_decode(void) {
 			long rate;
 			int channels, enc;
 			
-			m->mpg123_getformat(m->h, &rate, &channels, &enc);
+			MPG123(m, getformat, m->h, &rate, &channels, &enc);
 			
 			LOG_INFO("setting track_start");
 			LOCK_O_not_direct;
@@ -179,35 +187,36 @@ static void mpg_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	size_t count, i;
 
 	if (m->h) {
-		m->mpg123_delete(m->h);
+		MPG123(m, delete, m->h);
 	}
 
-	m->h = m->mpg123_new(NULL, &err);
+	m->h = MPG123(m, new, NULL, &err);
 
 	if (m->h == NULL) {
-		LOG_WARN("new error: %s", m->mpg123_plain_strerror(err));
+		LOG_WARN("new error: %s", MPG123(m, plain_strerror, err));
 	}
 
 	// restrict output to 32bit or 16bit signed 2 channel based on library capability
-	m->mpg123_rates(&list, &count);
-	m->mpg123_format_none(m->h);
+	MPG123(m, rates, &list, &count);
+	MPG123(m, format_none, m->h);
 	for (i = 0; i < count; i++) {
-		m->mpg123_format(m->h, list[i], 2, m->use16bit ? MPG123_ENC_SIGNED_16 : MPG123_ENC_SIGNED_32);
+		MPG123(m, format, m->h, list[i], 2, m->use16bit ? MPG123_ENC_SIGNED_16 : MPG123_ENC_SIGNED_32);
 	}
 
-	err = m->mpg123_open_feed(m->h);
+	err = MPG123(m, open_feed, m->h);
 
 	if (err) {
-		LOG_WARN("open feed error: %s", m->mpg123_plain_strerror(err));
+		LOG_WARN("open feed error: %s", MPG123(m, plain_strerror, err));
 	}
 }
 
 static void mpg_close(void) {
-	m->mpg123_delete(m->h);
+	MPG123(m, delete, m->h);
 	m->h = NULL;
 }
 
 static bool load_mpg() {
+#if !LINKALL
 	void *handle = dlopen(LIBMPG, RTLD_NOW);
 	char *err;
 
@@ -216,9 +225,6 @@ static bool load_mpg() {
 		return false;
 	}
 	
-	m = malloc(sizeof(struct mpg));
-
-	m->h = NULL;
 	m->mpg123_init = dlsym(handle, "mpg123_init");
 	m->mpg123_feature = dlsym(handle, "mpg123_feature");
 	m->mpg123_rates = dlsym(handle, "mpg123_rates");
@@ -236,11 +242,9 @@ static bool load_mpg() {
 		return false;
 	}
 
-	m->mpg123_init();
-
-	m->use16bit = !m->mpg123_feature(MPG123_FEATURE_OUTPUT_32BIT);
-
 	LOG_INFO("loaded "LIBMPG);
+#endif
+
 	return true;
 }
 
@@ -255,9 +259,20 @@ struct codec *register_mpg(void) {
 		mpg_decode,   // decode
 	};
 
+	m = malloc(sizeof(struct mpg));
+	if (!m) {
+		return NULL;
+	}
+
+	m->h = NULL;
+
 	if (!load_mpg()) {
 		return NULL;
 	}
+
+	MPG123(m, init);
+
+	m->use16bit = MPG123(m, feature, MPG123_FEATURE_OUTPUT_32BIT);
 
 	return &ret;
 }

@@ -20,7 +20,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE or RESAMPLE to influence build
 
-#define VERSION "v1.3-307"
+#define VERSION "v1.3.1-338"
 
 // build detection
 #if defined(linux)
@@ -87,7 +87,6 @@
 #undef FFMPEG
 #define FFMPEG    1
 #else
-#undef FFMPEG
 #define FFMPEG    0
 #endif
 
@@ -95,11 +94,20 @@
 #undef VISEXPORT
 #define VISEXPORT 1 // visulizer export support uses linux shared memory
 #else
-#undef VISEXPORT
 #define VISEXPORT 0
 #endif
 
-// dynamically loaded libraries
+#if defined(LINKALL)
+#undef LINKALL
+#define LINKALL   1 // link all libraries at build time - requires all to be available at run time
+#else
+#define LINKALL   0
+#endif
+
+
+#if !LINKALL
+
+// dynamically loaded libraries at run time
 #if LINUX
 #define LIBFLAC "libFLAC.so.8"
 #define LIBMAD  "libmad.so.0"
@@ -110,6 +118,7 @@
 #define LIBAVUTIL   "libavutil.so.%d"
 #define LIBAVCODEC  "libavcodec.so.%d"
 #define LIBAVFORMAT "libavformat.so.%d"
+#define LIBSOXR "libsoxr.so.0"
 #endif
 
 #if OSX
@@ -122,6 +131,7 @@
 #define LIBAVUTIL   "libavutil.%d.dylib"
 #define LIBAVCODEC  "libavcodec.%d.dylib"
 #define LIBAVFORMAT "libavformat.%d.dylib"
+#define LIBSOXR "libsoxr.0.dylib"
 #endif
 
 #if WIN
@@ -134,7 +144,10 @@
 #define LIBAVUTIL   "avutil-%d.dll"
 #define LIBAVCODEC  "avcodec-%d.dll"
 #define LIBAVFORMAT "avformat-%d.dll"
+#define LIBSOXR "libsoxr.dll"
 #endif
+
+#endif // !LINKALL
 
 // config options
 #define STREAMBUF_SIZE (2 * 1024 * 1024)

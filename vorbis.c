@@ -31,12 +31,14 @@
 
 struct vorbis {
 	OggVorbis_File *vf;
+#if !LINKALL
 	// vorbis symbols to be dynamically loaded - from either vorbisfile or vorbisidec (tremor) version of library
 	vorbis_info *(* ov_info)(OggVorbis_File *vf, int link);
 	int (* ov_clear)(OggVorbis_File *vf);
 	long (* ov_read)(OggVorbis_File *vf, char *buffer, int length, int bigendianp, int word, int sgned, int *bitstream);
 	long (* ov_read_tremor)(OggVorbis_File *vf, char *buffer, int length, int *bitstream);
 	int (* ov_open_callbacks)(void *datasource, OggVorbis_File *vf, const char *initial, long ibytes, ov_callbacks callbacks);
+#endif
 };
 
 static struct vorbis *v;
@@ -68,6 +70,15 @@ extern struct processstate process;
 #define UNLOCK_O_not_direct
 #define IF_DIRECT(x)    { x }
 #define IF_PROCESS(x)
+#endif
+
+#if LINKALL
+#define OV(h, fn, ...) (ov_ ## fn)(__VA_ARGS__)
+#define TREMOR(h)      0
+extern int ov_read_tremor(); // needed to enable compilation, not linked
+#else
+#define OV(h, fn, ...) (h)->ov_##fn(__VA_ARGS__)
+#define TREMOR(h)      (h)->ov_read_tremor
 #endif
 
 // called with mutex locked within vorbis_decode to avoid locking O before S
@@ -119,20 +130,20 @@ static decode_state vorbis_decode(void) {
 
 		cbs.read_func = _read_cb;
 		
-		if (v->ov_read_tremor) {
+		if (TREMOR(v)) {
 			cbs.seek_func = _seek_cb; cbs.close_func = _close_cb; cbs.tell_func = _tell_cb;
 		} else {
 			cbs.seek_func = NULL; cbs.close_func = NULL; cbs.tell_func = NULL;
 		}
 
-		if ((err = v->ov_open_callbacks(streambuf, v->vf, NULL, 0, cbs)) < 0) {
+		if ((err = OV(v, open_callbacks, streambuf, v->vf, NULL, 0, cbs)) < 0) {
 			LOG_WARN("open_callbacks error: %d", err);
 			UNLOCK_O_direct;
 			UNLOCK_S;
 			return DECODE_COMPLETE;
 		}
 
-		info = v->ov_info(v->vf, -1);
+		info = OV(v, info, v->vf, -1);
 
 		LOG_INFO("setting track_start");
 		LOCK_O_not_direct;
@@ -166,14 +177,14 @@ static decode_state vorbis_decode(void) {
 	);
 
 	// write the decoded frames into outputbuf even though they are 16 bits per sample, then unpack them
-	if (v->ov_read) {
+	if (!TREMOR(v)) {
 #if SL_LITTLE_ENDIAN
-		n = v->ov_read(v->vf, (char *)write_buf, bytes, 0, 2, 1, &s);
+		n = OV(v, read, v->vf, (char *)write_buf, bytes, 0, 2, 1, &s);
 #else
-		n = v->ov_read(v->vf, (char *)write_buf, bytes, 1, 2, 1, &s);
+		n = OV(v, read, v->vf, (char *)write_buf, bytes, 1, 2, 1, &s);
 #endif
 	} else {
-		n = v->ov_read_tremor(v->vf, (char *)write_buf, bytes, &s);
+		n = OV(v, read_tremor, v->vf, (char *)write_buf, bytes, &s);
 	}
 
 	if (n > 0) {
@@ -234,17 +245,18 @@ static void vorbis_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	if (!v->vf) {
 		v->vf = malloc(sizeof(OggVorbis_File) + 128); // add some padding as struct size may be larger
 	} else {
-		v->ov_clear(v->vf);
+		OV(v, clear, v->vf);
 	}
 }
 
 static void vorbis_close(void) {
-	v->ov_clear(v->vf);
+	OV(v, clear, v->vf);
 	free(v->vf);
 	v->vf = NULL;
 }
 
 static bool load_vorbis() {
+#if !LINKALL
 	void *handle = dlopen(LIBVORBIS, RTLD_NOW);
 	char *err;
 	bool tremor = false;
@@ -259,8 +271,6 @@ static bool load_vorbis() {
 		}
 	}
 
-	v = malloc(sizeof(struct vorbis));
-	v->vf = NULL;
 	v->ov_read = tremor ? NULL : dlsym(handle, "ov_read");
 	v->ov_read_tremor = tremor ? dlsym(handle, "ov_read") : NULL;
 	v->ov_info = dlsym(handle, "ov_info");
@@ -273,6 +283,8 @@ static bool load_vorbis() {
 	}
 	
 	LOG_INFO("loaded %s", tremor ? LIBTREMOR : LIBVORBIS);
+#endif
+
 	return true;
 }
 
@@ -286,6 +298,13 @@ struct codec *register_vorbis(void) {
 		vorbis_close, // close
 		vorbis_decode,// decode
 	};
+
+	v = malloc(sizeof(struct vorbis));
+	if (!v) {
+		return NULL;
+	}
+
+	v->vf = NULL;
 
 	if (!load_vorbis()) {
 		return NULL;

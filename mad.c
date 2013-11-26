@@ -38,6 +38,7 @@ struct mad {
 	u32_t skip;
 	u64_t samples;
 	u32_t padding;
+#if !LINKALL
 	// mad symbols to be dynamically loaded
 	void (* mad_stream_init)(struct mad_stream *);
 	void (* mad_frame_init)(struct mad_frame *);
@@ -48,6 +49,7 @@ struct mad {
 	int  (* mad_frame_decode)(struct mad_frame *, struct mad_stream *);
 	void (* mad_synth_frame)(struct mad_synth *, struct mad_frame const *);
 	char const *(* mad_stream_errorstr)(struct mad_stream const *);
+#endif
 };
 
 static struct mad *m;
@@ -75,6 +77,12 @@ extern struct processstate process;
 #define UNLOCK_O_direct mutex_unlock(outputbuf->mutex)
 #define IF_DIRECT(x)    { x }
 #define IF_PROCESS(x)
+#endif
+
+#if LINKALL
+#define MAD(h, fn, ...) (mad_ ## fn)(__VA_ARGS__)
+#else
+#define MAD(h, fn, ...) (h)->mad_##fn(__VA_ARGS__)
 #endif
 
 // based on libmad minimad.c scale
@@ -168,7 +176,7 @@ static decode_state mad_decode(void) {
 
 	UNLOCK_S;
 
-	m->mad_stream_buffer(&m->stream, m->readbuf, m->readbuf_len);
+	MAD(m, stream_buffer, &m->stream, m->readbuf, m->readbuf_len);
 
 	while (true) {
 		size_t frames;
@@ -176,19 +184,19 @@ static decode_state mad_decode(void) {
 		s32_t *iptrr;
 		unsigned max_frames;
 
-		if (m->mad_frame_decode(&m->frame, &m->stream) == -1) {
+		if (MAD(m, frame_decode, &m->frame, &m->stream) == -1) {
 			decode_state ret;
 			if (!eos && m->stream.error == MAD_ERROR_BUFLEN) {
 				ret = DECODE_RUNNING;
 			} else if (eos && (m->stream.error == MAD_ERROR_BUFLEN || m->stream.error == MAD_ERROR_LOSTSYNC)) {
 				ret = DECODE_COMPLETE;
 			} else if (!MAD_RECOVERABLE(m->stream.error)) {
-				LOG_INFO("mad_frame_decode error: %s - stopping decoder", m->mad_stream_errorstr(&m->stream));
+				LOG_INFO("mad_frame_decode error: %s - stopping decoder", MAD(m, stream_errorstr, &m->stream));
 				ret = DECODE_COMPLETE;
 			} else {
 				if (m->stream.error != m->last_error) {
 					// suppress repeat error messages
-					LOG_DEBUG("mad_frame_decode error: %s", m->mad_stream_errorstr(&m->stream));
+					LOG_DEBUG("mad_frame_decode error: %s", MAD(m, stream_errorstr, &m->stream));
 				}
 				ret = DECODE_RUNNING;
 			}
@@ -196,7 +204,7 @@ static decode_state mad_decode(void) {
 			return ret;
 		};
 
-		m->mad_synth_frame(&m->synth, &m->frame);
+		MAD(m, synth_frame, &m->synth, &m->frame);
 
 		if (decode.new_stream) {
 			LOCK_O;
@@ -301,20 +309,21 @@ static void mad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	m->samples = 0;
 	m->readbuf_len = 0;
 	m->last_error = MAD_ERROR_NONE;
-	m->mad_stream_init(&m->stream);
-	m->mad_frame_init(&m->frame);
-	m->mad_synth_init(&m->synth);
+	MAD(m, stream_init, &m->stream);
+	MAD(m, frame_init, &m->frame);
+	MAD(m, synth_init, &m->synth);
 }
 
 static void mad_close(void) {
-	mad_synth_finish(&m->synth);
-	m->mad_frame_finish(&m->frame);
-	m->mad_stream_finish(&m->stream);
+	mad_synth_finish(&m->synth); // macro only in current version
+	MAD(m, frame_finish, &m->frame);
+	MAD(m, stream_finish, &m->stream);
 	free(m->readbuf);
 	m->readbuf = NULL;
 }
 
 static bool load_mad() {
+#if !LINKALL
 	void *handle = dlopen(LIBMAD, RTLD_NOW);
 	char *err;
 
@@ -323,10 +332,6 @@ static bool load_mad() {
 		return false;
 	}
 	
-	m = malloc(sizeof(struct mad));
-
-	m->readbuf = NULL;
-	m->readbuf_len = 0;
 	m->mad_stream_init = dlsym(handle, "mad_stream_init");
 	m->mad_frame_init = dlsym(handle, "mad_frame_init");
 	m->mad_synth_init = dlsym(handle, "mad_synth_init");
@@ -343,6 +348,8 @@ static bool load_mad() {
 	}
 
 	LOG_INFO("loaded "LIBMAD);
+#endif
+
 	return true;
 }
 
@@ -356,6 +363,14 @@ struct codec *register_mad(void) {
 		mad_close,    // close
 		mad_decode,   // decode
 	};
+
+	m = malloc(sizeof(struct mad));
+	if (!m) {
+		return NULL;
+	}
+
+	m->readbuf = NULL;
+	m->readbuf_len = 0;
 
 	if (!load_mad()) {
 		return NULL;

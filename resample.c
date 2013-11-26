@@ -27,16 +27,6 @@
 #include <math.h>
 #include <soxr.h>
 
-#if LINUX
-#define LIBSOXR "libsoxr.so.0"
-#endif
-#if OSX
-#define LIBSOXR "libsoxr.0.dylib"
-#endif
-#if WIN
-#define LIBSOXR "libsoxr.dll"
-#endif
-
 extern log_level loglevel;
 
 struct soxr {
@@ -49,6 +39,8 @@ struct soxr {
 	double q_passband_end;      /* 0dB pt. bandwidth to preserve; nyquist=1  0.913 */
 	double q_stopband_begin;    /* Aliasing/imaging control; > passband_end   1    */
 	double scale;
+	bool max_rate;
+#if !LINKALL
 	// soxr symbols to be dynamically loaded
 	soxr_io_spec_t (* soxr_io_spec)(soxr_datatype_t itype, soxr_datatype_t otype);
 	soxr_quality_spec_t (* soxr_quality_spec)(unsigned long recipe, unsigned long flags);
@@ -57,10 +49,17 @@ struct soxr {
 	void (* soxr_delete)(soxr_t);
 	soxr_error_t (* soxr_process)(soxr_t, soxr_in_t, size_t, size_t *, soxr_out_t, size_t olen, size_t *);
 	size_t *(* soxr_num_clips)(soxr_t);
-	bool max_rate;
+	// soxr_strerror is a macro so not included here
+#endif
 };
 
 static struct soxr *r;
+
+#if LINKALL
+#define SOXR(h, fn, ...) (soxr_ ## fn)(__VA_ARGS__)
+#else
+#define SOXR(h, fn, ...) (h)->soxr_##fn(__VA_ARGS__)
+#endif
 
 
 void resample_samples(struct processstate *process) {
@@ -68,7 +67,7 @@ void resample_samples(struct processstate *process) {
 	size_t clip_cnt;
 	
 	soxr_error_t error =
-		r->soxr_process(r->resampler, process->inbuf, process->in_frames, &idone, process->outbuf, process->max_out_frames, &odone);
+		SOXR(r, process, r->resampler, process->inbuf, process->in_frames, &idone, process->outbuf, process->max_out_frames, &odone);
 	if (error) {
 		LOG_INFO("soxr_process error: %s", soxr_strerror(error));
 	}
@@ -83,7 +82,7 @@ void resample_samples(struct processstate *process) {
 	process->total_in  += idone;
 	process->total_out += odone;
 	
-	clip_cnt = *(r->soxr_num_clips(r->resampler));
+	clip_cnt = *(SOXR(r, num_clips, r->resampler));
 	if (clip_cnt - r->old_clips) {
 		LOG_DEBUG("resampling clips: %u", (unsigned)(clip_cnt - r->old_clips));
 		r->old_clips = clip_cnt;
@@ -94,7 +93,7 @@ bool resample_drain(struct processstate *process) {
 	size_t odone;
 	size_t clip_cnt;
 		
-	soxr_error_t error = r->soxr_process(r->resampler, NULL, 0, NULL, process->outbuf, process->max_out_frames, &odone);
+	soxr_error_t error = SOXR(r, process, r->resampler, NULL, 0, NULL, process->outbuf, process->max_out_frames, &odone);
 	if (error) {
 		LOG_INFO("soxr_process error: %s", soxr_strerror(error));
 	}
@@ -102,7 +101,7 @@ bool resample_drain(struct processstate *process) {
 	process->out_frames = odone;
 	process->total_out += odone;
 	
-	clip_cnt = *(r->soxr_num_clips(r->resampler));
+	clip_cnt = *(SOXR(r, num_clips, r->resampler));
 	if (clip_cnt - r->old_clips) {
 		LOG_DEBUG("resampling clips: %u", (unsigned)(clip_cnt - r->old_clips));
 		r->old_clips = clip_cnt;
@@ -112,7 +111,7 @@ bool resample_drain(struct processstate *process) {
 
 		LOG_INFO("resample track complete - total track clips: %u", r->old_clips);
 
-		r->soxr_delete(r->resampler);
+		SOXR(r, delete, r->resampler);
 		r->resampler = NULL;
 
 		return true;
@@ -138,7 +137,7 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 	process->out_sample_rate = outrate;
 
 	if (r->resampler) {
-		r->soxr_delete(r->resampler);
+		SOXR(r, delete, r->resampler);
 		r->resampler = NULL;
 	}
 
@@ -150,10 +149,10 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 
 		LOG_INFO("resampling from %u -> %u", raw_sample_rate, outrate);
 
-		io_spec = r->soxr_io_spec(SOXR_INT32_I, SOXR_INT32_I);
+		io_spec = SOXR(r, io_spec, SOXR_INT32_I, SOXR_INT32_I);
 		io_spec.scale = r->scale;
 
-		q_spec = r->soxr_quality_spec(r->q_recipe, r->q_flags);
+		q_spec = SOXR(r, quality_spec, r->q_recipe, r->q_flags);
 		if (r->q_precision > 0) {
 			q_spec.precision = r->q_precision;
 		}
@@ -171,7 +170,7 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 				  "phase_response: %03.1f, flags: 0x%02x], soxr_io_spec_t[scale: %03.2f]", q_spec.precision,
 				  q_spec.passband_end, q_spec.stopband_begin, q_spec.phase_response, q_spec.flags, io_spec.scale);
 
-		r->resampler = r->soxr_create(raw_sample_rate, outrate, 2, &error, &io_spec, &q_spec, NULL);
+		r->resampler = SOXR(r, create, raw_sample_rate, outrate, 2, &error, &io_spec, &q_spec, NULL);
 		if (error) {
 			LOG_INFO("soxr_create error: %s", soxr_strerror(error));
 			return false;
@@ -189,12 +188,13 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 
 void resample_flush(void) {
 	if (r->resampler) {
-		r->soxr_delete(r->resampler);
+		SOXR(r, delete, r->resampler);
 		r->resampler = NULL;
 	}
 }
 
 static bool load_soxr(void) {
+#if !LINKALL
 	void *handle = dlopen(LIBSOXR, RTLD_NOW);
 	char *err;
 
@@ -203,11 +203,6 @@ static bool load_soxr(void) {
 		return false;
 	}
 
-	r = malloc(sizeof(struct soxr));
-
-	r->resampler = NULL;
-	r->old_clips = 0;
-	r->max_rate = false;
 	r->soxr_io_spec = dlsym(handle, "soxr_io_spec");
 	r->soxr_quality_spec = dlsym(handle, "soxr_quality_spec");
 	r->soxr_create = dlsym(handle, "soxr_create");
@@ -221,6 +216,8 @@ static bool load_soxr(void) {
 	}
 
 	LOG_INFO("loaded "LIBSOXR);
+#endif
+
 	return true;
 }
 
@@ -228,6 +225,16 @@ bool resample_init(char *opt) {
 	char *recipe = NULL, *flags = NULL;
 	char *atten = NULL;
 	char *precision = NULL, *passband_end = NULL, *stopband_begin = NULL, *phase_response = NULL;
+
+	r = malloc(sizeof(struct soxr));
+	if (!r) {
+		LOG_WARN("resampling disabled");
+		return false;
+	}
+
+	r->resampler = NULL;
+	r->old_clips = 0;
+	r->max_rate = false;
 
 	if (!load_soxr()) {
 		LOG_WARN("resampling disabled");
