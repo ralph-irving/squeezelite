@@ -5,8 +5,8 @@ CFLAGS  ?= -fPIC -Wall -O3 -DRESAMPLE -DFFMPEG -I`pwd`/include -s
 LDFLAGS ?= -lpthread -lsocket -lnsl -ldl -lrt -lm -L`pwd`/lib -lportaudio -R/opt/squeezelite/lib -s
 EXECUTABLE ?= squeezelite-sun
 
-SOURCES = main.c slimproto.c utils.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c output.c daemonize.c faad.c mpg.c resample.c process.c ffmpeg.c
-DEPS    = squeezelite.h
+SOURCES = main.c slimproto.c utils.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c output_alsa.c output.c output_pa.c output_pack.c output_stdout.c output_vis.c dop.c dsd.c dsd2pcm/dsd2pcm.c daemonize.c faad.c mpg.c resample.c process.c ffmpeg.c
+DEPS    = squeezelite.h slimproto.h dsd2pcm/dsd2pcm.h
 
 OBJECTS = $(SOURCES:.c=.o)
 

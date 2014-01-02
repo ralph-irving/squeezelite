@@ -18,9 +18,9 @@
  *
  */
 
-// make may define: PORTAUDIO, SELFPIPE or RESAMPLE to influence build
+// make may define: PORTAUDIO, SELFPIPE, RESAMPLE, VISEXPORT, DSD, LINKALL to influence build
 
-#define VERSION "v1.3.1-338"
+#define VERSION "v1.4-341"
 
 // build detection
 #if defined(linux)
@@ -97,6 +97,16 @@
 #define VISEXPORT 0
 #endif
 
+#if defined(DSD)
+#undef DSD
+#define DSD       1
+#define IF_DSD(x) { x }
+#else
+#undef DSD
+#define DSD       0
+#define IF_DSD(x)
+#endif
+
 #if defined(LINKALL)
 #undef LINKALL
 #define LINKALL   1 // link all libraries at build time - requires all to be available at run time
@@ -108,6 +118,7 @@
 #if !LINKALL
 
 // dynamically loaded libraries at run time
+
 #if LINUX
 #define LIBFLAC "libFLAC.so.8"
 #define LIBMAD  "libmad.so.0"
@@ -260,6 +271,7 @@ typedef BOOL bool;
 #define ERROR_WOULDBLOCK WSAEWOULDBLOCK
 #define open _open
 #define read _read
+#define snprintf _snprintf
 
 #define in_addr_t u32_t
 #define socklen_t int
@@ -316,6 +328,8 @@ struct wake {
 #else
 #error can not support u64_t
 #endif
+
+#define MAX_SILENCE_FRAMES 2048
 
 #define FIXED_ONE 0x10000
 
@@ -396,7 +410,7 @@ void buf_init(struct buffer *buf, size_t size);
 void buf_destroy(struct buffer *buf);
 
 // slimproto.c
-void slimproto(log_level level, char *server, u8_t mac[6], const char *name);
+void slimproto(log_level level, char *server, u8_t mac[6], const char *name, const char *namefile);
 void slimproto_stop(void);
 void wake_controller(void);
 
@@ -462,7 +476,7 @@ struct codec {
 void decode_init(log_level level, const char *opt);
 void decode_close(void);
 void decode_flush(void);
-unsigned decode_newstream(unsigned sample_rate, unsigned max_sample_rate);
+unsigned decode_newstream(unsigned sample_rate, unsigned supported_rates[]);
 void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t endianness);
 
 #if PROCESS
@@ -470,7 +484,7 @@ void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, 
 void process_samples(void);
 void process_drain(void);
 void process_flush(void);
-unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned max_sample_rate);
+unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned supported_rates[]);
 void process_init(char *opt);
 #endif
 
@@ -478,21 +492,27 @@ void process_init(char *opt);
 // resample.c
 void resample_samples(struct processstate *process);
 bool resample_drain(struct processstate *process);
-bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, unsigned max_sample_rate);
+bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, unsigned supported_rates[]);
 void resample_flush(void);
 bool resample_init(char *opt);
 #endif
 
-// output.c
+// output.c output_alsa.c output_pa.c output_pack.c
 typedef enum { OUTPUT_OFF = -1, OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNING, 
 			   OUTPUT_PAUSE_FRAMES, OUTPUT_SKIP_FRAMES, OUTPUT_START_AT } output_state;
+
+typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE } output_format;
 
 typedef enum { FADE_INACTIVE = 0, FADE_DUE, FADE_ACTIVE } fade_state;
 typedef enum { FADE_UP = 1, FADE_DOWN, FADE_CROSS } fade_dir;
 typedef enum { FADE_NONE = 0, FADE_CROSSFADE, FADE_IN, FADE_OUT, FADE_INOUT } fade_mode;
 
+#define MAX_SUPPORTED_SAMPLERATES 16
+#define TEST_RATES = { 384000, 352800, 192000, 176400, 96000, 88200, 48000, 44100, 32000, 24000, 22500, 16000, 12000, 11025, 8000, 0 }
+
 struct outputstate {
 	output_state state;
+	output_format format;
 	const char *device;
 #if ALSA
 	unsigned buffer;
@@ -504,9 +524,13 @@ struct outputstate {
 	unsigned latency;
 	int osx_playnice;
 #endif
+	int (* write_cb)(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR, s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr);
+	unsigned start_frames;
 	unsigned frames_played;
 	unsigned current_sample_rate;
-	unsigned max_sample_rate;
+	unsigned supported_rates[MAX_SUPPORTED_SAMPLERATES]; // ordered largest first so [0] is max_rate
+	unsigned default_sample_rate;
+	bool error_opening;
 	unsigned device_frames;
 	u32_t updated;
 	u32_t current_replay_gain;
@@ -527,30 +551,68 @@ struct outputstate {
 	fade_dir fade_dir;
 	fade_mode fade_mode;       // set by slimproto
 	unsigned fade_secs;        // set by slimproto
+#if DSD
+	bool next_dop;             // set in decode thread
+	bool dop;
+	bool has_dop;              // set in dop_init - output device supports dop
+#endif
 };
 
-void list_devices(void);
-#if ALSA
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned alsa_buffer, unsigned alsa_period, const char *alsa_sample_fmt, bool mmap, unsigned max_rate, unsigned rt_priority);
-#endif
-#if PORTAUDIO
-#ifndef PA18API
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned latency, int osx_playnice, unsigned max_rate);
-#else
-void output_init(log_level level, const char *device, unsigned output_buf_size, unsigned pa_frames, unsigned pa_nbufs, unsigned max_rate);
-#endif /* PA18API */
-#endif
-#if VISEXPORT
-void output_vis_init(u8_t *mac);
-#endif
+void output_init_common(log_level level, const char *device, unsigned output_buf_size, unsigned rates[]);
+void output_close_common(void);
 void output_flush(void);
-void output_close(void);
 // _* called with mutex locked
+frames_t _output_frames(frames_t avail);
 void _checkfade(bool);
+
+// output_alsa.c
+#if ALSA
+void list_devices(void);
+bool test_open(const char *device, unsigned rates[]);
+void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rt_priority);
+void output_close_alsa(void);
+#endif
+
+// output_pa.c
+#if PORTAUDIO
+void list_devices(void);
+bool test_open(const char *device, unsigned rates[]);
+void output_init_pa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[]);
+void output_close_pa(void);
 void _pa_open(void);
+#endif
+
+// output_stdout.c
+void output_init_stdout(log_level level, unsigned output_buf_size, char *params, unsigned rates[]);
+void output_close_stdout(void);
+
+// output_pack.c
+void _scale_and_pack_frames(void *outputptr, s32_t *inputptr, frames_t cnt, s32_t gainL, s32_t gainR, output_format format);
+void _apply_cross(struct buffer *outputbuf, frames_t out_frames, s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr);
+void _apply_gain(struct buffer *outputbuf, frames_t count, s32_t gainL, s32_t gainR);
+s32_t gain(s32_t gain, s32_t sample);
+s32_t to_gain(float f);
+
+// output_vis.c
+#if VISEXPORT
+void _vis_export(struct buffer *outputbuf, struct outputstate *output, frames_t out_frames, bool silence);
+void output_vis_init(log_level level, u8_t *mac);
+void vis_stop(void);
+#else
+#define _vis_export(...)
+#define vis_stop()
+#endif
+
+// dop.c
+#if DSD
+bool is_flac_dop(u32_t *lptr, u32_t *rptr, frames_t frames);
+void update_dop_marker(u32_t *ptr, frames_t frames);
+void dop_silence_frames(u32_t *ptr, frames_t frames);
+void dop_init(bool enable);
+#endif
 
 // codecs
-#define MAX_CODECS 8
+#define MAX_CODECS 9
 
 struct codec *register_flac(void);
 struct codec *register_pcm(void);
@@ -558,4 +620,5 @@ struct codec *register_mad(void);
 struct codec *register_mpg(void);
 struct codec *register_vorbis(void);
 struct codec *register_faad(void);
+struct codec *register_dsd(void);
 struct codec *register_ff(const char *codec);

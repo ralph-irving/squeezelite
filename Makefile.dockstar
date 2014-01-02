@@ -1,10 +1,11 @@
 # Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
-CFLAGS  ?= -s -Wall -fPIC -O3 -march=armv5te $(OPTS)
+OPTS = -DRESAMPLE -DFFMPEG -DVISEXPORT -DDSD -I./include
+CFLAGS  ?= -s -Wall -fPIC -O3 -march=armv5te  $(OPTS)
 LDFLAGS ?= -s -lasound -lpthread -ldl -lrt
 EXECUTABLE ?= squeezelite-ds
 
-SOURCES = main.c slimproto.c utils.c output.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c
-DEPS    = squeezelite.h
+SOURCES = main.c slimproto.c utils.c output_alsa.c output.c output_pa.c output_pack.c output_stdout.c output_vis.c dop.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c
+DEPS    = squeezelite.h slimproto.h
 
 OBJECTS = $(SOURCES:.c=.o)
 

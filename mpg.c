@@ -102,12 +102,6 @@ static decode_state mpg_decode(void) {
 	bytes = min(bytes, READ_SIZE);
 	space = min(space, WRITE_SIZE);
 
-	if (stream.state <= DISCONNECT && bytes == 0) {
-		UNLOCK_O_direct;
-		UNLOCK_S;
-		return DECODE_COMPLETE;
-	}
-
 	if (m->use16bit) {
 		space = (space / BYTES_PER_FRAME) * 4;
 	}
@@ -129,7 +123,8 @@ static decode_state mpg_decode(void) {
 			
 			LOG_INFO("setting track_start");
 			LOCK_O_not_direct;
-			output.next_sample_rate = decode_newstream(rate, output.max_sample_rate);
+			output.next_sample_rate = decode_newstream(rate, output.supported_rates);
+			IF_DSD( output.next_dop = false; )
 			output.track_start = outputbuf->writep;
 			if (output.fade_mode) _checkfade(true);
 			decode.new_stream = false;
@@ -163,14 +158,16 @@ static decode_state mpg_decode(void) {
 	);
 
 	UNLOCK_O_direct;
-	UNLOCK_S;
 
 	LOG_SDEBUG("write %u frames", size / BYTES_PER_FRAME);
 
-	if (ret == MPG123_DONE) {
+	if (ret == MPG123_DONE || (bytes == 0 && size == 0 && stream.state <= DISCONNECT)) {
+		UNLOCK_S;
 		LOG_INFO("stream complete");
 		return DECODE_COMPLETE;
 	}
+
+	UNLOCK_S;
 
 	if (ret == MPG123_ERR) {
 		LOG_WARN("Error");

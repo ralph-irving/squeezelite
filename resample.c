@@ -40,6 +40,7 @@ struct soxr {
 	double q_stopband_begin;    /* Aliasing/imaging control; > passband_end   1    */
 	double scale;
 	bool max_rate;
+	bool exception;
 #if !LINKALL
 	// soxr symbols to be dynamically loaded
 	soxr_io_spec_t (* soxr_io_spec)(soxr_datatype_t itype, soxr_datatype_t otype);
@@ -122,15 +123,44 @@ bool resample_drain(struct processstate *process) {
 	}
 }
 
-bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, unsigned max_sample_rate) {
-	unsigned outrate;
+bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, unsigned supported_rates[]) {
+	unsigned outrate = 0;
+	int i;
 
-	if (r->max_rate) {
-		outrate = max_sample_rate;
-	} else {
-		outrate = raw_sample_rate;
-		while (outrate <= max_sample_rate) outrate <<= 1;
-		outrate >>= 1;
+	if (r->exception) {
+		// find direct match - avoid resampling
+		for (i = 0; supported_rates[i]; i++) {
+			if (raw_sample_rate == supported_rates[i]) {
+				outrate = raw_sample_rate;
+				break;
+			}
+		}
+		// else find next highest sync sample rate
+		while (!outrate && i >= 0) {
+			if (supported_rates[i] > raw_sample_rate && supported_rates[i] % raw_sample_rate == 0) {
+				outrate = supported_rates[i];
+				break;
+			}
+			i--;
+		}
+	}
+
+	if (!outrate) {
+		if (r->max_rate) {
+			// resample to max rate for device
+			outrate = supported_rates[0];
+		} else {
+			// resample to max sync sample rate
+			for (i = 0; supported_rates[i]; i++) {
+				if (supported_rates[i] % raw_sample_rate == 0 || raw_sample_rate % supported_rates[i] == 0) {
+					outrate = supported_rates[i];
+					break;
+				}
+			}
+		}
+		if (!outrate) {
+			outrate = supported_rates[0];
+		}
 	}
 
 	process->in_sample_rate = raw_sample_rate;
@@ -235,6 +265,7 @@ bool resample_init(char *opt) {
 	r->resampler = NULL;
 	r->old_clips = 0;
 	r->max_rate = false;
+	r->exception = false;
 
 	if (!load_soxr()) {
 		LOG_WARN("resampling disabled");
@@ -274,6 +305,8 @@ bool resample_init(char *opt) {
 		if (strchr(recipe, 's')) r->q_recipe |= SOXR_STEEP_FILTER;
 		// X = async resampling to max_rate
 		if (strchr(recipe, 'X')) r->max_rate = true;
+		// E = exception, only resample if native rate is not supported
+		if (strchr(recipe, 'E')) r->exception = true;
 	}
 
 	if (flags) {

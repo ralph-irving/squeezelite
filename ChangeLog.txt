@@ -1,0 +1,57 @@
+Version 1.0 - 15/2/13
+=====================
+- initial release
+
+Version 1.1 - 12/4/13
+=====================
+
+Minor changes
+- add timeout on slimproto connection to detect dead server
+- fix issue with clipping on windows by disabling portaudio dither
+- silence alsa error messages on linux alsa builds unless debugging is enabled
+- hide some additional error messages unless debuging is enabled so usb dacs produce less error messages when turned off and on 
+
+Version 1.2 - 6/7/13
+====================
+
+Features
+- support of upsampling via libsoxr
+
+Minor changes
+- command line option for setting the service address now requires "-s" before the server address
+- fixes a bug where the channels could become swapped when using S16_LE ALSA output
+- falls back to polling for a new server if one is not found for more than 30 seconds
+- fixes play of wav/aiff local files when the LocalPlayer plugin is active
+
+Version 1.3 - 6/10/13
+=====================
+
+Features
+- support for wma/alac decode via ffmpeg library (requires compilation with -DFFMPEG)
+- support for export of audio data to jivelite to enable visulizations on linux (requires compilation with -DVISEXPORT)
+
+Minor changes
+- support async as well as sync resampling rates
+- support on/off of audio device with portaudio
+- improved gapless support for aac/mad when skipping to mid track (based on patches from Wouter Ellenbroek)
+- various bug fixes
+
+Version 1.3.1 - 25/11/13
+========================
+
+Minor changes
+- support of compile time linking for distro packaging, uses -DLINKALL option
+	
+Version 1.4 (beta)
+==================
+
+Features
+- native support of dsd playback to dop capable dac or via conversion to pcm and resampling
+- support dop in flac playback to dop dacs
+- support of output to stdout
+
+Minor changes
+- support of resampling only when sample rate is not natively supported
+- fix problem with libmpg123 playback not playing to end of track
+- add ablity for player name change to be stored locally in a file (to emulate hardware where name is stored on player)
+ 

@@ -114,10 +114,25 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 	if (decode.new_stream) {
 		LOCK_O;
 		LOG_INFO("setting track_start");
-		output.next_sample_rate = decode_newstream(frame->header.sample_rate, output.max_sample_rate);
 		output.track_start = outputbuf->writep;
-		if (output.fade_mode) _checkfade(true);
 		decode.new_stream = false;
+
+#if DSD
+		if (output.has_dop && bits_per_sample == 24 && is_flac_dop((u32_t *)lptr, (u32_t *)rptr, frames)) {
+			LOG_INFO("file contains DOP");
+			output.next_dop = true;
+			output.next_sample_rate = frame->header.sample_rate;
+			output.fade = FADE_INACTIVE;
+		} else {
+			output.next_sample_rate = decode_newstream(frame->header.sample_rate, output.supported_rates);
+			output.next_dop = false;
+			if (output.fade_mode) _checkfade(true);
+		}
+#else
+		output.next_sample_rate = decode_newstream(frame->header.sample_rate, output.supported_rates);
+		if (output.fade_mode) _checkfade(true);
+#endif
+
 		UNLOCK_O;
 	}
 

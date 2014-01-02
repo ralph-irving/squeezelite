@@ -116,9 +116,9 @@ void process_drain(void) {
 }	
 
 // new stream - called with decode mutex set
-unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned max_sample_rate) {
+unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned supported_rates[]) {
 
-	bool active = NEWSTREAM_FUNC(&process, raw_sample_rate, max_sample_rate);
+	bool active = NEWSTREAM_FUNC(&process, raw_sample_rate, supported_rates);
 
 	LOG_INFO("processing: %s", active ? "active" : "inactive");
 

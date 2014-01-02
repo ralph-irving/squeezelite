@@ -3,23 +3,60 @@ CFLAGS  ?= -Wall -fPIC -O2 $(OPTS)
 LDFLAGS ?= -lasound -lpthread -lm -lrt
 EXECUTABLE ?= squeezelite
 
-SOURCES = main.c slimproto.c utils.c output.c buffer.c stream.c decode.c process.c resample.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c ffmpeg.c
-DEPS    = squeezelite.h slimproto.h
+# passing one or more of these in $(OPTS) enables optional feature inclusion
+OPT_DSD     = -DDSD
+OPT_FF      = -DFFMPEG
+OPT_LINKALL = -DLINKALL
+OPT_RESAMPLE= -DRESAMPLE
+OPT_VIS     = -DVISEXPORT
 
-UNAME   = $(shell uname -s)
+SOURCES = \
+	main.c slimproto.c buffer.c stream.c utils.c \
+	output.c output_alsa.c output_pa.c output_stdout.c output_pack.c decode.c \
+	flac.c pcm.c mad.c vorbis.c faad.c mpg.c
 
-ifneq (,$(findstring -DLINKALL, $(CFLAGS)))
-	LDFLAGS += -lFLAC -lmad -lvorbisfile -lfaad -lmpg123
-ifneq (,$(findstring -DFFMPEG, $(CFLAGS)))
-	LDFLAGS += -lavcodec -lavformat -lavutil
+SOURCES_DSD      = dsd.c dop.c dsd2pcm/dsd2pcm.c
+SOURCES_FF       = ffmpeg.c
+SOURCES_RESAMPLE = process.c resample.c
+SOURCES_VIS      = output_vis.c
+
+LINK_LINUX       = -ldl
+
+LINKALL          = -lFLAC -lmad -lvorbisfile -lfaad -lmpg123
+LINKALL_FF       = -lavcodec -lavformat -lavutil
+LINKALL_RESAMPLE = -lsoxr
+
+DEPS             = squeezelite.h slimproto.h
+
+UNAME            = $(shell uname -s)
+
+# add optional sources
+ifneq (,$(findstring $(OPT_DSD), $(CFLAGS)))
+	SOURCES += $(SOURCES_DSD)
 endif
-ifneq (,$(findstring -DRESAMPLE, $(CFLAGS)))
-	LDFLAGS += -lsoxr
+ifneq (,$(findstring $(OPT_FF), $(CFLAGS)))
+	SOURCES += $(SOURCES_FF)
+endif
+ifneq (,$(findstring $(OPT_RESAMPLE), $(CFLAGS)))
+	SOURCES += $(SOURCES_RESAMPLE)
+endif
+ifneq (,$(findstring $(OPT_VIS), $(CFLAGS)))
+	SOURCES += $(SOURCES_VIS)
+endif
+
+# add optional link options
+ifneq (,$(findstring $(OPT_LINKALL), $(CFLAGS)))
+	LDFLAGS += $(LINKALL)
+ifneq (,$(findstring $(OPT_FF), $(CFLAGS)))
+	LDFLAGS += $(LINKALL_FF)
+endif
+ifneq (,$(findstring $(OPT_RESAMPLE), $(CFLAGS)))
+	LDFLAGS += $(LINKALL_RESAMPLE)
 endif
 else
-# if not LINKALL and linux add -ldl
+# if not LINKALL and linux add LINK_LINUX
 ifeq ($(UNAME), Linux)
-	LDFLAGS += -ldl
+	LDFLAGS += $(LINK_LINUX)
 endif
 endif
 
@@ -33,7 +70,7 @@ $(EXECUTABLE): $(OBJECTS)
 $(OBJECTS): $(DEPS)
 
 .c.o:
-	$(CC) $(CFLAGS) $< -c -o $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) $< -c -o $@
 
 clean:
 	rm -f $(OBJECTS) $(EXECUTABLE)

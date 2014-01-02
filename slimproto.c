@@ -75,6 +75,9 @@ int autostart;
 bool sentSTMu, sentSTMo, sentSTMl;
 u32_t new_server;
 char *new_server_cap;
+#define PLAYER_NAME_LEN 64
+char player_name[PLAYER_NAME_LEN + 1] = "";
+const char *name_file = NULL;
 
 void send_packet(u8_t *packet, size_t len) {
 	u8_t *ptr = packet;
@@ -382,6 +385,36 @@ static void process_audg(u8_t *pkt, int len) {
 	UNLOCK_O;
 }
 
+static void process_setd(u8_t *pkt, int len) {
+	struct setd_packet *setd = (struct setd_packet *)pkt;
+
+	// handle player name query and change
+	if (setd->id == 0) {
+		if (len == 5) {
+			if (strlen(player_name)) {
+				sendSETDName(player_name);
+			}
+		} else if (len > 5) {
+			strncpy(player_name, setd->data, PLAYER_NAME_LEN);
+			player_name[PLAYER_NAME_LEN] = '\0';
+			LOG_INFO("set name: %s", setd->data);
+			// confirm change to server
+			sendSETDName(setd->data);
+			// write name to name_file if -N option set
+			if (name_file) {
+				FILE *fp = fopen(name_file, "w");
+				if (fp) {
+					LOG_INFO("storing name in %s", name_file);
+					fputs(player_name, fp);
+					fclose(fp);
+				} else {
+					LOG_WARN("unable to store new name in %s", name_file);
+				}
+			}
+		}
+	}
+}
+
 #define SYNC_CAP ",SyncgroupID="
 #define SYNC_CAP_LEN 13
 
@@ -418,6 +451,7 @@ static struct handler handlers[] = {
 	{ "codc", process_codc },
 	{ "aude", process_aude },
 	{ "audg", process_audg },
+	{ "setd", process_setd },
 	{ "serv", process_serv },
 	{ "",     NULL  },
 };
@@ -678,7 +712,7 @@ in_addr_t discover_server(void) {
 	return s.sin_addr.s_addr;
 }
 
-void slimproto(log_level level, char *server, u8_t mac[6], const char *name) {
+void slimproto(log_level level, char *server, u8_t mac[6], const char *name, const char *namefile) {
     struct sockaddr_in serv_addr;
 	static char fixed_cap[128], var_cap[128] = "";
 	bool reconnect = false;
@@ -703,10 +737,29 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name) {
 		slimproto_port = PORT;
 	}
 
+	if (name) {
+		strncpy(player_name, name, PLAYER_NAME_LEN);
+		player_name[PLAYER_NAME_LEN] = '\0';
+	}
+
+	if (namefile) {
+		FILE *fp;
+		name_file = namefile;
+		fp = fopen(namefile, "r");
+		if (fp) {
+			if (!fgets(player_name, PLAYER_NAME_LEN, fp)) {
+				player_name[PLAYER_NAME_LEN] = '\0';
+			} else {
+				LOG_INFO("retrived name %s from %s", player_name, name_file);
+			}
+			fclose(fp);
+		}
+	}
+
 	if (!running) return;
 
 	LOCK_O;
-	sprintf(fixed_cap, ",MaxSampleRate=%u", output.max_sample_rate); 
+	sprintf(fixed_cap, ",MaxSampleRate=%u", output.supported_rates[0]); 
 	
 	for (i = 0; i < MAX_CODECS; i++) {
 		if (codecs[i] && codecs[i]->id && strlen(fixed_cap) < 128 - 10) {
@@ -780,10 +833,6 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name) {
 			}
 
 			sendHELO(reconnect, fixed_cap, var_cap, mac);
-
-			if (name) {
-				sendSETDName(name);
-			}
 
 			slimproto_run();
 
