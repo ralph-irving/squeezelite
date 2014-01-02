@@ -1,7 +1,7 @@
 /* 
  *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
+ *  (c) Adrian Smith 2012-2014, triode1@btinternet.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

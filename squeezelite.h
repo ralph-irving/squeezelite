@@ -1,7 +1,7 @@
 /* 
  *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
+ *  (c) Adrian Smith 2012-2014, triode1@btinternet.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, VISEXPORT, DSD, LINKALL to influence build
 
-#define VERSION "v1.4-341"
+#define VERSION "v1.5dev-342"
 
 // build detection
 #if defined(linux)
@@ -555,6 +555,8 @@ struct outputstate {
 	bool next_dop;             // set in decode thread
 	bool dop;
 	bool has_dop;              // set in dop_init - output device supports dop
+	unsigned dop_delay;        // set in dop_init - delay in ms switching to/from dop
+	bool dop_delay_active;
 #endif
 };
 
@@ -608,7 +610,7 @@ void vis_stop(void);
 bool is_flac_dop(u32_t *lptr, u32_t *rptr, frames_t frames);
 void update_dop_marker(u32_t *ptr, frames_t frames);
 void dop_silence_frames(u32_t *ptr, frames_t frames);
-void dop_init(bool enable);
+void dop_init(bool enable, unsigned delay);
 #endif
 
 // codecs

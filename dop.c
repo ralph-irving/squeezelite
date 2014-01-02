@@ -81,9 +81,10 @@ void dop_silence_frames(u32_t *ptr, frames_t frames) {
 	}
 }
 
-void dop_init(bool enable) {
+void dop_init(bool enable, unsigned delay) {
 	LOCK_O;
 	output.has_dop = enable;
+	output.dop_delay = delay;
 	UNLOCK_O;
 }
 

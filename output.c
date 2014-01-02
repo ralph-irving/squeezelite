@@ -1,7 +1,7 @@
 /* 
  *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
+ *  (c) Adrian Smith 2012-2014, triode1@btinternet.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -119,16 +119,33 @@ frames_t _output_frames(frames_t avail) {
 		
 		if (output.track_start && !silence) {
 			if (output.track_start == outputbuf->readp) {
+				frames -= size;
+				IF_DSD(
+					if (output.dop != output.next_dop) {
+						if (output.dop_delay) {
+							// add silence delay in two halves, before and after track start and pcm-dop change
+							if (!output.dop_delay_active) {
+								output.pause_frames = output.current_sample_rate * output.dop_delay / 2000;
+								output.dop_delay_active = true;  // first delay - don't process track start
+								break;
+							} else {
+								output.pause_frames = output.next_sample_rate * output.dop_delay / 2000;
+								output.dop_delay_active = false; // second delay - process track start
+							}
+							output.state = OUTPUT_PAUSE_FRAMES;
+						}
+					}
+					output.dop = output.next_dop;
+				)
 				LOG_INFO("track start sample rate: %u replay_gain: %u", output.next_sample_rate, output.next_replay_gain);
 				output.frames_played = 0;
 				output.track_started = true;
 				output.current_sample_rate = output.next_sample_rate;
-				IF_DSD( output.dop = output.next_dop; )
 				if (!output.fade == FADE_ACTIVE || !output.fade_mode == FADE_CROSSFADE) {
 					output.current_replay_gain = output.next_replay_gain;
 				}
 				output.track_start = NULL;
-				continue;
+				break;
 			} else if (output.track_start > outputbuf->readp) {
 				// reduce cont_frames so we find the next track start at beginning of next chunk
 				cont_frames = min(cont_frames, (output.track_start - outputbuf->readp) / BYTES_PER_FRAME);
@@ -397,6 +414,7 @@ void output_flush(void) {
 		if (output.error_opening) {
 			output.current_sample_rate = output.default_sample_rate;
 		}
+		IF_DSD( output.dop_delay_active = false; )
 	}
 	output.frames_played = 0;
 	UNLOCK;

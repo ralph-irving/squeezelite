@@ -1,7 +1,7 @@
 /* 
  *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
+ *  (c) Adrian Smith 2012-2014, triode1@btinternet.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 
 #include <signal.h>
 
-#define TITLE "Squeezelite " VERSION ", Copyright 2012, 2013 Adrian Smith."
+#define TITLE "Squeezelite " VERSION ", Copyright 2012-2014 Adrian Smith."
 
 static void usage(const char *argv0) {
 	printf(TITLE " See -t for license terms\n"
@@ -70,7 +70,7 @@ static void usage(const char *argv0) {
 		   "  \t\t\t phase_response = 0-100 (0 = minimum / 50 = linear / 100 = maximum)\n"
 #endif
 #if DSD
-		   "  -D\t\t\tOutput device supports DSD over PCM (DoP)\n" 
+		   "  -D [delay]\t\tOutput device supports DSD over PCM (DoP), delay = optional delay switching between PCM and DoP in ms\n" 
 #endif
 #if VISEXPORT
 		   "  -v \t\t\tVisulizer support\n"
@@ -177,6 +177,7 @@ int main(int argc, char **argv) {
 #endif
 #if DSD
 	bool dop = false;
+	unsigned dop_delay = 0;
 #endif
 #if VISEXPORT
 	bool visexport = false;
@@ -339,6 +340,9 @@ int main(int argc, char **argv) {
 #if DSD
 		case 'D':
 			dop = true;
+			if (optind < argc && argv[optind] && argv[optind][0] != '-') {
+				dop_delay = atoi(argv[optind++]);
+			}
 			break;
 #endif
 #if VISEXPORT
@@ -417,7 +421,7 @@ int main(int argc, char **argv) {
 	}
 
 #if DSD
-	dop_init(dop);
+	dop_init(dop, dop_delay);
 #endif
 
 #if VISEXPORT

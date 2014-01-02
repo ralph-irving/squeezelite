@@ -1,7 +1,7 @@
 /* 
  *  Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012, 2013, triode1@btinternet.com
+ *  (c) Adrian Smith 2012-2014, triode1@btinternet.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -215,8 +215,8 @@ static decode_state _decode_dsf(void) {
 	unsigned bytes_per_frame = dop ? 2 : 1;
 	
 	if (bytes < d->block_size * d->channels) {
-		LOG_WARN("stream too short");
-		return DECODE_ERROR;
+		LOG_INFO("stream too short"); // this can occur when scanning the track
+		return DECODE_COMPLETE;
 	}
 	
 	IF_PROCESS(
