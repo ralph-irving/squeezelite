@@ -249,9 +249,15 @@ static decode_state _decode_dsf(void) {
 
 		frames = min(bytes, d->sample_bytes) / bytes_per_frame;
 		if (frames == 0) {
-			// /2 for dop should never result in 0 as header len is always even
-			LOG_WARN("frames got to zero");
-			return DECODE_ERROR;
+			if (dop && d->sample_bytes == 1 && bytes >= 2) {
+				// 1 byte left add a byte of silence and play
+				*(iptrl + 1) = *(iptrr + 1) = 0x69;
+				frames = 1;
+			} else {
+				// should not get here due to wrapping m/2 for dop should never result in 0 as header len is always even
+				LOG_INFO("frames got to zero");
+				return DECODE_COMPLETE;
+			}
 		}
 
 		frames = min(frames, out);
