@@ -25,6 +25,9 @@
 #if PORTAUDIO
 
 #include <portaudio.h>
+#if WIN
+#define snprintf _snprintf
+#endif
 #if OSX
 #include <pa_mac_core.h>
 #endif
