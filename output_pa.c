@@ -86,7 +86,9 @@ void list_devices(void) {
 	printf("Output devices:\n");
 #ifndef PA18API
 	for (i = 0; i < Pa_GetDeviceCount(); ++i) {
-		printf("  %i - %s [%s]\n", i, Pa_GetDeviceInfo(i)->name, Pa_GetHostApiInfo(Pa_GetDeviceInfo(i)->hostApi)->name);
+		if (Pa_GetDeviceInfo(i)->maxOutputChannels) {
+			printf("  %i - %s [%s]\n", i, Pa_GetDeviceInfo(i)->name, Pa_GetHostApiInfo(Pa_GetDeviceInfo(i)->hostApi)->name);
+		}
 #else
 	for (i = 0; i < Pa_CountDevices(); ++i) {
 		printf("  %i - %s\n", i, Pa_GetDeviceInfo(i)->name);
@@ -395,6 +397,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 #ifndef PA18API
 static int pa_callback(const void *pa_input, void *pa_output, unsigned long pa_frames_wanted, 
 					   const PaStreamCallbackTimeInfo *time_info, PaStreamCallbackFlags statusFlags, void *userData) {
+	double stream_time;
 #else
 static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_wanted,PaTimestamp outTime, void *userData) {
 #endif
@@ -406,7 +409,14 @@ static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_
 	LOCK;
 
 #ifndef PA18API
-	output.device_frames = (unsigned)((time_info->outputBufferDacTime - Pa_GetStreamTime(pa.stream)) * output.current_sample_rate);
+	stream_time = Pa_GetStreamTime(pa.stream);
+
+	if (time_info->outputBufferDacTime > stream_time) {
+		// workaround for wdm-ks which can return outputBufferDacTime with a different epoch
+		output.device_frames = (unsigned)((time_info->outputBufferDacTime - stream_time) * output.current_sample_rate);
+	} else {
+		output.device_frames = 0;
+	}
 #else
 	output.device_frames = 0;
 #endif

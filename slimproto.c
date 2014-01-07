@@ -132,7 +132,12 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 	if (status.current_sample_rate && status.frames_played && status.frames_played > status.device_frames) {
 		ms_played = (u32_t)(((u64_t)(status.frames_played - status.device_frames) * (u64_t)1000) / (u64_t)status.current_sample_rate);
 		if (now > status.updated) ms_played += (now - status.updated);
+		LOG_SDEBUG("ms_played: %u (frames_played: %u device_frames: %u)", ms_played, status.frames_played, status.device_frames);
+	} else if (status.frames_played && now > status.stream_start) {
+		ms_played = now - status.stream_start;
+		LOG_SDEBUG("ms_played: %u using elapsed time (frames_played: %u device_frames: %u)", ms_played, status.frames_played, status.device_frames);
 	} else {
+		LOG_SDEBUG("ms_played: 0");
 		ms_played = 0;
 	}
 	
@@ -159,7 +164,7 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 	LOG_INFO("STAT: %s", event);
 
 	if (loglevel == lSDEBUG) {
-		LOG_SDEBUG("received bytesL: %u streambuf: %u outputbuf: %u calc elapsed: %u real elapsed: %u (diff: %u) device: %u delay: %d",
+		LOG_SDEBUG("received bytesL: %u streambuf: %u outputbuf: %u calc elapsed: %u real elapsed: %u (diff: %d) device: %u delay: %d",
 				   (u32_t)status.stream_bytes, status.stream_full, status.output_full, ms_played, now - status.stream_start,
 				   ms_played - now + status.stream_start, status.device_frames * 1000 / status.current_sample_rate, now - status.updated);
 	}
