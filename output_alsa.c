@@ -589,7 +589,13 @@ static void *output_thread(void *arg) {
 		}
 
 		// process frames
-		_output_frames(avail);
+		frames_t wrote = _output_frames(avail);
+
+		// some output devices such as alsa null refuse any data, avoid spinning
+		if (!wrote) {
+			LOG_SDEBUG("wrote 0 - sleeping");
+			usleep(10000);
+		}
 
 		UNLOCK;
 	}

@@ -241,9 +241,8 @@ frames_t _output_frames(frames_t avail) {
 
 		wrote = output.write_cb(out_frames, silence, gainL, gainR, cross_gain_in, cross_gain_out, &cross_ptr);
 
-		if (wrote < 0) {
-			LOG_WARN("error in write cb");
-			frames -= out_frames;
+		if (wrote <= 0) {
+			frames -= size;
 			break;
 		} else {
 			out_frames = (frames_t)wrote;
