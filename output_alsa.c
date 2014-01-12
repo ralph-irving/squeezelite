@@ -580,6 +580,12 @@ static void *output_thread(void *arg) {
 				// EPIPE indicates underrun - attempt to recover
 				UNLOCK;
 				continue;
+			} else if (err == -EIO) {
+				// EIO can occur with non existant pulse server
+				UNLOCK;
+				LOG_SDEBUG("snd_pcm_delay returns: EIO - sleeping");
+				usleep(100000);
+				continue;
 			} else {
 				LOG_DEBUG("snd_pcm_delay returns: %d", err);
 			}
