@@ -42,8 +42,8 @@ Version 1.3.1 - 25/11/13
 Minor changes
 - support of compile time linking for distro packaging, uses -DLINKALL option
 	
-Version 1.4 (beta)
-==================
+Version 1.4 28/12/13
+====================
 
 Features
 - native support of dsd playback to dop capable dac or via conversion to pcm and resampling
@@ -55,3 +55,12 @@ Minor changes
 - fix problem with libmpg123 playback not playing to end of track
 - add ablity for player name change to be stored locally in a file (to emulate hardware where name is stored on player)
  
+Version 1.5-dev
+===============
+
+Minor changes
+- add configurable delay for switch between pcm and dop
+- allow visexport to work with jivelite running as any user
+- bug fixes for dsf playback and for status progress on windows using wdm-ks output
+- change some logging levels for slimproto to aid readablity
+

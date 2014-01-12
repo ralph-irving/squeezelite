@@ -366,6 +366,12 @@ int main(int argc, char **argv) {
         }
     }
 
+	// warn if command line includes something which isn't parsed
+	if (optind < argc) {
+		usage(argv[0]);
+		exit(0);
+	}
+
 	signal(SIGINT, sighandler);
 	signal(SIGTERM, sighandler);
 #if defined(SIGQUIT)

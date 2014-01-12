@@ -24,6 +24,7 @@
 
 #if VISEXPORT
 
+#include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
 
@@ -113,6 +114,8 @@ void output_vis_init(log_level level, u8_t *mac) {
 
 	sprintf(vis_shm_path, "/squeezelite-%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
+	mode_t old_mask = umask(000); // allow any user to read our shm when created
+
 	vis_fd = shm_open(vis_shm_path, O_CREAT | O_RDWR, 0666);
 	if (vis_fd != -1) {
 		if (ftruncate(vis_fd, sizeof(struct vis_t)) == 0) {
@@ -134,6 +137,8 @@ void output_vis_init(log_level level, u8_t *mac) {
 		LOG_WARN("unable to open visualizer shared memory");
 		vis_mmap = NULL;
 	}
+
+	umask(old_mask);
 }
 
 #endif // VISEXPORT

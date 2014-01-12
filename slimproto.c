@@ -116,7 +116,7 @@ static void sendHELO(bool reconnect, const char *fixed_cap, const char *var_cap,
 
 	LOG_INFO("mac: %02x:%02x:%02x:%02x:%02x:%02x", pkt.mac[0], pkt.mac[1], pkt.mac[2], pkt.mac[3], pkt.mac[4], pkt.mac[5]);
 
-	LOG_DEBUG("cap: %s%s%s", base_cap, fixed_cap, var_cap);
+	LOG_INFO("cap: %s%s%s", base_cap, fixed_cap, var_cap);
 
 	send_packet((u8_t *)&pkt, sizeof(pkt));
 	send_packet((u8_t *)base_cap, strlen(base_cap));
@@ -161,7 +161,7 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 	pkt.server_timestamp = server_timestamp; // keep this is server format - don't unpack/pack
 	// error_code;
 
-	LOG_INFO("STAT: %s", event);
+	LOG_DEBUG("STAT: %s", event);
 
 	if (loglevel == lSDEBUG) {
 		LOG_SDEBUG("received bytesL: %u streambuf: %u outputbuf: %u calc elapsed: %u real elapsed: %u (diff: %d) device: %u delay: %d",
@@ -180,7 +180,7 @@ static void sendDSCO(disconnect_code disconnect) {
 	pkt.length = htonl(sizeof(pkt) - 8);
 	pkt.reason = disconnect & 0xFF;
 
-	LOG_INFO("DSCO: %d", disconnect);
+	LOG_DEBUG("DSCO: %d", disconnect);
 
 	send_packet((u8_t *)&pkt, sizeof(pkt));
 }
@@ -192,7 +192,7 @@ static void sendRESP(const char *header, size_t len) {
 	memcpy(&pkt_header.opcode, "RESP", 4);
 	pkt_header.length = htonl(sizeof(pkt_header) + len - 8);
 
-	LOG_INFO("RESP");
+	LOG_DEBUG("RESP");
 
 	send_packet((u8_t *)&pkt_header, sizeof(pkt_header));
 	send_packet((u8_t *)header, len);
@@ -205,7 +205,7 @@ static void sendMETA(const char *meta, size_t len) {
 	memcpy(&pkt_header.opcode, "META", 4);
 	pkt_header.length = htonl(sizeof(pkt_header) + len - 8);
 
-	LOG_INFO("META");
+	LOG_DEBUG("META");
 
 	send_packet((u8_t *)&pkt_header, sizeof(pkt_header));
 	send_packet((u8_t *)meta, len);
@@ -220,7 +220,7 @@ static void sendSETDName(const char *name) {
 	pkt_header.id = 0; // id 0 is playername S:P:Squeezebox2
 	pkt_header.length = htonl(sizeof(pkt_header) + strlen(name) + 1 - 8);
 
-	LOG_INFO("set playername: %s", name);
+	LOG_DEBUG("set playername: %s", name);
 
 	send_packet((u8_t *)&pkt_header, sizeof(pkt_header));
 	send_packet((u8_t *)name, strlen(name) + 1);
@@ -229,7 +229,7 @@ static void sendSETDName(const char *name) {
 static void process_strm(u8_t *pkt, int len) {
 	struct strm_packet *strm = (struct strm_packet *)pkt;
 
-	LOG_INFO("strm command %c", strm->command);
+	LOG_DEBUG("strm command %c", strm->command);
 
 	switch(strm->command) {
 	case 't':
@@ -260,7 +260,7 @@ static void process_strm(u8_t *pkt, int len) {
 			output.state = interval ? OUTPUT_PAUSE_FRAMES : OUTPUT_STOPPED;				
 			UNLOCK_O;
 			if (!interval) sendSTAT("STMp", 0);
-			LOG_INFO("pause interval: %u", interval);
+			LOG_DEBUG("pause interval: %u", interval);
 		}
 		break;
 	case 'a':
@@ -270,7 +270,7 @@ static void process_strm(u8_t *pkt, int len) {
 			output.skip_frames = interval * status.current_sample_rate / 1000;
 			output.state = OUTPUT_SKIP_FRAMES;				
 			UNLOCK_O;
-			LOG_INFO("skip ahead interval: %u", interval);
+			LOG_DEBUG("skip ahead interval: %u", interval);
 		}
 		break;
 	case 'u':
@@ -283,7 +283,7 @@ static void process_strm(u8_t *pkt, int len) {
 			LOCK_D;
 			decode.state = DECODE_RUNNING;
 			UNLOCK_D;
-			LOG_INFO("unpause at: %u now: %u", jiffies, gettime_ms());
+			LOG_DEBUG("unpause at: %u now: %u", jiffies, gettime_ms());
 			sendSTAT("STMr", 0);
 		}
 		break;
@@ -295,9 +295,9 @@ static void process_strm(u8_t *pkt, int len) {
 			u16_t port = strm->server_port; // keep in network byte order
 			if (ip == 0) ip = slimproto_ip; 
 
-			LOG_INFO("strm s autostart: %c transition period: %u transition type: %u codec: %c", 
-					 strm->autostart, strm->transition_period, strm->transition_type - '0', strm->format);
-
+			LOG_DEBUG("strm s autostart: %c transition period: %u transition type: %u codec: %c", 
+					  strm->autostart, strm->transition_period, strm->transition_type - '0', strm->format);
+			
 			autostart = strm->autostart - '0';
 			sendSTAT("STMf", 0);
 			if (header_len > MAX_HEADER -1) {
@@ -308,7 +308,7 @@ static void process_strm(u8_t *pkt, int len) {
 				codec_open(strm->format, strm->pcm_sample_size, strm->pcm_sample_rate, strm->pcm_channels, strm->pcm_endianness);
 			} else if (autostart >= 2) {
 				// extension to slimproto to allow server to detect codec from response header and send back in codc message
-				LOG_INFO("streaming unknown codec");
+				LOG_DEBUG("streaming unknown codec");
 			} else {
 				LOG_WARN("unknown codec requires autostart >= 2");
 				break;
@@ -327,12 +327,12 @@ static void process_strm(u8_t *pkt, int len) {
 			output.next_replay_gain = unpackN(&strm->replay_gain);
 			output.fade_mode = strm->transition_type - '0';
 			output.fade_secs = strm->transition_period;
-			LOG_INFO("set fade mode: %u", output.fade_mode);
+			LOG_DEBUG("set fade mode: %u", output.fade_mode);
 			UNLOCK_O;
 		}
 		break;
 	default:
-		LOG_INFO("unhandled strm %c", strm->command);
+		LOG_WARN("unhandled strm %c", strm->command);
 		break;
 	}
 }
@@ -341,7 +341,7 @@ static void process_cont(u8_t *pkt, int len) {
 	struct cont_packet *cont = (struct cont_packet *)pkt;
 	cont->metaint = unpackN(&cont->metaint);
 
-	LOG_INFO("cont metaint: %u loop: %u", cont->metaint, cont->loop);
+	LOG_DEBUG("cont metaint: %u loop: %u", cont->metaint, cont->loop);
 
 	if (autostart > 1) {
 		autostart -= 2;
@@ -358,14 +358,14 @@ static void process_cont(u8_t *pkt, int len) {
 static void process_codc(u8_t *pkt, int len) {
 	struct codc_packet *codc = (struct codc_packet *)pkt;
 
-	LOG_INFO("codc: %c", codc->format);
+	LOG_DEBUG("codc: %c", codc->format);
 	codec_open(codc->format, codc->pcm_sample_size, codc->pcm_sample_rate, codc->pcm_channels, codc->pcm_endianness);
 }
 
 static void process_aude(u8_t *pkt, int len) {
 	struct aude_packet *aude = (struct aude_packet *)pkt;
 
-	LOG_INFO("enable spdif: %d dac: %d", aude->enable_spdif, aude->enable_dac);
+	LOG_DEBUG("enable spdif: %d dac: %d", aude->enable_spdif, aude->enable_dac);
 
 	LOCK_O;
 	if (!aude->enable_spdif && output.state != OUTPUT_OFF) {
@@ -382,7 +382,7 @@ static void process_audg(u8_t *pkt, int len) {
 	audg->gainL = unpackN(&audg->gainL);
 	audg->gainR = unpackN(&audg->gainR);
 
-	LOG_INFO("audg gainL: %u gainR: %u adjust: %u", audg->gainL, audg->gainR, audg->adjust);
+	LOG_DEBUG("audg gainL: %u gainR: %u adjust: %u", audg->gainL, audg->gainR, audg->adjust);
 
 	LOCK_O;
 	output.gainL = audg->adjust ? audg->gainL : FIXED_ONE;
@@ -466,11 +466,11 @@ static void process(u8_t *pack, int len) {
 	while (h->handler && strncmp((char *)pack, h->opcode, 4)) { h++; }
 
 	if (h->handler) {
-		LOG_INFO("%s", h->opcode);
+		LOG_DEBUG("%s", h->opcode);
 		h->handler(pack, len);
 	} else {
 		pack[4] = '\0';
-		LOG_INFO("unhandled %s", (char *)pack);
+		LOG_WARN("unhandled %s", (char *)pack);
 	}
 }
 
@@ -755,7 +755,12 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 			if (!fgets(player_name, PLAYER_NAME_LEN, fp)) {
 				player_name[PLAYER_NAME_LEN] = '\0';
 			} else {
-				LOG_INFO("retrived name %s from %s", player_name, name_file);
+				// strip any \n from fgets response
+				int len = strlen(player_name);
+				if (len > 0 && player_name[len - 1] == '\n') {
+					player_name[len - 1] = '\0';
+				}
+				LOG_INFO("retrieved name %s from %s", player_name, name_file);
 			}
 			fclose(fp);
 		}
