@@ -55,12 +55,12 @@ Minor changes
 - fix problem with libmpg123 playback not playing to end of track
 - add ablity for player name change to be stored locally in a file (to emulate hardware where name is stored on player)
  
-Version 1.5-dev
-===============
+Version 1.5 12/1/14
+===================
 
 Minor changes
 - add configurable delay for switch between pcm and dop
 - allow visexport to work with jivelite running as any user
-- bug fixes for dsf playback and for status progress on windows using wdm-ks output
+- bug fixes for dsf playback, for status progress on windows using wdm-ks output, and to avoid 100% cpu
 - change some logging levels for slimproto to aid readablity
 
