@@ -110,7 +110,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				AdditionalIncludeDirectories="include"
-				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;RESAMPLE;FFMPEG"
+				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;RESAMPLE;FFMPEG;DSD"
 				RuntimeLibrary="2"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
@@ -187,6 +187,10 @@
 			</File>
 			<File
 				RelativePath=".\include\ogg\config_types.h"
+				>
+			</File>
+			<File
+				RelativePath=".\dsd2pcm\dsd2pcm.h"
 				>
 			</File>
 			<File
@@ -278,6 +282,18 @@
 				>
 			</File>
 			<File
+				RelativePath=".\dop.c"
+				>
+			</File>
+			<File
+				RelativePath=".\dsd.c"
+				>
+			</File>
+			<File
+				RelativePath=".\dsd2pcm\dsd2pcm.c"
+				>
+			</File>
+			<File
 				RelativePath=".\faad.c"
 				>
 			</File>
@@ -303,6 +319,26 @@
 			</File>
 			<File
 				RelativePath=".\output.c"
+				>
+			</File>
+			<File
+				RelativePath=".\output_alsa.c"
+				>
+			</File>
+			<File
+				RelativePath=".\output_pa.c"
+				>
+			</File>
+			<File
+				RelativePath=".\output_pack.c"
+				>
+			</File>
+			<File
+				RelativePath=".\output_stdout.c"
+				>
+			</File>
+			<File
+				RelativePath=".\output_vis.c"
 				>
 			</File>
 			<File
