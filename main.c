@@ -54,7 +54,7 @@ static void usage(const char *argv0) {
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"
 		   "  -n <name>\t\tSet the player name\n"
-		   "  -N <filename>\t\tStore player name in filename to allow server defined name changes to be shared between servers (not suppored with -n)\n"
+		   "  -N <filename>\t\tStore player name in filename to allow server defined name changes to be shared between servers (not supported with -n)\n"
 #if ALSA
 		   "  -p <priority>\t\tSet real time priority of output thread (1-99)\n"
 #endif

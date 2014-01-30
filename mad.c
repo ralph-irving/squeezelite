@@ -34,7 +34,8 @@ struct mad {
 	struct mad_synth synth;
 	enum mad_error last_error;
 	// for lame gapless processing
-	bool checkgapless;
+	int checktags;
+	u32_t consume;
 	u32_t skip;
 	u64_t samples;
 	u32_t padding;
@@ -97,6 +98,22 @@ static inline u32_t scale(mad_fixed_t sample) {
 	return (s32_t)(sample >> (MAD_F_FRACBITS + 1 - 24)) << 8;
 }
 
+// check for id3.2 tag at start of file - http://id3.org/id3v2.4.0-structure, return length
+static unsigned _check_id3_tag(size_t bytes) {
+	u8_t *ptr = streambuf->readp;
+	u32_t size = 0;
+
+	if (bytes > 10 && *ptr == 'I' && *(ptr+1) == 'D' && *(ptr+2) == '3') {
+		// size is encoded as syncsafe integer, add 10 if footer present
+		if (*(ptr+6) < 0x80 && *(ptr+7) < 0x80 && *(ptr+8) < 0x80 && *(ptr+9) < 0x80) {
+			size = 10 + (*(ptr+6) << 21) + (*(ptr+7) << 14) + (*(ptr+8) << 7) + *(ptr+9) + ((*(ptr+5) & 0x10) ? 10 : 0);
+			LOG_DEBUG("id3.2 tag len: %u", size);
+		}
+	}
+
+	return size;
+}
+
 // check for lame gapless params, don't advance streambuf
 static void _check_lame_header(size_t bytes) {
 	u8_t *ptr = streambuf->readp;
@@ -150,10 +167,24 @@ static decode_state mad_decode(void) {
 	LOCK_S;
 	bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
 
-	if (m->checkgapless) {
-		m->checkgapless = false;
-		if (!stream.meta_interval) {
-			_check_lame_header(bytes);
+	if (m->checktags) {
+		if (m->checktags == 1) {
+			m->consume = _check_id3_tag(bytes);
+			m->checktags = 2;
+		}
+		if (m->consume) {
+			u32_t consume = min(m->consume, bytes);
+			LOG_DEBUG("consume: %u of %u", consume, m->consume);
+			_buf_inc_readp(streambuf, consume);
+			m->consume -= consume;
+			UNLOCK_S;
+			return DECODE_RUNNING;
+		}
+		if (m->checktags == 2) {
+			if (!stream.meta_interval) {
+				_check_lame_header(bytes);
+			}
+			m->checktags = 0;
 		}
 	}
 
@@ -305,7 +336,8 @@ static void mad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	if (!m->readbuf) {
 		m->readbuf = malloc(READBUF_SIZE + MAD_BUFFER_GUARD);
 	}
-	m->checkgapless = true;
+	m->checktags = 1;
+	m->consume = 0;
 	m->skip = MAD_DELAY;
 	m->samples = 0;
 	m->readbuf_len = 0;
