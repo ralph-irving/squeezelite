@@ -28,7 +28,7 @@
 #if WIN
 #define snprintf _snprintf
 #endif
-#if OSX
+#if OSX && !defined(OSXPPC)
 #include <pa_mac_core.h>
 #endif
 
@@ -283,7 +283,7 @@ void _pa_open(void) {
 		outputParameters.hostApiSpecificStreamInfo = NULL;
 		
 #endif
-#if OSX
+#if OSX && !defined(OSXPPC)
 		// enable pro mode which aims to avoid resampling if possible
 		// see http://code.google.com/p/squeezelite/issues/detail?id=11 & http://code.google.com/p/squeezelite/issues/detail?id=37
 		// command line controls osx_playnice which is -1 if not specified, 0 or 1 - choose playnice if -1 or 1

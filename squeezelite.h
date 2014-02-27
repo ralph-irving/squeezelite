@@ -20,7 +20,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, VISEXPORT, DSD, LINKALL to influence build
 
-#define VERSION "v1.6dev-367"
+#define VERSION "v1.6dev-376"
 
 // build detection
 #if defined(linux)
@@ -173,8 +173,10 @@
 #define OUTPUT_RT_PRIORITY 45
 #endif
 
-#ifndef SUN
 #define SL_LITTLE_ENDIAN (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+
+#if SUN || OSXPPC
+#undef SL_LITTLE_ENDIAN
 #endif
 
 #include <stdio.h>

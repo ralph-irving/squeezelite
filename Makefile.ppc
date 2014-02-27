@@ -1,0 +1,25 @@
+# OSX 10.4 PPC 32-bit
+CC=powerpc-apple-darwin10-gcc
+CXX=powerpc-apple-darwin10-gcc
+CFLAGS  ?= -s -Wall -fPIC -DOSXPPC -DLINKALL -O2 -I./include -isysroot /Developer/SDKs/MacOSX10.4u.sdk -mcpu=G3 -arch ppc
+LDFLAGS ?= -Wl,-syslibroot,/Developer/SDKs/MacOSX10.4u.sdk -arch ppc -mmacosx-version-min=10.3 -L./lib -lFLAC -lvorbisfile -lvorbis -logg -lmad -lfaad -lmpg123 -lpthread -ldl -lm -lportaudio -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon
+EXECUTABLE ?= squeezelite-ppc
+
+SOURCES = main.c slimproto.c buffer.c stream.c utils.c output.c output_alsa.c output_pa.c output_stdout.c output_pack.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c
+
+DEPS    = squeezelite.h slimproto.h
+
+OBJECTS = $(SOURCES:.c=.o)
+
+all: $(EXECUTABLE)
+
+$(EXECUTABLE): $(OBJECTS)
+	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
+
+$(OBJECTS): $(DEPS)
+
+.c.o:
+	$(CC) $(CFLAGS) $< -c -o $@
+
+clean:
+	rm -f $(OBJECTS) $(EXECUTABLE)
