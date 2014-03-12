@@ -119,7 +119,7 @@ static void *output_thread() {
 
 static thread_type thread;
 
-void output_init_stdout(log_level level, unsigned output_buf_size, char *params, unsigned rates[]) {
+void output_init_stdout(log_level level, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay) {
 	loglevel = level;
 
 	LOG_INFO("init output stdout");
@@ -136,6 +136,7 @@ void output_init_stdout(log_level level, unsigned output_buf_size, char *params,
 	output.format = S32_LE;
 	output.start_frames = FRAME_BLOCK * 2;
 	output.write_cb = &_stdout_write_frames;
+	output.rate_delay = rate_delay;
 
 	if (params) {
 		if (!strcmp(params, "32"))	output.format = S32_LE;

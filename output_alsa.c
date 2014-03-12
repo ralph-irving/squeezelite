@@ -611,7 +611,8 @@ static void *output_thread(void *arg) {
 
 static pthread_t thread;
 
-void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rt_priority) {
+void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], 
+					  unsigned rate_delay, unsigned rt_priority) {
 
 	unsigned alsa_buffer = ALSA_BUFFER_TIME;
 	unsigned alsa_period = ALSA_PERIOD_COUNT;
@@ -646,6 +647,7 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	output.period = alsa_period;
 	output.start_frames = 0;
 	output.write_cb = &_write_frames;
+	output.rate_delay = rate_delay;
 
 	if (alsa_sample_fmt) {
 		if (!strcmp(alsa_sample_fmt, "32"))	alsa.format = SND_PCM_FORMAT_S32_LE;

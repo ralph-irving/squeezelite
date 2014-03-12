@@ -20,7 +20,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, VISEXPORT, DSD, LINKALL to influence build
 
-#define VERSION "v1.6dev-376"
+#define VERSION "v1.6dev-388"
 
 // build detection
 #if defined(linux)
@@ -553,12 +553,13 @@ struct outputstate {
 	fade_dir fade_dir;
 	fade_mode fade_mode;       // set by slimproto
 	unsigned fade_secs;        // set by slimproto
+	unsigned rate_delay;
+	bool delay_active;
 #if DSD
 	bool next_dop;             // set in decode thread
 	bool dop;
 	bool has_dop;              // set in dop_init - output device supports dop
 	unsigned dop_delay;        // set in dop_init - delay in ms switching to/from dop
-	bool dop_delay_active;
 #endif
 };
 
@@ -573,7 +574,8 @@ void _checkfade(bool);
 #if ALSA
 void list_devices(void);
 bool test_open(const char *device, unsigned rates[]);
-void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rt_priority);
+void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], 
+					  unsigned rate_delay, unsigned rt_priority);
 void output_close_alsa(void);
 #endif
 
@@ -581,13 +583,13 @@ void output_close_alsa(void);
 #if PORTAUDIO
 void list_devices(void);
 bool test_open(const char *device, unsigned rates[]);
-void output_init_pa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[]);
+void output_init_pa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay);
 void output_close_pa(void);
 void _pa_open(void);
 #endif
 
 // output_stdout.c
-void output_init_stdout(log_level level, unsigned output_buf_size, char *params, unsigned rates[]);
+void output_init_stdout(log_level level, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay);
 void output_close_stdout(void);
 
 // output_pack.c

@@ -447,7 +447,7 @@ static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_
 	return ret;
 }
 
-void output_init_pa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[]) {
+void output_init_pa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay) {
 	PaError err;
 #ifndef PA18API
 	unsigned latency = 0;
@@ -489,6 +489,7 @@ void output_init_pa(log_level level, const char *device, unsigned output_buf_siz
 	output.format = 0;
 	output.start_frames = 0;
 	output.write_cb = &_write_frames;
+	output.rate_delay = rate_delay;
 	pa.stream = NULL;
 
 #ifndef PA18API

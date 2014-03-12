@@ -58,7 +58,7 @@ static void usage(const char *argv0) {
 #if ALSA
 		   "  -p <priority>\t\tSet real time priority of output thread (1-99)\n"
 #endif
-		   "  -r <rates>\t\tSpecify sample rates supported by device, enables output device to be off when squeezelite is started; rates = <maxrate> | <minrate>-<maxrate> | <rate1>,<rate2>,<rate3>\n"
+		   "  -r <rates>[:<delay>]\tSample rates supported, allows output to be off when squeezelite is started; rates = <maxrate>|<minrate>-<maxrate>|<rate1>,<rate2>,<rate3>; delay = optional delay switching rates in ms\n"
 #if RESAMPLE
 		   "  -R -u [params]\tResample, params = <recipe>:<flags>:<attenuation>:<precision>:<passband_end>:<stopband_start>:<phase_response>,\n" 
 		   "  \t\t\t recipe = (v|h|m|l|q)(L|I|M)(s) [E|X], E = exception - resample only if native rate not supported, X = async - resample to max rate for device, otherwise to max sync rate\n"
@@ -170,6 +170,7 @@ int main(int argc, char **argv) {
 	unsigned stream_buf_size = STREAMBUF_SIZE;
 	unsigned output_buf_size = 0; // set later
 	unsigned rates[MAX_SUPPORTED_SAMPLERATES] = { 0 };
+	unsigned rate_delay = 0;
 	char *resample = NULL;
 	char *output_params = NULL;
 #if LINUX || SUN
@@ -271,40 +272,47 @@ int main(int argc, char **argv) {
 			}
 			break;
 		case 'r':
-			if (strstr(optarg,",")) {
-				// parse sample rates and sort them
-				char *r = next_param(optarg, ',');
-				unsigned tmp[MAX_SUPPORTED_SAMPLERATES] = { 0 };
-				int i, j;
-				int last = 999999;
-				for (i = 0; r && i < MAX_SUPPORTED_SAMPLERATES; ++i) { 
-					tmp[i] = atoi(r);
-					r = next_param(NULL, ',');
-				}
-				for (i = 0; i < MAX_SUPPORTED_SAMPLERATES; ++i) {
-					int largest = 0;
-					for (j = 0; j < MAX_SUPPORTED_SAMPLERATES; ++j) {
-						if (tmp[j] > largest && tmp[j] < last) {
-							largest = tmp[j];
+			{ 
+				char *rstr = next_param(optarg, ':');
+				char *dstr = next_param(NULL, ':');
+				if (rstr && strstr(rstr, ",")) {
+					// parse sample rates and sort them
+					char *r = next_param(rstr, ',');
+					unsigned tmp[MAX_SUPPORTED_SAMPLERATES] = { 0 };
+					int i, j;
+					int last = 999999;
+					for (i = 0; r && i < MAX_SUPPORTED_SAMPLERATES; ++i) { 
+						tmp[i] = atoi(r);
+						r = next_param(NULL, ',');
+					}
+					for (i = 0; i < MAX_SUPPORTED_SAMPLERATES; ++i) {
+						int largest = 0;
+						for (j = 0; j < MAX_SUPPORTED_SAMPLERATES; ++j) {
+							if (tmp[j] > largest && tmp[j] < last) {
+								largest = tmp[j];
+							}
+						}
+						rates[i] = last = largest;
+					}
+				} else if (rstr) {
+					// optstr is <min>-<max> or <max>, extract rates from test rates within this range
+					unsigned ref[] TEST_RATES;
+					char *str1 = next_param(rstr, '-');
+					char *str2 = next_param(NULL, '-');
+					unsigned max = str2 ? atoi(str2) : (str1 ? atoi(str1) : ref[0]);
+					unsigned min = str1 && str2 ? atoi(str1) : 0;
+					unsigned tmp;
+					int i, j;
+					if (max < min) { tmp = max; max = min; min = tmp; }
+					rates[0] = max;
+					for (i = 0, j = 1; i < MAX_SUPPORTED_SAMPLERATES; ++i) {
+						if (ref[i] < rates[j-1] && ref[i] >= min) {
+							rates[j++] = ref[i];
 						}
 					}
-					rates[i] = last = largest;
 				}
-			} else {
-				// optstr is <min>-<max> or <max>, extract rates from test rates within this range
-				unsigned ref[] TEST_RATES;
-				char *str1 = next_param(optarg, '-');
-				char *str2 = next_param(NULL, '-');
-				unsigned max = str2 ? atoi(str2) : (str1 ? atoi(str1) : ref[0]);
-				unsigned min = str1 && str2 ? atoi(str1) : 0;
-				unsigned tmp;
-				int i, j;
-				if (max < min) { tmp = max; max = min; min = tmp; }
-				rates[0] = max;
-				for (i = 0, j = 1; i < MAX_SUPPORTED_SAMPLERATES; ++i) {
-					if (ref[i] < rates[j-1] && ref[i] >= min) {
-						rates[j++] = ref[i];
-					}
+				if (dstr) {
+					rate_delay = atoi(dstr);
 				}
 			}
 			break;
@@ -419,13 +427,13 @@ int main(int argc, char **argv) {
 	stream_init(log_stream, stream_buf_size);
 
 	if (!strcmp(output_device, "-")) {
-		output_init_stdout(log_output, output_buf_size, output_params, rates);
+		output_init_stdout(log_output, output_buf_size, output_params, rates, rate_delay);
 	} else {
 #if ALSA
-		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rt_priority);
+		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, rt_priority);
 #endif
 #if PORTAUDIO
-		output_init_pa(log_output, output_device, output_buf_size, output_params, rates);
+		output_init_pa(log_output, output_device, output_buf_size, output_params, rates, rate_delay);
 #endif
 	}
 
