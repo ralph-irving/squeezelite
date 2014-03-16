@@ -129,7 +129,7 @@ frames_t _output_frames(frames_t avail) {
 				   }
 				)
 				frames -= size;
-				// add silence delay in two halves, before and after track start and rate or pcm-dop change
+				// add silence delay in two halves, before and after track start on rate or pcm-dop change
 				if (delay) {
 					output.state = OUTPUT_PAUSE_FRAMES;
 					if (!output.delay_active) {
@@ -420,7 +420,7 @@ void output_flush(void) {
 		if (output.error_opening) {
 			output.current_sample_rate = output.default_sample_rate;
 		}
-		IF_DSD( output.delay_active = false; )
+		output.delay_active = false;
 	}
 	output.frames_played = 0;
 	UNLOCK;
