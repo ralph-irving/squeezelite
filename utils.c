@@ -20,10 +20,15 @@
 
 #include "squeezelite.h"
 
-#if LINUX || OSX
+#if LINUX || OSX || FREEBSD
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <netdb.h>
+#if FREEBSD
+#include <ifaddrs.h>
+#include <net/if_dl.h>
+#include <net/if_types.h>
+#endif
 #endif
 #if SUN
 #include <sys/socket.h>
@@ -92,7 +97,7 @@ u32_t gettime_ms(void) {
 #if WIN
 	return GetTickCount();
 #else
-#if LINUX
+#if LINUX || FREEBSD
 	struct timespec ts;
 #ifdef CLOCK_MONOTONIC
 	if (!clock_gettime(CLOCK_MONOTONIC, &ts)) {
@@ -226,7 +231,7 @@ void get_mac(u8_t mac[]) {
 }
 #endif
 
-#if OSX
+#if OSX || FREEBSD
 void get_mac(u8_t mac[]) {
 	struct ifaddrs *addrs, *ptr;
 	const struct sockaddr_dl *dlAddr;
@@ -468,7 +473,7 @@ int poll(struct pollfd *fds, unsigned long numfds, int timeout) {
 
 #endif
 
-#if LINUX
+#if LINUX || FREEBSD
 void touch_memory(u8_t *buf, size_t size) {
 	u8_t *ptr;
 	for (ptr = buf; ptr < buf + size; ptr += sysconf(_SC_PAGESIZE)) {

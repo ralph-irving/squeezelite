@@ -20,21 +20,29 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, VISEXPORT, DSD, LINKALL to influence build
 
-#define VERSION "v1.6dev-388"
+#define VERSION "v1.6dev-389"
 
 // build detection
 #if defined(linux)
 #define LINUX     1
 #define OSX       0
 #define WIN       0
+#define FREEBSD   0
 #elif defined (__APPLE__)
 #define LINUX     0
 #define OSX       1
 #define WIN       0
+#define FREEBSD   0
 #elif defined (_MSC_VER)
 #define LINUX     0
 #define OSX       0
 #define WIN       1
+#define FREEBSD   0
+#elif defined(__FreeBSD__)
+#define LINUX     0
+#define OSX       0
+#define WIN       0
+#define FREEBSD   1
 #elif defined (__sun)
 #define SUN       1
 #define LINUX     1
@@ -63,7 +71,7 @@
 #define SELFPIPE  0
 #define WINEVENT  0
 #endif
-#if (LINUX && !EVENTFD) || OSX
+#if (LINUX && !EVENTFD) || OSX || FREEBSD
 #define EVENTFD   0
 #define SELFPIPE  1
 #define WINEVENT  0
@@ -158,6 +166,18 @@
 #define LIBSOXR "libsoxr.dll"
 #endif
 
+#if FREEBSD
+#define LIBFLAC "libFLAC.so.11"
+#define LIBMAD  "libmad.so.2"
+#define LIBMPG "libmpg123.so.0"
+#define LIBVORBIS "libvorbisfile.so.6"
+#define LIBTREMOR "libvorbisidec.so.1"
+#define LIBFAAD "libfaad.so.2"
+#define LIBAVUTIL   "libavutil.so.%d"
+#define LIBAVCODEC  "libavcodec.so.%d"
+#define LIBAVFORMAT "libavformat.so.%d"
+#endif
+
 #endif // !LINKALL
 
 // config options
@@ -187,7 +207,7 @@
 #include <limits.h>
 #include <sys/types.h>
 
-#if LINUX || OSX
+#if LINUX || OSX || FREEBSD
 #include <unistd.h>
 #include <stdbool.h>
 #include <netinet/in.h>
@@ -321,7 +341,7 @@ struct wake {
 #endif
 
 // printf/scanf formats for u64_t
-#if LINUX && __WORDSIZE == 64
+#if (LINUX && __WORDSIZE == 64) || (FREEBSD && __LP64__)
 #define FMT_u64 "%lu"
 #define FMT_x64 "%lx"
 #elif __GLIBC_HAVE_LONG_LONG || defined __GNUC__ || WIN || SUN
@@ -383,7 +403,7 @@ void *dlsym(void *handle, const char *symbol);
 char *dlerror(void);
 int poll(struct pollfd *fds, unsigned long numfds, int timeout);
 #endif
-#if LINUX
+#if LINUX || FREEBSD
 void touch_memory(u8_t *buf, size_t size);
 #endif
 

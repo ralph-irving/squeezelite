@@ -331,17 +331,22 @@ void _pa_open(void) {
 			LOG_WARN("error setting finish callback: %s", Pa_GetErrorText(err));
 		}
 	
+		// StartStream can call pa_callback in a sychronised thread on freebsd, remove lock while it is called
+		UNLOCK;
 #endif
 		if ((err = Pa_StartStream(pa.stream)) != paNoError) {
 			LOG_WARN("error starting stream: %s", Pa_GetErrorText(err));
 		}
+#ifndef PA18API
+		LOCK;
+#endif
 	}
 
 	if (err && !monitor_thread_running) {
 		vis_stop();
 
 		// create a thread to check for output state change or device return
-#if LINUX || OSX
+#if LINUX || OSX || FREEBSD
 		pthread_create(&monitor_thread, NULL, pa_monitor, NULL);
 #endif
 #if WIN

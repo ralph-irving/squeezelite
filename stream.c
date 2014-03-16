@@ -308,11 +308,11 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 
 	fd = -1;
 
-#if LINUX
+#if LINUX || FREEBSD
 	touch_memory(streambuf->buf, streambuf->size);
 #endif
 
-#if LINUX || OSX
+#if LINUX || OSX || FREEBSD
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 #ifdef PTHREAD_STACK_MIN	
@@ -331,7 +331,7 @@ void stream_close(void) {
 	LOCK;
 	running = false;
 	UNLOCK;
-#if LINUX || OSX
+#if LINUX || OSX || FREEBSD
 	pthread_join(thread, NULL);
 #endif
 	free(stream.header);

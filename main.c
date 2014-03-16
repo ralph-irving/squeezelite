@@ -75,7 +75,7 @@ static void usage(const char *argv0) {
 #if VISEXPORT
 		   "  -v \t\t\tVisulizer support\n"
 #endif
-#if LINUX || SUN
+#if LINUX || FREEBSD || SUN
 		   "  -z \t\t\tDaemonize\n"
 #endif
 		   "  -t \t\t\tLicense terms\n"
@@ -94,6 +94,9 @@ static void usage(const char *argv0) {
 #endif
 #if OSXPPC
 		   "PPC"
+#endif
+#if FREEBSD
+		   " FREEBSD"
 #endif
 #if ALSA
 		   " ALSA"
@@ -173,7 +176,7 @@ int main(int argc, char **argv) {
 	unsigned rate_delay = 0;
 	char *resample = NULL;
 	char *output_params = NULL;
-#if LINUX || SUN
+#if LINUX || FREEBSD || SUN
 	bool daemonize = false;
 #endif
 #if ALSA
@@ -361,7 +364,7 @@ int main(int argc, char **argv) {
 			visexport = true;
 			break;
 #endif
-#if LINUX || SUN
+#if LINUX || FREEBSD || SUN
 		case 'z':
 			daemonize = true;
 #if SUN
@@ -412,7 +415,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-#if LINUX || SUN
+#if LINUX || FREEBSD || SUN
 	if (daemonize) {
 		if (daemon(0, logfile ? 1 : 0)) {
 			fprintf(stderr, "error daemonizing: %s\n", strerror(errno));

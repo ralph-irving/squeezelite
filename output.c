@@ -325,7 +325,7 @@ void _checkfade(bool start) {
 			// if default setting used and nothing in buffer attempt to resize to provide full crossfade support
 			LOG_INFO("resize outputbuf for crossfade");
 			_buf_resize(outputbuf, OUTPUTBUF_SIZE_CROSSFADE);
-#if LINUX
+#if LINUX || FREEBSD
 			touch_memory(outputbuf->buf, outputbuf->size);
 #endif			
 		}
