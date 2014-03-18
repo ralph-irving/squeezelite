@@ -1,9 +1,9 @@
 # OSX 10.6 64-bit only
-CFLAGS  ?= -s -Wall -fPIC -O2 $(OPTS) -I./include -DRESAMPLE -DFFMPEG -DDSD
+CFLAGS  ?= -Wall -fPIC -O2 $(OPTS) -I./include -DRESAMPLE -DFFMPEG -DDSD
 LDFLAGS ?= -lpthread -ldl -L./lib -lportaudio
 EXECUTABLE ?= squeezelite-mac
 
-SOURCES = main.c slimproto.c buffer.c stream.c utils.c output.c output_alsa.c output_pa.c output_stdout.c output_pack.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c dsd.c dop.c dsd2pcm/dsd2pcm.c ffmpeg.c process.c resample.c output_vis.c
+SOURCES = main.c slimproto.c buffer.c stream.c utils.c output.c output_alsa.c output_pa.c output_stdout.c output_pack.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c dsd.c dop.c dsd2pcm/dsd2pcm.c ffmpeg.c process.c resample.c
 
 DEPS    = squeezelite.h slimproto.h dsd2pcm/dsd2pcm.h
 
