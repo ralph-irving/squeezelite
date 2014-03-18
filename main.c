@@ -45,11 +45,14 @@ static void usage(const char *argv0) {
 		   "  -a <f>\t\tSpecify sample format (16|24|32) of output file when using -o - to output samples to stdout (interleaved little endian only)\n"
 		   "  -b <stream>:<output>\tSpecify internal Stream and Output buffer sizes in Kbytes\n"
 		   "  -c <codec1>,<codec2>\tRestrict codecs to those specified, otherwise load all available codecs; known codecs: "
+		   "flac,pcm,mp3,ogg,aac"
 #if FFMPEG
-		   "flac,pcm,mp3,ogg,aac,wma,alac (mad,mpg for specific mp3 codec)\n"
-#else
-		   "flac,pcm,mp3,ogg,aac (mad,mpg for specific mp3 codec)\n"
+		   ",wma,alac"
 #endif
+#if DSD
+		   ",dsd"
+#endif
+		   " (mad,mpg for specific mp3 codec)\n"
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output, level: info|debug|sdebug\n"
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"

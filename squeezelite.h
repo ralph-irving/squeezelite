@@ -20,7 +20,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, VISEXPORT, DSD, LINKALL to influence build
 
-#define VERSION "v1.6dev-389"
+#define VERSION "v1.6dev-392"
 
 // build detection
 #if defined(linux)

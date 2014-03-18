@@ -85,7 +85,7 @@ void resample_samples(struct processstate *process) {
 	
 	clip_cnt = *(SOXR(r, num_clips, r->resampler));
 	if (clip_cnt - r->old_clips) {
-		LOG_DEBUG("resampling clips: %u", (unsigned)(clip_cnt - r->old_clips));
+		LOG_SDEBUG("resampling clips: %u", (unsigned)(clip_cnt - r->old_clips));
 		r->old_clips = clip_cnt;
 	}
 }
