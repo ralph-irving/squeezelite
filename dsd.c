@@ -621,7 +621,7 @@ struct codec *register_dsd(void) {
 
 	dsd2pcm_precalc();
 
-	LOG_INFO("using dsd");
+	LOG_INFO("using dsd to decode dsf,dff");
 	return &ret;
 }
 

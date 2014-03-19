@@ -283,5 +283,6 @@ struct codec *register_flac(void) {
 		return NULL;
 	}
 
+	LOG_INFO("using flac to decode flc");
 	return &ret;
 }

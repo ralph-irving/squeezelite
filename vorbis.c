@@ -321,5 +321,6 @@ struct codec *register_vorbis(void) {
 		return NULL;
 	}
 
+	LOG_INFO("using vorbis to decode ogg");
 	return &ret;
 }

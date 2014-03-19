@@ -637,5 +637,6 @@ struct codec *register_faad(void) {
 		return NULL;
 	}
 
+	LOG_INFO("using faad to decode aac");
 	return &ret;
 }

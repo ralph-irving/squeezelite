@@ -379,6 +379,6 @@ struct codec *register_pcm(void) {
 		pcm_decode,  // decode
 	};
 
-	LOG_INFO("using pcm");
+	LOG_INFO("using pcm to decode aif,pcm");
 	return &ret;
 }

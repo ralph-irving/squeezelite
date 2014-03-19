@@ -271,5 +271,6 @@ struct codec *register_mpg(void) {
 
 	m->use16bit = MPG123(m, feature, MPG123_FEATURE_OUTPUT_32BIT);
 
+	LOG_INFO("using mpg to decode mp3");
 	return &ret;
 }

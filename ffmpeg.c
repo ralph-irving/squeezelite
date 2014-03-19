@@ -712,6 +712,7 @@ struct codec *register_ff(const char *codec) {
 			ff_decode,   // decode
 		};
 		
+		LOG_INFO("using ffmpeg to decode wma,wmap,wmal");
 		return &ret;
 	}
 
@@ -727,6 +728,7 @@ struct codec *register_ff(const char *codec) {
 			ff_decode,   // decode
 		};
 		
+		LOG_INFO("using ffmpeg to decode alc");		
 		return &ret;
 	}
 
