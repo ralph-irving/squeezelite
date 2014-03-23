@@ -427,11 +427,14 @@ static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_
 #endif
 	output.updated = gettime_ms();
 
-	frames = _output_frames(pa_frames_wanted);
+	do {
+		frames = _output_frames(pa_frames_wanted);
+		pa_frames_wanted -= frames;
+	} while (pa_frames_wanted > 0 && frames != 0);
 
-	if (frames < pa_frames_wanted) {
-		LOG_SDEBUG("pad with silence");
-		memset(optr, 0, (pa_frames_wanted - frames) * BYTES_PER_FRAME);
+	if (pa_frames_wanted > 0) {
+		LOG_DEBUG("pad with silence");
+		memset(optr, 0, pa_frames_wanted * BYTES_PER_FRAME);
 	}
 
 	if (output.state == OUTPUT_OFF) {
