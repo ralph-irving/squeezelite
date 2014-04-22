@@ -76,7 +76,7 @@ static void usage(const char *argv0) {
 		   "  -D [delay]\t\tOutput device supports DSD over PCM (DoP), delay = optional delay switching between PCM and DoP in ms\n" 
 #endif
 #if VISEXPORT
-		   "  -v \t\t\tVisulizer support\n"
+		   "  -v \t\t\tVisualiser support\n"
 #endif
 #if LINUX || FREEBSD || SUN
 		   "  -z \t\t\tDaemonize\n"
