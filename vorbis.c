@@ -229,6 +229,11 @@ static decode_state vorbis_decode(void) {
 		UNLOCK_O_direct;
 		UNLOCK_S;
 		return DECODE_COMPLETE;
+
+	} else if (n == OV_HOLE) {
+
+		// recoverable hole in stream, seen when skipping
+		LOG_DEBUG("hole in stream");
 	
 	} else {
 

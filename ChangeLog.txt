@@ -64,8 +64,8 @@ Minor changes
 - bug fixes for dsf playback, for status progress on windows using wdm-ks output, and to avoid 100% cpu
 - change some logging levels for slimproto to aid readability
 
-Version 1.6
-===========
+Version 1.6 23/3/14
+===================
 
 Minor changes
 - add support for direct file playback on windows
@@ -73,3 +73,11 @@ Minor changes
 - support build on freebsd
 - fix gapless playback on portaudio builds
 - fix gapless playback for mp3 localfile case with tags at start of file
+
+Version 1.6.1
+=============
+
+Minor changes
+- fix bug with PA version changing sample rate between tracks
+- fix crash when skipping in ogg while resampling
+- fix typo

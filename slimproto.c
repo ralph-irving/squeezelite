@@ -563,7 +563,8 @@ static void slimproto_run() {
 			bool _sendSTMu = false;
 			bool _sendSTMo = false;
 			bool _sendSTMn = false;
-			disconnect_code disconnect;
+			bool _stream_disconnect = false;
+			disconnect_code disconnect_code;
 			static char header[MAX_HEADER];
 			size_t header_len = 0;
 			last = now;
@@ -575,7 +576,7 @@ static void slimproto_run() {
 			status.stream_state = stream.state;
 						
 			if (stream.state == DISCONNECT) {
-				disconnect = stream.disconnect;
+				disconnect_code = stream.disconnect;
 				stream.state = STOPPED;
 				_sendDSCO = true;
 			}
@@ -628,14 +629,6 @@ static void slimproto_run() {
 				_sendSTMt = true;
 				status.last = now;
 			}
-			if (decode.state == DECODE_COMPLETE) {
-				_sendSTMd = true;
-				decode.state = DECODE_STOPPED;
-			}
-			if (decode.state == DECODE_ERROR) {
-				_sendSTMn = true;
-				decode.state = DECODE_STOPPED;
-			}
 			if ((status.stream_state == STREAMING_HTTP || status.stream_state == STREAMING_FILE) && !sentSTMl 
 				&& decode.state == DECODE_STOPPED) {
 				if (autostart == 0) {
@@ -651,10 +644,20 @@ static void slimproto_run() {
 				}
 				// autostart 2 and 3 require cont to be received first
 			}
+			if (decode.state == DECODE_COMPLETE || decode.state == DECODE_ERROR) {
+				if (decode.state == DECODE_COMPLETE) _sendSTMd = true;
+				if (decode.state == DECODE_ERROR)    _sendSTMn = true;
+				decode.state = DECODE_STOPPED;
+				if (status.stream_state == STREAMING_HTTP || status.stream_state == STREAMING_FILE) { 
+					_stream_disconnect = true;
+				}
+			}
 			UNLOCK_D;
 		
+			if (_stream_disconnect) stream_disconnect();
+
 			// send packets once locks released as packet sending can block
-			if (_sendDSCO) sendDSCO(disconnect);
+			if (_sendDSCO) sendDSCO(disconnect_code);
 			if (_sendSTMs) sendSTAT("STMs", 0);
 			if (_sendSTMd) sendSTAT("STMd", 0);
 			if (_sendSTMt) sendSTAT("STMt", 0);
