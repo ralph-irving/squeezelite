@@ -200,8 +200,17 @@ int main(int argc, char **argv) {
 
 	char *optarg = NULL;
 	int optind = 1;
+	int i;
+
+#define MAXCMDLINE 256
+	char cmdline[MAXCMDLINE] = "";
 
 	get_mac(mac);
+
+	for (i = 0; i < argc && (strlen(argv[i]) + strlen(cmdline) + 2 < MAXCMDLINE); i++) {
+		strcat(cmdline, argv[i]);
+		strcat(cmdline, " ");
+	}
 
 	while (optind < argc && strlen(argv[optind]) >= 2 && argv[optind][0] == '-') {
 		char *opt = argv[optind] + 1;
@@ -417,11 +426,7 @@ int main(int argc, char **argv) {
 			fprintf(stderr, "error opening logfile %s: %s\n", logfile, strerror(errno));
 		} else {
 			if (log_output >= lDEBUG || log_stream >= lDEBUG || log_decode >= lDEBUG || log_slimproto >= lDEBUG) {
-				int i;
-				for (i = 0; i < argc; i++) {
-					fprintf(stderr, "%s ", argv[i]);
-				}
-				fprintf(stderr, "\n");
+				fprintf(stderr, "\n%s\n", cmdline);
 			}
 		}
 	}
