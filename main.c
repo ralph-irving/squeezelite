@@ -413,8 +413,16 @@ int main(int argc, char **argv) {
 	}
 
 	if (logfile) {
-		if (!freopen(logfile, "a", stdout) || !freopen(logfile, "a", stderr)) {
+		if (!freopen(logfile, "a", stderr)) {
 			fprintf(stderr, "error opening logfile %s: %s\n", logfile, strerror(errno));
+		} else {
+			if (log_output >= lDEBUG || log_stream >= lDEBUG || log_decode >= lDEBUG || log_slimproto >= lDEBUG) {
+				int i;
+				for (i = 0; i < argc; i++) {
+					fprintf(stderr, "%s ", argv[i]);
+				}
+				fprintf(stderr, "\n");
+			}
 		}
 	}
 

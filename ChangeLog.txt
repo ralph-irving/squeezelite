@@ -74,10 +74,17 @@ Minor changes
 - fix gapless playback on portaudio builds
 - fix gapless playback for mp3 localfile case with tags at start of file
 
-Version 1.6.1
-=============
+Version 1.6.1 22/4/14
+=====================
 
 Minor changes
 - fix bug with PA version changing sample rate between tracks
 - fix crash when skipping in ogg while resampling
 - fix typo
+
+Version 1.6.2
+=============
+
+Minor changes
+- fix XRUN on track change when resampling on low power cpus
+- log command line to logfile when debugging enabled
