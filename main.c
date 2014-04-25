@@ -425,7 +425,7 @@ int main(int argc, char **argv) {
 		if (!freopen(logfile, "a", stderr)) {
 			fprintf(stderr, "error opening logfile %s: %s\n", logfile, strerror(errno));
 		} else {
-			if (log_output >= lDEBUG || log_stream >= lDEBUG || log_decode >= lDEBUG || log_slimproto >= lDEBUG) {
+			if (log_output >= lINFO || log_stream >= lINFO || log_decode >= lINFO || log_slimproto >= lINFO) {
 				fprintf(stderr, "\n%s\n", cmdline);
 			}
 		}
