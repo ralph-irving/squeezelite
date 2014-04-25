@@ -20,7 +20,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, VISEXPORT, DSD, LINKALL to influence build
 
-#define VERSION "v1.6.2-411"
+#define VERSION "v1.6.2-412"
 
 // build detection
 #if defined(linux)
@@ -495,7 +495,7 @@ struct codec {
 	decode_state (*decode)(void);
 };
 
-void decode_init(log_level level, const char *opt);
+void decode_init(log_level level, const char *include_codecs, const char *exclude_codecs);
 void decode_close(void);
 void decode_flush(void);
 unsigned decode_newstream(unsigned sample_rate, unsigned supported_rates[]);

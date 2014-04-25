@@ -121,31 +121,33 @@ static void *decode_thread() {
 
 static thread_type thread;
 
-void decode_init(log_level level, const char *opt) {
+void decode_init(log_level level, const char *include_codecs, const char *exclude_codecs) {
 	int i;
 
 	loglevel = level;
 
-	LOG_INFO("init decode");
+	LOG_INFO("init decode, include codecs: %s exclude codecs: %s", include_codecs ? include_codecs : "", exclude_codecs);
 
 	// register codecs
 	// dsf,dff,alc,wma,wmap,wmal,aac,spt,ogg,ogf,flc,aif,pcm,mp3
 	i = 0;
 #if DSD
-	if (!opt || strstr(opt, "dsd"))  codecs[i++] = register_dsd();
+	if (!strstr(exclude_codecs, "dsd")  && (!include_codecs || strstr(include_codecs, "dsd")))  codecs[i++] = register_dsd();
 #endif
 #if FFMPEG
-	if (!opt || strstr(opt, "alac"))  codecs[i++] = register_ff("alc");
-	if (!opt || strstr(opt, "wma"))  codecs[i++] = register_ff("wma");
+	if (!strstr(exclude_codecs, "alac") && (!include_codecs || strstr(include_codecs, "alac")))  codecs[i++] = register_ff("alc");
+	if (!strstr(exclude_codecs, "wma")  && (!include_codecs || strstr(include_codecs, "wma")))   codecs[i++] = register_ff("wma");
 #endif
-	if (!opt || strstr(opt, "aac"))  codecs[i++] = register_faad();
-	if (!opt || strstr(opt, "ogg"))  codecs[i++] = register_vorbis();
-	if (!opt || strstr(opt, "flac")) codecs[i++] = register_flac();
-	if (!opt || strstr(opt, "pcm"))  codecs[i++] = register_pcm();
+	if (!strstr(exclude_codecs, "aac")  && (!include_codecs || strstr(include_codecs, "aac")))  codecs[i++] = register_faad();
+	if (!strstr(exclude_codecs, "ogg")  && (!include_codecs || strstr(include_codecs, "ogg")))  codecs[i++] = register_vorbis();
+	if (!strstr(exclude_codecs, "flac") && (!include_codecs || strstr(include_codecs, "flac"))) codecs[i++] = register_flac();
+	if (!strstr(exclude_codecs, "pcm")  && (!include_codecs || strstr(include_codecs, "pcm")))  codecs[i++] = register_pcm();
 
 	// try mad then mpg for mp3 unless command line option passed
-	if ( !opt || strstr(opt, "mp3") || strstr(opt, "mad"))                codecs[i] = register_mad();
-	if ((!opt || strstr(opt, "mp3") || strstr(opt, "mpg")) && !codecs[i]) codecs[i] = register_mpg();
+	if (!(strstr(exclude_codecs, "mp3") || strstr(exclude_codecs, "mad")) &&
+		(!include_codecs || strstr(include_codecs, "mp3") || strstr(include_codecs, "mad")))	codecs[i] = register_mad();
+	if (!(strstr(exclude_codecs, "mp3") || strstr(exclude_codecs, "mpg")) && !codecs[i] &&
+		(!include_codecs || strstr(include_codecs, "mp3") || strstr(include_codecs, "mpg")))    codecs[i] = register_mpg();
 
 	mutex_create(decode.mutex);
 

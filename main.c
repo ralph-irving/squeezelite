@@ -24,6 +24,21 @@
 
 #define TITLE "Squeezelite " VERSION ", Copyright 2012-2014 Adrian Smith."
 
+#define CODECS_BASE "flac,pcm,mp3,ogg,aac"
+#if FFMPEG
+#define CODECS_FF   ",wma,alac"
+#else
+#define CODECS_FF   ""
+#endif
+#if DSD
+#define CODECS_DSD  ",dsd"
+#else
+#define CODECS_DSD  ""
+#endif
+#define CODECS_MP3  " (mad,mpg for specific mp3 codec)"
+
+#define CODECS CODECS_BASE CODECS_FF CODECS_DSD CODECS_MP3
+
 static void usage(const char *argv0) {
 	printf(TITLE " See -t for license terms\n"
 		   "Usage: %s [options]\n"
@@ -44,16 +59,9 @@ static void usage(const char *argv0) {
 #endif
 		   "  -a <f>\t\tSpecify sample format (16|24|32) of output file when using -o - to output samples to stdout (interleaved little endian only)\n"
 		   "  -b <stream>:<output>\tSpecify internal Stream and Output buffer sizes in Kbytes\n"
-		   "  -c <codec1>,<codec2>\tRestrict codecs to those specified, otherwise load all available codecs; known codecs: "
-		   "flac,pcm,mp3,ogg,aac"
-#if FFMPEG
-		   ",wma,alac"
-#endif
-#if DSD
-		   ",dsd"
-#endif
-		   " (mad,mpg for specific mp3 codec)\n"
+		   "  -c <codec1>,<codec2>\tRestrict codecs to those specified, otherwise load all available codecs; known codecs: " CODECS "\n"
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output, level: info|debug|sdebug\n"
+		   "  -e <codec1>,<codec2>\tExplicitly exclude native support of one or more codecs; known codecs: " CODECS "\n"
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"
 		   "  -n <name>\t\tSet the player name\n"
@@ -168,7 +176,8 @@ static void sighandler(int signum) {
 int main(int argc, char **argv) {
 	char *server = NULL;
 	char *output_device = "default";
-	char *codecs = NULL;
+	char *include_codecs = NULL;
+	char *exclude_codecs = "";
 	char *name = NULL;
 	char *namefile = NULL;
 	char *logfile = NULL;
@@ -214,7 +223,7 @@ int main(int argc, char **argv) {
 
 	while (optind < argc && strlen(argv[optind]) >= 2 && argv[optind][0] == '-') {
 		char *opt = argv[optind] + 1;
-		if (strstr("oabcdfmnNprs", opt) && optind < argc - 1) {
+		if (strstr("oabcdefmnNprs", opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
 			optind += 2;
 		} else if (strstr("ltz"
@@ -251,7 +260,10 @@ int main(int argc, char **argv) {
 			}
 			break;
 		case 'c':
-			codecs = optarg;
+			include_codecs = optarg;
+			break;
+		case 'e':
+			exclude_codecs = optarg;
 			break;
         case 'd':
 			{
@@ -466,7 +478,7 @@ int main(int argc, char **argv) {
 	}
 #endif
 
-	decode_init(log_decode, codecs);
+	decode_init(log_decode, include_codecs, exclude_codecs);
 
 #if RESAMPLE
 	if (resample) {
