@@ -50,6 +50,7 @@ struct soxr {
 	void (* soxr_delete)(soxr_t);
 	soxr_error_t (* soxr_process)(soxr_t, soxr_in_t, size_t, size_t *, soxr_out_t, size_t olen, size_t *);
 	size_t *(* soxr_num_clips)(soxr_t);
+	soxr_runtime_spec_t (* soxr_runtime_spec)(unsigned num_threads);
 	// soxr_strerror is a macro so not included here
 #endif
 };
@@ -175,6 +176,7 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 
 		soxr_io_spec_t io_spec;
 		soxr_quality_spec_t q_spec;
+		soxr_runtime_spec_t r_spec;
 		soxr_error_t error;
 
 		LOG_INFO("resampling from %u -> %u", raw_sample_rate, outrate);
@@ -196,11 +198,13 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 			q_spec.phase_response = r->q_phase_response;
 		}
 
+		r_spec = SOXR(r, runtime_spec, 0); // make use of libsoxr OpenMP support allowing parallel execution if multiple cores
+
 		LOG_DEBUG("resampling with soxr_quality_spec_t[precision: %03.1f, passband_end: %03.6f, stopband_begin: %03.6f, "
 				  "phase_response: %03.1f, flags: 0x%02x], soxr_io_spec_t[scale: %03.2f]", q_spec.precision,
 				  q_spec.passband_end, q_spec.stopband_begin, q_spec.phase_response, q_spec.flags, io_spec.scale);
 
-		r->resampler = SOXR(r, create, raw_sample_rate, outrate, 2, &error, &io_spec, &q_spec, NULL);
+		r->resampler = SOXR(r, create, raw_sample_rate, outrate, 2, &error, &io_spec, &q_spec, &r_spec);
 		if (error) {
 			LOG_INFO("soxr_create error: %s", soxr_strerror(error));
 			return false;
@@ -235,6 +239,7 @@ static bool load_soxr(void) {
 
 	r->soxr_io_spec = dlsym(handle, "soxr_io_spec");
 	r->soxr_quality_spec = dlsym(handle, "soxr_quality_spec");
+	r->soxr_runtime_spec = dlsym(handle, "soxr_runtime_spec");
 	r->soxr_create = dlsym(handle, "soxr_create");
 	r->soxr_delete = dlsym(handle, "soxr_delete");
 	r->soxr_process = dlsym(handle, "soxr_process");
