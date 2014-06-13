@@ -20,7 +20,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, VISEXPORT, DSD, LINKALL to influence build
 
-#define VERSION "v1.6.2-422"
+#define VERSION "v1.6.2-423"
 
 // build detection
 #if defined(linux)
@@ -82,13 +82,19 @@
 #define WINEVENT  1
 #endif
 
-#if defined(RESAMPLE)
+#if defined(RESAMPLE) || defined(RESAMPLE_MP)
 #undef  RESAMPLE
 #define RESAMPLE  1 // resampling
 #define PROCESS   1 // any sample processing (only resampling at present)
 #else
 #define RESAMPLE  0
 #define PROCESS   0
+#endif
+#if defined(RESAMPLE_MP)
+#undef RESAMPLE_MP
+#define RESAMPLE_MP 1
+#else
+#define RESAMPLE_MP 0
 #endif
 
 #if defined(FFMPEG)

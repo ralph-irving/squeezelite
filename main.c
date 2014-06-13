@@ -128,8 +128,12 @@ static void usage(const char *argv0) {
 #if WINEVENT
 		   " WINEVENT"
 #endif
+#if RESAMPLE_MP
+		   " RESAMPLE_MP"
+#else
 #if RESAMPLE
 		   " RESAMPLE"
+#endif
 #endif
 #if FFMPEG
 		   " FFMPEG"
