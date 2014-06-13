@@ -360,7 +360,8 @@ void stream_file(const char *header, size_t header_len, unsigned threshold) {
 		LOG_INFO("can't open file: %s", stream.header);
 		stream.state = DISCONNECT;
 	}
-
+	wake_controller();
+	
 	stream.cont_wait = false;
 	stream.meta_interval = 0;
 	stream.meta_next = 0;

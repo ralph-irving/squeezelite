@@ -82,9 +82,18 @@ Minor changes
 - fix crash when skipping in ogg while resampling
 - fix typo
 
-Version 1.6.2
-=============
+Version 1.6.2 26/5/14
+=====================
 
 Minor changes
 - fix XRUN on track change when resampling on low power cpus
 - log command line to logfile when debugging enabled
+- option to exclude codecs (-e)
+- support parallel execution of libsoxr
+
+Version 1.6.3
+=============
+
+Minor changes
+- reduce time to start track when playing local files
+- disable use of OPENMP when RESAMPLE build option defined, add new option RESAMPLE_MP to enable it
