@@ -210,13 +210,12 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 				  "phase_response: %03.1f, flags: 0x%02x], soxr_io_spec_t[scale: %03.2f]", q_spec.precision,
 				  q_spec.passband_end, q_spec.stopband_begin, q_spec.phase_response, q_spec.flags, io_spec.scale);
 
-		r->resampler = SOXR(r, create, raw_sample_rate, outrate, 2, &error, &io_spec, &q_spec, 
 #if RESAMPLE_OPENMP
-							&r_spec
+		r->resampler = SOXR(r, create, raw_sample_rate, outrate, 2, &error, &io_spec, &q_spec, &r_spec);
 #else
-							NULL
+		r->resampler = SOXR(r, create, raw_sample_rate, outrate, 2, &error, &io_spec, &q_spec, NULL);
 #endif
-							);
+
 		if (error) {
 			LOG_INFO("soxr_create error: %s", soxr_strerror(error));
 			return false;
