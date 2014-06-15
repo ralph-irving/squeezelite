@@ -1,5 +1,7 @@
 #!/bin/bash
 startdir=`pwd`
+mv lib lib.orig
+mv include include.orig
 svn co svn://ib/source/squeezeslave/trunk/squeezeslave/lib/portaudio || return 1
 cd portaudio
 make -f Makefile.linux26 clean || return 1
@@ -15,3 +17,5 @@ make -f Makefile.paoss OPTS="-DLINKALL -DFFMPEG -DDSD -DVISEXPORT -DRESAMPLE -I/
 strip squeezelite-oss
 rm -rf lib
 rm -rf include
+mv lib.orig lib
+mv include.orig include
