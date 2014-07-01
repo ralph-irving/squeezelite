@@ -18,13 +18,13 @@ mkdir -p pkg/squeezelite/lib
 cp -p /usr/sfw/lib/libgcc_s.so.1 pkg/squeezelite/lib
 
 cp -p lib/libsoxr.so.0 pkg/squeezelite/lib
-/usr/sfw/bin/setrpath -f pkg/squeezelite/lib/libsoxr.so.0 "/opt/squeezelite/lib:/usr/ccs/lib:/lib:/usr/lib:/usr/sfw/lib"
+setrpath -f pkg/squeezelite/lib/libsoxr.so.0 "/opt/squeezelite/lib:/usr/ccs/lib:/lib:/usr/lib:/usr/sfw/lib" || return 1
 
-cp -p squeezelite-oi pkg/squeezelite/bin/
-cp -p squeezelite-oisada pkg/squeezelite/bin/
+cp -p squeezelite pkg/squeezelite/bin/
+cp -p squeezelite-sada pkg/squeezelite/bin/
 cp -p scripts/squeezelite.sh pkg/squeezelite/bin
 gsed -i 's:^export LD_LIBRARY_PATH=\$INSTALL_DIR\/lib:#export LD_LIBRARY_PATH=\$INSTALL_DIR\/lib:' pkg/squeezelite/bin/squeezelite.sh
-gsed -i 's:^\$INSTALL_DIR/bin/squeezelite \$DEV \$:\$INSTALL_DIR/bin/squeezelite-oisada \$DEV \$:' pkg/squeezelite/bin/squeezelite.sh
+gsed -i 's:^\$INSTALL_DIR/bin/squeezelite \$DEV \$:\$INSTALL_DIR/bin/squeezelite-sada \$DEV \$:' pkg/squeezelite/bin/squeezelite.sh
 
 cd $startdir/pkg/squeezelite/bin
 ln -s squeezelite-oi squeezelite
