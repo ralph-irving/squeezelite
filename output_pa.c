@@ -426,6 +426,7 @@ static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_
 	output.device_frames = 0;
 #endif
 	output.updated = gettime_ms();
+	output.frames_played_dmp = output.frames_played;
 
 	do {
 		frames = _output_frames(pa_frames_wanted);

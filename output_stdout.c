@@ -102,6 +102,7 @@ static void *output_thread() {
 
 		output.device_frames = 0;
 		output.updated = gettime_ms();
+		output.frames_played_dmp = output.frames_played;
 
 		_output_frames(FRAME_BLOCK);
 

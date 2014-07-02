@@ -144,6 +144,7 @@ frames_t _output_frames(frames_t avail) {
 				LOG_INFO("track start sample rate: %u replay_gain: %u", output.next_sample_rate, output.next_replay_gain);
 				output.frames_played = 0;
 				output.track_started = true;
+				output.track_start_time = gettime_ms();
 				output.current_sample_rate = output.next_sample_rate;
 				IF_DSD(
 				   output.dop = output.next_dop;

@@ -592,6 +592,7 @@ static void *output_thread(void *arg) {
 		} else {
 			output.device_frames = delay;
 			output.updated = gettime_ms();
+			output.frames_played_dmp = output.frames_played;
 		}
 
 		// process frames

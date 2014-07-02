@@ -598,7 +598,7 @@ static void slimproto_run() {
 			LOCK_O;
 			status.output_full = _buf_used(outputbuf);
 			status.output_size = outputbuf->size;
-			status.frames_played = output.frames_played;
+			status.frames_played = output.frames_played_dmp;
 			status.current_sample_rate = output.current_sample_rate;
 			status.updated = output.updated;
 			status.device_frames = output.device_frames;
@@ -606,7 +606,7 @@ static void slimproto_run() {
 			if (output.track_started) {
 				_sendSTMs = true;
 				output.track_started = false;
-				status.stream_start = output.updated;
+				status.stream_start = output.track_start_time;
 			}
 #if PORTAUDIO
 			if (output.pa_reopen) {
