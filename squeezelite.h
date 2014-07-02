@@ -20,7 +20,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, VISEXPORT, DSD, LINKALL to influence build
 
-#define VERSION "v1.6.3-432"
+#define VERSION "v1.6.3-433"
 
 // build detection
 #if defined(linux)
@@ -555,12 +555,14 @@ struct outputstate {
 	int (* write_cb)(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR, s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr);
 	unsigned start_frames;
 	unsigned frames_played;
+	unsigned frames_played_dmp;// frames played at the point delay is measured
 	unsigned current_sample_rate;
 	unsigned supported_rates[MAX_SUPPORTED_SAMPLERATES]; // ordered largest first so [0] is max_rate
 	unsigned default_sample_rate;
 	bool error_opening;
 	unsigned device_frames;
 	u32_t updated;
+	u32_t track_start_time;
 	u32_t current_replay_gain;
 	union {
 		u32_t pause_frames;
