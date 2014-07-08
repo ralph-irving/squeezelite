@@ -91,9 +91,15 @@ Minor changes
 - option to exclude codecs (-e)
 - support parallel execution of libsoxr
 
-Version 1.6.3
-=============
+Version 1.6.3 14/6/14
+=====================
 
 Minor changes
 - reduce time to start track when playing local files
 - disable use of OPENMP when RESAMPLE build option defined, add new option RESAMPLE_MP to enable it
+
+Version 1.6.4 7/7/14
+====================
+
+Minor changes
+- improve synchronisation feedback accuracy
