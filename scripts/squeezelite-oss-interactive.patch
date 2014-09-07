@@ -1,0 +1,318 @@
+Index: slimproto.c
+===================================================================
+--- slimproto.c	(revision 441)
++++ slimproto.c	(working copy)
+@@ -47,6 +47,7 @@
+ 
+ extern struct codec *codecs[];
+ 
++void slimproto_stop(void);
+ event_event wake_e;
+ 
+ #define LOCK_S   mutex_lock(streambuf->mutex)
+@@ -79,6 +80,11 @@
+ char player_name[PLAYER_NAME_LEN + 1] = "";
+ const char *name_file = NULL;
+ 
++#if INTERACTIVE
++#include "interactive.h"
++//extern interactive_config interactive;
++#endif
++
+ void send_packet(u8_t *packet, size_t len) {
+ 	u8_t *ptr = packet;
+ 	unsigned try = 0;
+@@ -226,6 +232,25 @@
+ 	send_packet((u8_t *)name, strlen(name) + 1);
+ }
+ 
++#if INTERACTIVE
++void sendIR(int format, int noBits, int irCode) {
++	struct IR_packet ir;
++
++	memset(&ir, 0, sizeof(ir));
++	memcpy(&ir.opcode, "IR  ", 4);
++
++	ir.size = htonl(10);
++	packN(&ir.jiffies, gettime_ms());
++	ir.format = format;
++	ir.noBits = noBits;
++	ir.irCode = htonl(irCode);
++
++	LOG_DEBUG("INTERACTIVE: sending ir code: 0x%x to server", irCode);
++
++	send_packet((u8_t *)&ir, sizeof(ir));
++}
++#endif
++
+ static void process_strm(u8_t *pkt, int len) {
+ 	struct strm_packet *strm = (struct strm_packet *)pkt;
+ 
+@@ -843,7 +868,9 @@
+ 			}
+ 
+ 			sendHELO(reconnect, fixed_cap, var_cap, mac);
+-
++#if INTERACTIVE
++			interactive_init();
++#endif
+ 			slimproto_run();
+ 
+ 			if (!reconnect) {
+Index: Makefile
+===================================================================
+--- Makefile	(revision 441)
++++ Makefile	(working copy)
+@@ -9,6 +9,7 @@
+ OPT_LINKALL = -DLINKALL
+ OPT_RESAMPLE= -DRESAMPLE
+ OPT_VIS     = -DVISEXPORT
++OPT_INTERACTIVE = -DINTERACTIVE
+ 
+ SOURCES = \
+ 	main.c slimproto.c buffer.c stream.c utils.c \
+@@ -19,12 +20,14 @@
+ SOURCES_FF       = ffmpeg.c
+ SOURCES_RESAMPLE = process.c resample.c
+ SOURCES_VIS      = output_vis.c
++SOURCES_INTERACTIVE = interactive.c
+ 
+ LINK_LINUX       = -ldl
+ 
+ LINKALL          = -lFLAC -lmad -lvorbisfile -lfaad -lmpg123
+ LINKALL_FF       = -lavcodec -lavformat -lavutil
+ LINKALL_RESAMPLE = -lsoxr
++LINK_INTERACTIVE = -lcurses -llirc_client
+ 
+ DEPS             = squeezelite.h slimproto.h
+ 
+@@ -43,6 +46,9 @@
+ ifneq (,$(findstring $(OPT_VIS), $(CFLAGS)))
+ 	SOURCES += $(SOURCES_VIS)
+ endif
++ifneq (,$(findstring $(OPT_INTERACTIVE), $(CFLAGS)))
++	SOURCES += $(SOURCES_INTERACTIVE)
++endif
+ 
+ # add optional link options
+ ifneq (,$(findstring $(OPT_LINKALL), $(CFLAGS)))
+@@ -59,6 +65,9 @@
+ 	LDFLAGS += $(LINK_LINUX)
+ endif
+ endif
++ifneq (,$(findstring $(OPT_INTERACTIVE), $(CFLAGS)))
++	LDFLAGS += $(LINK_INTERACTIVE)
++endif
+ 
+ OBJECTS = $(SOURCES:.c=.o)
+ 
+Index: slimproto.h
+===================================================================
+--- slimproto.h	(revision 441)
++++ slimproto.h	(working copy)
+@@ -166,6 +166,17 @@
+ 	u8_t  pcm_endianness;
+ };
+ 
++#if INTERACTIVE
++struct IR_packet {
++	char  opcode[4];
++	u32_t size;
++	u32_t jiffies;
++	u8_t  format;
++	u8_t  noBits;
++	u32_t irCode;
++};
++#endif
++
+ #ifndef SUN
+ #pragma pack(pop)
+ #else
+Index: Makefile.paoss
+===================================================================
+--- Makefile.paoss	(revision 441)
++++ Makefile.paoss	(working copy)
+@@ -3,8 +3,8 @@
+ LDFLAGS ?= -lpthread -lm -ldl -lrt -L`pwd`/lib -lportaudio
+ EXECUTABLE ?= squeezelite-oss
+ 
+-SOURCES = main.c slimproto.c buffer.c stream.c utils.c output.c output_alsa.c output_pa.c output_stdout.c output_pack.c output_vis.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c dsd.c dop.c dsd2pcm/dsd2pcm.c ffmpeg.c process.c resample.c
+-DEPS    = squeezelite.h slimproto.h
++SOURCES = main.c slimproto.c buffer.c stream.c utils.c output.c output_alsa.c output_pa.c output_stdout.c output_pack.c output_vis.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c dsd.c dop.c dsd2pcm/dsd2pcm.c ffmpeg.c process.c resample.c interactive.c
++DEPS    = squeezelite.h slimproto.h interactive.h
+ 
+ OBJECTS = $(SOURCES:.c=.o)
+ 
+Index: main.c
+===================================================================
+--- main.c	(revision 441)
++++ main.c	(working copy)
+@@ -19,6 +19,10 @@
+  */
+ 
+ #include "squeezelite.h"
++#if INTERACTIVE
++#include "interactive.h"
++interactive_config interactive;
++#endif
+ 
+ #include <signal.h>
+ 
+@@ -89,6 +93,9 @@
+ #if LINUX || FREEBSD || SUN
+ 		   "  -z \t\t\tDaemonize\n"
+ #endif
++#if INTERACTIVE
++		   "  -i [filename]\t\tEnable lirc remote control support. (Default lircrc config is ~/.lircrc if filename not specified.)\n"
++#endif
+ 		   "  -t \t\t\tLicense terms\n"
+ 		   "\n"
+ 		   "Build options:"
+@@ -147,6 +154,9 @@
+ #if LINKALL
+ 		   " LINKALL"
+ #endif
++#if INTERACTIVE
++		   " INTERACTIVE"
++#endif
+ 		   "\n\n",
+ 		   argv0);
+ }
+@@ -205,7 +215,11 @@
+ #if VISEXPORT
+ 	bool visexport = false;
+ #endif
+-	
++#if INTERACTIVE
++	init_interactive_config(&interactive);
++	log_level log_interactive = lWARN;
++#endif
++
+ 	log_level log_output = lWARN;
+ 	log_level log_stream = lWARN;
+ 	log_level log_decode = lWARN;
+@@ -240,6 +254,9 @@
+ #if VISEXPORT
+ 						  "v"
+ #endif
++#if INTERACTIVE
++						  "i"
++#endif
+ 						  , opt)) {
+ 			optarg = NULL;
+ 			optind += 1;
+@@ -282,6 +299,11 @@
+ 					if (!strcmp(l, "all") || !strcmp(l, "stream"))    log_stream = new;
+ 					if (!strcmp(l, "all") || !strcmp(l, "decode"))    log_decode = new;
+ 					if (!strcmp(l, "all") || !strcmp(l, "output"))    log_output = new;
++#if INTERACTIVE
++					if (!strcmp(l, "all") || !strcmp(l, "interactive")) {
++						log_interactive = new;
++					}
++#endif
+ 				} else {
+ 					usage(argv[0]);
+ 					exit(0);
+@@ -403,6 +425,23 @@
+ 		case 't':
+ 			license();
+ 			exit(0);
++#if INTERACTIVE
++		case 'i':
++			interactive.using_lirc = true;
++			if (optind < argc && argv[optind] && argv[optind][0] != '-') {
++				interactive.lircrc = argv[optind++];
++			} else {
++				/* default lircrc file ($HOME/.lircrc) */
++				char *home = getenv("HOME");
++				if (home == NULL) {
++					home = "";
++				}
++				interactive.lircrc = (char *) malloc((strlen(home) + strlen("/.lircrc") + 1) * sizeof(char));
++				strcpy(interactive.lircrc, home);
++				strcat(interactive.lircrc, "/.lircrc");
++			}
++			break;
++#endif
+         default:
+ 			break;
+         }
+@@ -495,6 +534,11 @@
+ 		exit(0);
+ 	}
+ 
++#if INTERACTIVE
++	interactive_loglevel(log_interactive);
++	init_lirc();
++#endif
++
+ 	slimproto(log_slimproto, server, mac, name, namefile);
+ 	
+ 	decode_close();
+@@ -511,6 +555,10 @@
+ #endif
+ 	}
+ 
++#if INTERACTIVE
++	interactive_close();
++#endif
++
+ #if WIN
+ 	winsock_close();
+ #endif
+Index: squeezelite.h
+===================================================================
+--- squeezelite.h	(revision 441)
++++ squeezelite.h	(working copy)
+@@ -18,8 +18,11 @@
+  *
+  */
+ 
+-// make may define: PORTAUDIO, SELFPIPE, RESAMPLE, VISEXPORT, DSD, LINKALL to influence build
++// make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, DSD, LINKALL, INTERACTIVE to influence build
+ 
++#ifndef SQUEEZELITE_H
++#define SQUEEZELITE_H
++ 
+ #define VERSION "v1.6.4-439"
+ 
+ // build detection
+@@ -128,6 +131,12 @@
+ #define LINKALL   0
+ #endif
+ 
++#if LINUX && defined(INTERACTIVE)
++#undef INTERACTIVE
++#define INTERACTIVE 1
++#else
++#define INTERACTIVE 0
++#endif
+ 
+ #if !LINKALL
+ 
+@@ -656,3 +665,12 @@
+ struct codec *register_faad(void);
+ struct codec *register_dsd(void);
+ struct codec *register_ff(const char *codec);
++
++#if INTERACTIVE
++// interactive.c
++void interactive_loglevel(log_level level);
++// slimproto.c
++void sendIR(int format, int noBits, int irCode);
++#endif
++
++#endif /* #ifndef SQUEEZELITE_H */
+Index: scripts/buildlnxosslinkall
+===================================================================
+--- scripts/buildlnxosslinkall	(revision 441)
++++ scripts/buildlnxosslinkall	(working copy)
+@@ -13,7 +13,7 @@
+ cd $startdir || return 1
+ rm -rf portaudio || return 1
+ make -f Makefile.paoss clean
+-make -f Makefile.paoss OPTS="-DLINKALL -DFFMPEG -DDSD -DVISEXPORT -DRESAMPLE -I/usr/local/include" LDFLAGS="-L/usr/local/lib /usr/lib/i386-linux-gnu/libFLAC.a /usr/lib/i386-linux-gnu/libvorbisfile.a /usr/lib/i386-linux-gnu/libvorbis.a /usr/lib/i386-linux-gnu/libogg.a /usr/lib/libmad.a /usr/lib/i386-linux-gnu/libfaad.a /usr/lib/i386-linux-gnu/libmpg123.a /usr/local/lib/libswscale.a /usr/local/lib/libavdevice.a /usr/local/lib/libavformat.a /usr/local/lib/libavcodec.a /usr/local/lib/libavutil.a /usr/lib/libsoxr.a /usr/lib/gcc/i486-linux-gnu/4.7/libgomp.a /usr/lib/i386-linux-gnu/libz.a -lpthread -ldl -lrt -lm -L./lib -lportaudio" || return 1
++make -f Makefile.paoss OPTS="-DLINKALL -DFFMPEG -DDSD -DVISEXPORT -DRESAMPLE -DINTERACTIVE -I/usr/local/include" LDFLAGS="-L/usr/local/lib /usr/lib/i386-linux-gnu/libFLAC.a /usr/lib/i386-linux-gnu/libvorbisfile.a /usr/lib/i386-linux-gnu/libvorbis.a /usr/lib/i386-linux-gnu/libogg.a /usr/lib/libmad.a /usr/lib/i386-linux-gnu/libfaad.a /usr/lib/i386-linux-gnu/libmpg123.a /usr/local/lib/libswscale.a /usr/local/lib/libavdevice.a /usr/local/lib/libavformat.a /usr/local/lib/libavcodec.a /usr/local/lib/libavutil.a /usr/lib/libsoxr.a /usr/lib/gcc/i486-linux-gnu/4.7/libgomp.a /usr/lib/i386-linux-gnu/libz.a /usr/lib/liblirc_client.a -lpthread -ldl -lrt -lm -L./lib -lportaudio" || return 1
+ strip squeezelite-oss
+ rm -rf lib
+ rm -rf include

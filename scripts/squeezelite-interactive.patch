@@ -1,0 +1,631 @@
+diff -ur --new-file squeezelite-1.6.4-75a72d5.orig/interactive.c squeezelite-1.6.4-75a72d5.hold/interactive.c
+--- squeezelite-1.6.4-75a72d5.orig/interactive.c	1970-01-01 01:00:00.000000000 +0100
++++ squeezelite-1.6.4-75a72d5.hold/interactive.c	2014-07-27 13:36:35.947165049 +0100
+@@ -0,0 +1,295 @@
++/*
++ *   SlimProtoLib Copyright (c) 2004,2006 Richard Titmuss
++ *
++ *   This file is part of SlimProtoLib.
++ *
++ *   SlimProtoLib is free software; you can redistribute it and/or modify
++ *   it under the terms of the GNU General Public License as published by
++ *   the Free Software Foundation; either version 2 of the License, or
++ *   (at your option) any later version.
++ *
++ *   SlimProtoLib is distributed in the hope that it will be useful,
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *   GNU General Public License for more details.
++ *
++ *   You should have received a copy of the GNU General Public License
++ *   along with SlimProtoLib; if not, write to the Free Software
++ *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++ *
++ */
++
++#include "squeezelite.h"
++#if INTERACTIVE
++#include "interactive.h"
++#include <lirc/lirc_client.h>
++
++static log_level loglevel = lWARN;
++
++extern interactive_config interactive;
++
++struct lirc_config *lircconfig;
++
++void interactive_loglevel(log_level level) {
++	loglevel = level;
++}
++
++void *interactive_thread(void *att) {
++	int key = 0;
++	unsigned long ir = 0;
++	interactive_config *inter = (interactive_config *) att;
++
++	LOG_SDEBUG("interactive processing thread going into while loop");
++	while (!inter->finished && inter->using_lirc) {
++		LOG_SDEBUG("interactive processing thread looping on read_lirc()");
++		while((key = read_lirc()) != 0) {
++			ir = getircode(key);
++			LOG_SDEBUG("IR KEY: %i, IR CODE: %lu", key, ir);
++			if (ir == 0x01) {
++				LOG_WARN("interactive processing thread calling simproto_stop()");
++				slimproto_stop();
++			} else if (ir != 0) {
++				sendIR(1, 1, ir);
++			}
++		}
++	}
++
++	LOG_DEBUG("interactive processing thread exiting");
++	return NULL;
++}
++
++void init_interactive_config(interactive_config *i) {
++	i->using_lirc = false;
++}
++
++void interactive_init(void) {
++	if (interactive.using_lirc) {
++		LOG_DEBUG("Creating interactive processing thread...");
++		interactive.finished = false;
++		if (pthread_create(&interactive.interactive_t, NULL, interactive_thread, (void *) &interactive) != 0) {
++			LOG_WARN("Error creating interactive processing thread!\n");
++		}
++		LOG_DEBUG("Created interactive processing thread.");
++	} else {
++		LOG_DEBUG("Not creating interactive processing thread. (!interactive.using_lirc)");
++	}
++}
++
++void interactive_close(void) {
++	if (interactive.using_lirc) {
++		LOG_DEBUG("Stopping interactive processing thread...");
++		interactive.finished = true;
++		pthread_cancel(interactive.interactive_t);
++		pthread_join(interactive.interactive_t, NULL);
++		close_lirc();
++		LOG_DEBUG("Stopped interactive processing thread.");
++	} else {
++		LOG_DEBUG("No need to stop interactive processing thread. (!interactive.using_lirc)");
++	}
++}
++
++/* 
++ * Try to open a connection to lircd.
++ * If it fails, disable support, print a message and continue.
++ */
++void init_lirc(void) {
++	if (interactive.using_lirc) {
++		interactive.using_lirc = false;
++		LOG_DEBUG("Initialising LIRC...");
++		if ((interactive.lirc_fd = lirc_init("squeezeslave", 1)) > 0) {
++			if (lirc_readconfig(interactive.lircrc, &interactive.lircconfig, NULL) == 0) {
++				interactive.using_lirc = true;
++				LOG_DEBUG("Initialised LIRC.");
++			} else {
++				interactive.using_lirc = false;
++				close_lirc();
++			}
++		}
++		
++		if (!interactive.using_lirc ) {
++			LOG_WARN("Failed to initialise LIRC!");
++		}
++   }
++}
++
++/* 
++ * Close lircd connection.
++ */
++void close_lirc(void) {
++	if (interactive.using_lirc) {
++		LOG_DEBUG("De-initialising LIRC...");
++		lirc_freeconfig(interactive.lircconfig);
++		lirc_deinit();
++		interactive.using_lirc = false;
++		LOG_DEBUG("De-initialised LIRC.");
++	}
++}
++
++/* 
++ * Read a key code from lircd.
++ */
++int read_lirc(void) {
++	char *code;
++	char *c;
++	int key = 0;
++
++	if (lirc_nextcode(&code) == 0) {
++		if (code != NULL) {
++			while((lirc_code2char(interactive.lircconfig, code, &c) == 0) && (c != NULL)) {
++				key = (unsigned char) c[0];
++			}
++			free(code);
++			return key;
++		}
++
++		return -1;
++	}
++	
++	return 0;
++}
++
++/* 
++ * Translate lirc input to IR codes.
++ */
++unsigned long getircode(int key) {
++
++	unsigned long ir = 0;
++
++	switch(key) {
++		case '0': 
++			ir = 0x76899867; 
++			break;
++		case '1': 
++			ir = 0x7689f00f; 
++			break;
++		case '2': 
++			ir = 0x768908f7; 
++			break;
++		case '3': 
++			ir = 0x76898877; 
++			break;
++		case '4': 
++			ir = 0x768948b7; 
++			break;
++		case '5': 
++			ir = 0x7689c837; 
++			break;
++		case '6': 
++			ir = 0x768928d7; 
++			break;
++		case '7': 
++			ir = 0x7689a857; 
++			break;
++		case '8': 
++			ir = 0x76896897; 
++			break;
++		case '9': 
++			ir = 0x7689e817; 
++			break;
++		//case KEY_IC: // add
++		case 'I': // add
++		case 'i': // add
++			ir = 0x7689609f; 
++			break;
++		case 0x01: // add IR
++			ir = 0x7689609f; 
++			break; 
++		//case KEY_DOWN: // arrow_down
++		case 'B': // arrow_down OSX 10.6.3 bug
++		case 0x02: // arrow_down IR
++			ir = 0x7689b04f; 
++			break; 
++		//case KEY_LEFT: // arrow_left 
++		case 'D': // arrow_left OSX 10.6.3 bug
++		case 0x03: // arrow_left IR
++			ir = 0x7689906f; 
++			break; 
++		//case KEY_RIGHT: // arrow_right
++		case 'C': // arrow_right OSX 10.6.3 bug
++		case 0x04: // arrow_right IR
++			ir = 0x7689d02f; 
++			break; 
++		//case KEY_UP: // arrow_up
++		case 'A': // arrow_up OSX 10.6.3 bug
++		case 0x05: // arrow_up IR
++			ir = 0x7689e01f; 
++			break; 
++		case '<': // rew
++		case ',': // rew
++			ir = 0x7689c03f; 
++			break; 
++		case '>': // fwd
++		case '.': // fwd
++			ir = 0x7689a05f; 
++			break; 
++		//case KEY_HOME: // home 
++		case 'H': // home
++		case 'h': // home
++		case 0x06: // home IR
++			ir = 0x768922DD; 
++			break; 
++		//case KEY_END: // now_playing
++		case 'N': // now_playing
++		case 'n': // now_playing
++		case 0x07: // now_playing IR
++			ir = 0x76897887; 
++			break; 
++		case ' ': // pause
++		case 'p': // pause
++		case 'P': // pause
++			ir = 0x768920df; 
++			break; 
++		case '\r': // play
++			ir = 0x768910ef; 
++			break; 
++		case 'r': // repeat
++		case 'R': // repeat
++			ir = 0x768938c7; 
++			break; 
++		case 's': // shuffle
++		case 'S': // shuffle
++			ir = 0x7689d827; 
++			break; 
++		case '?': // search
++		case '/': // search
++			ir = 0x768958a7; 
++			break; 
++		case 'b': // browse
++			ir = 0x7689708f; 
++			break; 
++		case 'f': // favourites
++		case 'F': // favourites
++			ir = 0x768918e7; 
++			break; 
++		case '%': // size
++			ir = 0x7689f807; 
++			break; 
++		case 'z': // sleep
++		case 'Z': // sleep
++			ir = 0x7689b847; 
++			break; 
++		case '-': // voldown
++			ir = 0x768900ff; 
++			break; 
++		case '+': // volup
++		case '=': // volup
++			ir = 0x7689807f; 
++			break; 
++		/* 
++		 * non-IR key actions 
++		 */
++		case 'q': // quit
++		case 'Q':
++#if 0
++#if !defined(__APPLE__) && !defined(__MACH__)
++		case '\e':
++#endif
++#endif
++			ir = 0x01;
++			break;
++	}
++
++	return (unsigned long) ir;
++}
++
++#endif /* #if INTERACTIVE */
+diff -ur --new-file squeezelite-1.6.4-75a72d5.orig/interactive.h squeezelite-1.6.4-75a72d5.hold/interactive.h
+--- squeezelite-1.6.4-75a72d5.orig/interactive.h	1970-01-01 01:00:00.000000000 +0100
++++ squeezelite-1.6.4-75a72d5.hold/interactive.h	2014-07-12 09:05:38.831851627 +0100
+@@ -0,0 +1,46 @@
++/*
++ *  Squeezelite - lightweight headless squeezebox emulator
++ *
++ *  (c) Adrian Smith 2012-2014, triode1@btinternet.com
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ *
++ */
++
++#ifndef INTERACTIVE_H
++#define INTERACTIVE_H
++
++#include <stdlib.h>
++#include <stdbool.h>
++
++typedef struct {
++	struct lirc_config *lircconfig;
++	char *lircrc;
++	bool using_lirc;
++	int lirc_fd;
++	pthread_t interactive_t;
++	bool finished;
++} interactive_config;
++
++void init_interactive_config(interactive_config *i);
++void interactive_init(void);
++void interactive_close(void);
++
++void init_lirc(void) ;
++void close_lirc(void);
++
++unsigned long getircode(int key);
++int read_lirc(void);
++
++#endif /* #ifndef INTERACTIVE_H */
+diff -ur --new-file squeezelite-1.6.4-75a72d5.orig/main.c squeezelite-1.6.4-75a72d5.hold/main.c
+--- squeezelite-1.6.4-75a72d5.orig/main.c	2014-07-10 10:25:46.000000000 +0100
++++ squeezelite-1.6.4-75a72d5.hold/main.c	2014-07-27 13:36:35.948165034 +0100
+@@ -19,6 +19,10 @@
+  */
+ 
+ #include "squeezelite.h"
++#if INTERACTIVE
++#include "interactive.h"
++interactive_config interactive;
++#endif
+ 
+ #include <signal.h>
+ 
+@@ -87,6 +91,9 @@
+ #if LINUX || FREEBSD
+ 		   "  -z \t\t\tDaemonize\n"
+ #endif
++#if INTERACTIVE
++		   "  -i [filename]\tEnable lirc remote control support. (Default lircrc config is ~/.lircrc if filename not specified.)\n"
++#endif
+ 		   "  -t \t\t\tLicense terms\n"
+ 		   "\n"
+ 		   "Build options:"
+@@ -136,6 +143,9 @@
+ #if LINKALL
+ 		   " LINKALL"
+ #endif
++#if INTERACTIVE
++		   " INTERACTIVE"
++#endif
+ 		   "\n\n",
+ 		   argv0);
+ }
+@@ -194,7 +204,11 @@
+ #if VISEXPORT
+ 	bool visexport = false;
+ #endif
+-	
++#if INTERACTIVE
++	init_interactive_config(&interactive);
++	log_level log_interactive = lWARN;
++#endif
++
+ 	log_level log_output = lWARN;
+ 	log_level log_stream = lWARN;
+ 	log_level log_decode = lWARN;
+@@ -229,6 +243,9 @@
+ #if VISEXPORT
+ 						  "v"
+ #endif
++#if INTERACTIVE
++						  "i"
++#endif
+ 						  , opt)) {
+ 			optarg = NULL;
+ 			optind += 1;
+@@ -271,6 +288,11 @@
+ 					if (!strcmp(l, "all") || !strcmp(l, "stream"))    log_stream = new;
+ 					if (!strcmp(l, "all") || !strcmp(l, "decode"))    log_decode = new;
+ 					if (!strcmp(l, "all") || !strcmp(l, "output"))    log_output = new;
++#if INTERACTIVE
++					if (!strcmp(l, "all") || !strcmp(l, "interactive")) {
++						log_interactive = new;
++					}
++#endif
+ 				} else {
+ 					usage(argv[0]);
+ 					exit(0);
+@@ -389,6 +411,23 @@
+ 		case 't':
+ 			license();
+ 			exit(0);
++#if INTERACTIVE
++		case 'i':
++			interactive.using_lirc = true;
++			if (optind < argc && argv[optind] && argv[optind][0] != '-') {
++				interactive.lircrc = argv[optind++];
++			} else {
++				/* default lircrc file ($HOME/.lircrc) */
++				char *home = getenv("HOME");
++				if (home == NULL) {
++					home = "";
++				}
++				interactive.lircrc = (char *) malloc((strlen(home) + strlen("/.lircrc") + 1) * sizeof(char));
++				strcpy(interactive.lircrc, home);
++				strcat(interactive.lircrc, "/.lircrc");
++			}
++			break;
++#endif
+         default:
+ 			break;
+         }
+@@ -481,6 +520,11 @@
+ 		exit(0);
+ 	}
+ 
++#if INTERACTIVE
++	interactive_loglevel(log_interactive);
++	init_lirc();
++#endif
++
+ 	slimproto(log_slimproto, server, mac, name, namefile);
+ 	
+ 	decode_close();
+@@ -497,6 +541,10 @@
+ #endif
+ 	}
+ 
++#if INTERACTIVE
++	interactive_close();
++#endif
++
+ #if WIN
+ 	winsock_close();
+ #endif
+diff -ur --new-file squeezelite-1.6.4-75a72d5.orig/Makefile squeezelite-1.6.4-75a72d5.hold/Makefile
+--- squeezelite-1.6.4-75a72d5.orig/Makefile	2014-07-10 10:25:46.000000000 +0100
++++ squeezelite-1.6.4-75a72d5.hold/Makefile	2014-07-10 10:55:58.511783015 +0100
+@@ -9,6 +9,7 @@
+ OPT_LINKALL = -DLINKALL
+ OPT_RESAMPLE= -DRESAMPLE
+ OPT_VIS     = -DVISEXPORT
++OPT_INTERACTIVE = -DINTERACTIVE
+ 
+ SOURCES = \
+ 	main.c slimproto.c buffer.c stream.c utils.c \
+@@ -19,12 +20,14 @@
+ SOURCES_FF       = ffmpeg.c
+ SOURCES_RESAMPLE = process.c resample.c
+ SOURCES_VIS      = output_vis.c
++SOURCES_INTERACTIVE = interactive.c
+ 
+ LINK_LINUX       = -ldl
+ 
+ LINKALL          = -lFLAC -lmad -lvorbisfile -lfaad -lmpg123
+ LINKALL_FF       = -lavcodec -lavformat -lavutil
+ LINKALL_RESAMPLE = -lsoxr
++LINK_INTERACTIVE = -lcurses -llirc_client
+ 
+ DEPS             = squeezelite.h slimproto.h
+ 
+@@ -43,6 +46,9 @@
+ ifneq (,$(findstring $(OPT_VIS), $(CFLAGS)))
+ 	SOURCES += $(SOURCES_VIS)
+ endif
++ifneq (,$(findstring $(OPT_INTERACTIVE), $(CFLAGS)))
++	SOURCES += $(SOURCES_INTERACTIVE)
++endif
+ 
+ # add optional link options
+ ifneq (,$(findstring $(OPT_LINKALL), $(CFLAGS)))
+@@ -59,6 +65,9 @@
+ 	LDFLAGS += $(LINK_LINUX)
+ endif
+ endif
++ifneq (,$(findstring $(OPT_INTERACTIVE), $(CFLAGS)))
++	LDFLAGS += $(LINK_INTERACTIVE)
++endif
+ 
+ OBJECTS = $(SOURCES:.c=.o)
+ 
+diff -ur --new-file squeezelite-1.6.4-75a72d5.orig/slimproto.c squeezelite-1.6.4-75a72d5.hold/slimproto.c
+--- squeezelite-1.6.4-75a72d5.orig/slimproto.c	2014-07-10 10:25:46.000000000 +0100
++++ squeezelite-1.6.4-75a72d5.hold/slimproto.c	2014-07-27 13:36:35.948165034 +0100
+@@ -47,6 +47,7 @@
+ 
+ extern struct codec *codecs[];
+ 
++void slimproto_stop(void);
+ event_event wake_e;
+ 
+ #define LOCK_S   mutex_lock(streambuf->mutex)
+@@ -79,6 +80,11 @@
+ char player_name[PLAYER_NAME_LEN + 1] = "";
+ const char *name_file = NULL;
+ 
++#if INTERACTIVE
++#include "interactive.h"
++//extern interactive_config interactive;
++#endif
++
+ void send_packet(u8_t *packet, size_t len) {
+ 	u8_t *ptr = packet;
+ 	unsigned try = 0;
+@@ -226,6 +232,25 @@
+ 	send_packet((u8_t *)name, strlen(name) + 1);
+ }
+ 
++#if INTERACTIVE
++void sendIR(int format, int noBits, int irCode) {
++	struct IR_packet ir;
++
++	memset(&ir, 0, sizeof(ir));
++	memcpy(&ir.opcode, "IR  ", 4);
++
++	ir.size = htonl(10);
++	packN(&ir.jiffies, gettime_ms());
++	ir.format = format;
++	ir.noBits = noBits;
++	ir.irCode = htonl(irCode);
++
++	LOG_DEBUG("INTERACTIVE: sending ir code: 0x%x to server", irCode);
++
++	send_packet((u8_t *)&ir, sizeof(ir));
++}
++#endif
++
+ static void process_strm(u8_t *pkt, int len) {
+ 	struct strm_packet *strm = (struct strm_packet *)pkt;
+ 
+@@ -843,7 +868,9 @@
+ 			}
+ 
+ 			sendHELO(reconnect, fixed_cap, var_cap, mac);
+-
++#if INTERACTIVE
++			interactive_init();
++#endif
+ 			slimproto_run();
+ 
+ 			if (!reconnect) {
+diff -ur --new-file squeezelite-1.6.4-75a72d5.orig/slimproto.h squeezelite-1.6.4-75a72d5.hold/slimproto.h
+--- squeezelite-1.6.4-75a72d5.orig/slimproto.h	2014-07-10 10:25:46.000000000 +0100
++++ squeezelite-1.6.4-75a72d5.hold/slimproto.h	2014-07-12 09:05:38.831851627 +0100
+@@ -162,4 +162,15 @@
+ 	u8_t  pcm_endianness;
+ };
+ 
++#if INTERACTIVE
++struct IR_packet {
++	char  opcode[4];
++	u32_t size;
++	u32_t jiffies;
++	u8_t  format;
++	u8_t  noBits;
++	u32_t irCode;
++};
++#endif
++
+ #pragma pack(pop)
+diff -ur --new-file squeezelite-1.6.4-75a72d5.orig/squeezelite.h squeezelite-1.6.4-75a72d5.hold/squeezelite.h
+--- squeezelite-1.6.4-75a72d5.orig/squeezelite.h	2014-07-10 10:25:46.000000000 +0100
++++ squeezelite-1.6.4-75a72d5.hold/squeezelite.h	2014-07-12 09:05:38.832851600 +0100
+@@ -18,7 +18,10 @@
+  *
+  */
+ 
+-// make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, DSD, LINKALL to influence build
++// make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, DSD, LINKALL, INTERACTIVE to influence build
++
++#ifndef SQUEEZELITE_H
++#define SQUEEZELITE_H
+ 
+ #define VERSION "v1.6.4"
+ 
+@@ -117,6 +120,12 @@
+ #define LINKALL   0
+ #endif
+ 
++#if LINUX && defined(INTERACTIVE)
++#undef INTERACTIVE
++#define INTERACTIVE 1
++#else
++#define INTERACTIVE 0
++#endif
+ 
+ #if !LINKALL
+ 
+@@ -627,3 +636,12 @@
+ struct codec *register_faad(void);
+ struct codec *register_dsd(void);
+ struct codec *register_ff(const char *codec);
++
++#if INTERACTIVE
++// interactive.c
++void interactive_loglevel(log_level level);
++// slimproto.c
++void sendIR(int format, int noBits, int irCode);
++#endif
++
++#endif /* #ifndef SQUEEZELITE_H */
