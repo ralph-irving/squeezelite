@@ -182,6 +182,8 @@ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buf
 		return -1;
 	}
 
+	LOG_INFO("opening device at: %u", sample_rate);
+
 	bool retry;
 	do {
 		// open device

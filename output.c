@@ -387,7 +387,7 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 		}
 	}
 	if (!output.default_sample_rate) {
-		output.default_sample_rate = rates[0];
+		output.default_sample_rate = output.supported_rates[0];
 	}
 	
 	output.current_sample_rate = output.default_sample_rate;
