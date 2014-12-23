@@ -100,12 +100,8 @@ void send_packet(u8_t *packet, size_t len) {
 	}
 }
 
-#define QUOTE(name) #name
-#define STR(macro)  QUOTE(macro)
-#define MODEL_NAME_STRING STR(MODEL_NAME)
-
 static void sendHELO(bool reconnect, const char *fixed_cap, const char *var_cap, u8_t mac[6]) {
-	const char *base_cap = "Model=squeezelite,ModelName=" MODEL_NAME_STRING ",AccuratePlayPoints=1,HasDigitalOut=1";
+	const char *base_cap = "Model=squeezelite,AccuratePlayPoints=1,HasDigitalOut=1";
 	struct HELO_packet pkt;
 
 	memset(&pkt, 0, sizeof(pkt));
@@ -724,9 +720,12 @@ in_addr_t discover_server(void) {
 	return s.sin_addr.s_addr;
 }
 
-void slimproto(log_level level, char *server, u8_t mac[6], const char *name, const char *namefile) {
+#define FIXED_CAP_LEN 256
+#define VAR_CAP_LEN   128
+
+void slimproto(log_level level, char *server, u8_t mac[6], const char *name, const char *namefile, const char *modelname) {
     struct sockaddr_in serv_addr;
-	static char fixed_cap[128], var_cap[128] = "";
+	static char fixed_cap[FIXED_CAP_LEN], var_cap[VAR_CAP_LEN] = "";
 	bool reconnect = false;
 	unsigned failed_connect = 0;
 	unsigned slimproto_port = 0;
@@ -776,10 +775,11 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 	if (!running) return;
 
 	LOCK_O;
-	sprintf(fixed_cap, ",MaxSampleRate=%u", output.supported_rates[0]); 
+	snprintf(fixed_cap, FIXED_CAP_LEN, ",ModelName=%s,MaxSampleRate=%u", modelname ? modelname : MODEL_NAME_STRING,
+			 output.supported_rates[0]);
 	
 	for (i = 0; i < MAX_CODECS; i++) {
-		if (codecs[i] && codecs[i]->id && strlen(fixed_cap) < 128 - 10) {
+		if (codecs[i] && codecs[i]->id && strlen(fixed_cap) < FIXED_CAP_LEN - 10) {
 			strcat(fixed_cap, ",");
 			strcat(fixed_cap, codecs[i]->types);
 		}

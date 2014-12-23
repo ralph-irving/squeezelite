@@ -64,6 +64,7 @@ static void usage(const char *argv0) {
 		   "  -e <codec1>,<codec2>\tExplicitly exclude native support of one or more codecs; known codecs: " CODECS "\n"
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"
+		   "  -M <modelname>\tSet the squeezelite player model sent to the server (default: " MODEL_NAME_STRING ")\n"
 		   "  -n <name>\t\tSet the player name\n"
 		   "  -N <filename>\t\tStore player name in filename to allow server defined name changes to be shared between servers (not supported with -n)\n"
 #if ALSA
@@ -184,6 +185,7 @@ int main(int argc, char **argv) {
 	char *exclude_codecs = "";
 	char *name = NULL;
 	char *namefile = NULL;
+	char *modelname = NULL;
 	char *logfile = NULL;
 	u8_t mac[6];
 	unsigned stream_buf_size = STREAMBUF_SIZE;
@@ -227,7 +229,7 @@ int main(int argc, char **argv) {
 
 	while (optind < argc && strlen(argv[optind]) >= 2 && argv[optind][0] == '-') {
 		char *opt = argv[optind] + 1;
-		if (strstr("oabcdefmnNprs", opt) && optind < argc - 1) {
+		if (strstr("oabcdefmMnNprs", opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
 			optind += 2;
 		} else if (strstr("ltz"
@@ -305,6 +307,9 @@ int main(int argc, char **argv) {
 					}
 				}
 			}
+			break;
+		case 'M':
+			modelname = optarg;
 			break;
 		case 'r':
 			{ 
@@ -499,7 +504,7 @@ int main(int argc, char **argv) {
 		exit(0);
 	}
 
-	slimproto(log_slimproto, server, mac, name, namefile);
+	slimproto(log_slimproto, server, mac, name, namefile, modelname);
 	
 	decode_close();
 	stream_close();
