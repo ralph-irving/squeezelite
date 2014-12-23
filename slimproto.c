@@ -100,8 +100,12 @@ void send_packet(u8_t *packet, size_t len) {
 	}
 }
 
+#define QUOTE(name) #name
+#define STR(macro)  QUOTE(macro)
+#define MODEL_NAME_STRING STR(MODEL_NAME)
+
 static void sendHELO(bool reconnect, const char *fixed_cap, const char *var_cap, u8_t mac[6]) {
-	const char *base_cap = "Model=squeezelite,ModelName=SqueezeLite,AccuratePlayPoints=1,HasDigitalOut=1";
+	const char *base_cap = "Model=squeezelite,ModelName=" MODEL_NAME_STRING ",AccuratePlayPoints=1,HasDigitalOut=1";
 	struct HELO_packet pkt;
 
 	memset(&pkt, 0, sizeof(pkt));
