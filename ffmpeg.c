@@ -610,8 +610,8 @@ static bool load_ff() {
 	ff->avcodec_alloc_frame = dlsym(handle_codec, "avcodec_alloc_frame");
 	ff->avcodec_free_frame = dlsym(handle_codec, "avcodec_free_frame");
 	ff->avcodec_decode_audio4 = dlsym(handle_codec, "avcodec_decode_audio4");
- 	ff->av_init_packet = dlsym(handle_codec, "av_init_packet");
- 	ff->av_free_packet = dlsym(handle_codec, "av_free_packet");
+	ff->av_init_packet = dlsym(handle_codec, "av_init_packet");
+	ff->av_free_packet = dlsym(handle_codec, "av_free_packet");
 
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
@@ -620,14 +620,14 @@ static bool load_ff() {
 	
 	LOG_INFO("loaded "LIBAVCODEC" (%u.%u.%u)", LIBAVCODEC_VERSION_MAJOR, ff->avcodec_version() >> 16, (ff->avcodec_version() >> 8) & 0xff, ff->avcodec_version() & 0xff);
 
- 	ff->avformat_version = dlsym(handle_format, "avformat_version");
- 	ff->avformat_alloc_context = dlsym(handle_format, "avformat_alloc_context");
- 	ff->avformat_free_context = dlsym(handle_format, "avformat_free_context");
- 	ff->avformat_open_input = dlsym(handle_format, "avformat_open_input");
- 	ff->avformat_find_stream_info = dlsym(handle_format, "avformat_find_stream_info");
- 	ff->avio_alloc_context = dlsym(handle_format, "avio_alloc_context");
- 	ff->av_read_frame = dlsym(handle_format, "av_read_frame");
- 	ff->av_find_input_format= dlsym(handle_format, "av_find_input_format");
+	ff->avformat_version = dlsym(handle_format, "avformat_version");
+	ff->avformat_alloc_context = dlsym(handle_format, "avformat_alloc_context");
+	ff->avformat_free_context = dlsym(handle_format, "avformat_free_context");
+	ff->avformat_open_input = dlsym(handle_format, "avformat_open_input");
+	ff->avformat_find_stream_info = dlsym(handle_format, "avformat_find_stream_info");
+	ff->avio_alloc_context = dlsym(handle_format, "avio_alloc_context");
+	ff->av_read_frame = dlsym(handle_format, "av_read_frame");
+	ff->av_find_input_format= dlsym(handle_format, "av_find_input_format");
 	ff->av_register_all = dlsym(handle_format, "av_register_all");
 
 	if ((err = dlerror()) != NULL) {

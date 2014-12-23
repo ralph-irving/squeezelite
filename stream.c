@@ -375,7 +375,7 @@ void stream_file(const char *header, size_t header_len, unsigned threshold) {
 }
 
 void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold, bool cont_wait) {
-    struct sockaddr_in addr;
+	struct sockaddr_in addr;
 
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -394,7 +394,7 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	set_nonblock(sock);
 	set_nosigpipe(sock);
 
-    if (connect_timeout(sock, (struct sockaddr *) &addr, sizeof(addr), 10) < 0) {
+	if (connect_timeout(sock, (struct sockaddr *) &addr, sizeof(addr), 10) < 0) {
 		LOG_INFO("unable to connect to server");
 		LOCK;
 		stream.state = DISCONNECT;

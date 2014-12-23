@@ -191,7 +191,7 @@ static decode_state pcm_decode(void) {
 	if (decode.new_stream) {
 		LOG_INFO("setting track_start");
 		LOCK_O_not_direct;
- 		output.next_sample_rate = decode_newstream(sample_rate, output.supported_rates);
+		output.next_sample_rate = decode_newstream(sample_rate, output.supported_rates);
 		output.track_start = outputbuf->writep;
 		IF_DSD( output.next_dop = false; )
 		if (output.fade_mode) _checkfade(true);

@@ -159,7 +159,7 @@ struct setd_packet {
 // codec open - this is an extension to slimproto to allow the server to read the header and then return decode params
 struct codc_packet {
 	char  opcode[4];
- 	u8_t  format;
+	u8_t  format;
 	u8_t  pcm_sample_size;
 	u8_t  pcm_sample_rate;
 	u8_t  pcm_channels;

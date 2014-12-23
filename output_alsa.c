@@ -678,8 +678,8 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 		LOG_INFO("memory locked");
 	}
 
-   	mallopt(M_TRIM_THRESHOLD, -1);
-   	mallopt(M_MMAP_MAX, 0);
+	mallopt(M_TRIM_THRESHOLD, -1);
+	mallopt(M_MMAP_MAX, 0);
 
 	touch_memory(silencebuf, MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
 	touch_memory(outputbuf->buf, outputbuf->size);

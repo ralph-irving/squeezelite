@@ -37,7 +37,7 @@ bool is_flac_dop(u32_t *lptr, u32_t *rptr, frames_t frames) {
 	u32_t next = 0;
 
 	while (frames--) {
- 		if (((*lptr & 0x00FF0000) == 0x00050000 && (*rptr & 0x00FF0000) == 0x00050000) || 
+		if (((*lptr & 0x00FF0000) == 0x00050000 && (*rptr & 0x00FF0000) == 0x00050000) ||
 			((*lptr & 0x00FF0000) == 0x00FA0000 && (*rptr & 0x00FF0000) == 0x00FA0000)) {
 			if (*lptr >> 24 == next) {
 				matched++;

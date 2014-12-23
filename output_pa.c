@@ -75,7 +75,7 @@ extern u8_t *silencebuf_dop;
 #endif
 
 void list_devices(void) {
- 	PaError err;
+	PaError err;
 	int i;
 
 	if ((err = Pa_Initialize()) != paNoError) {
@@ -505,7 +505,7 @@ void output_init_pa(log_level level, const char *device, unsigned output_buf_siz
 	LOG_INFO("requested latency: %u", output.latency);
 #endif
 
- 	if ((err = Pa_Initialize()) != paNoError) {
+	if ((err = Pa_Initialize()) != paNoError) {
 		LOG_WARN("error initialising port audio: %s", Pa_GetErrorText(err));
 		exit(0);
 	}
@@ -535,7 +535,7 @@ void output_close_pa(void) {
 		}
 	}
 
- 	if ((err = Pa_Terminate()) != paNoError) {
+	if ((err = Pa_Terminate()) != paNoError) {
 		LOG_WARN("error closing port audio: %s", Pa_GetErrorText(err));
 	}
 

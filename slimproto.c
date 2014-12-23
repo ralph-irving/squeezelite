@@ -677,8 +677,8 @@ void wake_controller(void) {
 }
 
 in_addr_t discover_server(void) {
-    struct sockaddr_in d;
-    struct sockaddr_in s;
+	struct sockaddr_in d;
+	struct sockaddr_in s;
 	char *buf;
 	struct pollfd pollinfo;
 
@@ -690,9 +690,9 @@ in_addr_t discover_server(void) {
 	buf = "e";
 
 	memset(&d, 0, sizeof(d));
-    d.sin_family = AF_INET;
+	d.sin_family = AF_INET;
 	d.sin_port = htons(PORT);
-    d.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+	d.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
 	pollinfo.fd = disc_sock;
 	pollinfo.events = POLLIN;
@@ -724,7 +724,7 @@ in_addr_t discover_server(void) {
 #define VAR_CAP_LEN   128
 
 void slimproto(log_level level, char *server, u8_t mac[6], const char *name, const char *namefile, const char *modelname) {
-    struct sockaddr_in serv_addr;
+	struct sockaddr_in serv_addr;
 	static char fixed_cap[FIXED_CAP_LEN], var_cap[VAR_CAP_LEN] = "";
 	bool reconnect = false;
 	unsigned failed_connect = 0;
