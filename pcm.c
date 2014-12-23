@@ -104,6 +104,7 @@ static void _check_header(void) {
 				ptr += 8;
 				_buf_inc_readp(streambuf, ptr - streambuf->readp);
 				audio_left = len;
+				LOG_INFO("audio size: %u", audio_left);
 				limit = true;
 				return;
 			}
@@ -113,7 +114,8 @@ static void _check_header(void) {
 				// following 4 bytes is blocksize - ignored
 				ptr += 8 + 8;
 				_buf_inc_readp(streambuf, ptr + offset - streambuf->readp);
-				audio_left = len;
+				audio_left = len - 8 - offset;
+				LOG_INFO("audio size: %u", audio_left);
 				limit = true;
 				return;
 			}
