@@ -16,39 +16,39 @@ mkdir -p pkg/squeezelite/bin
 mkdir -p pkg/squeezelite/lib
 
 cp -p lib/libFLAC.so.8 pkg/squeezelite/lib
-setrpath pkg/squeezelite/lib/libFLAC.so.8 "/opt/squeezelite/lib"
+setrpath -f pkg/squeezelite/lib/libFLAC.so.8 "/opt/squeezelite/lib"
 
 cp -p lib/libfaad.so.2 pkg/squeezelite/lib
-setrpath pkg/squeezelite/lib/libfaad.so.2 "/opt/squeezelite/lib"
+setrpath -f pkg/squeezelite/lib/libfaad.so.2 "/opt/squeezelite/lib"
 
 cp -p lib/libgcc_s.so.1 pkg/squeezelite/lib
 
 cp -p lib/libmad.so.0 pkg/squeezelite/lib
-setrpath pkg/squeezelite/lib/libmad.so.0 "/opt/squeezelite/lib"
+setrpath -f pkg/squeezelite/lib/libmad.so.0 "/opt/squeezelite/lib"
 
 cp -p lib/libmpg123.so.0 pkg/squeezelite/lib
-setrpath pkg/squeezelite/lib/libmpg123.so.0 "/opt/squeezelite/lib"
+setrpath -f pkg/squeezelite/lib/libmpg123.so.0 "/opt/squeezelite/lib"
 
 cp -p lib/libogg.so.0 pkg/squeezelite/lib
-setrpath pkg/squeezelite/lib/libogg.so.0 "/opt/squeezelite/lib"
+setrpath -f pkg/squeezelite/lib/libogg.so.0 "/opt/squeezelite/lib"
 
 cp -p lib/libsoxr.so.0 pkg/squeezelite/lib
-setrpath pkg/squeezelite/lib/libsoxr.so.0 "/opt/squeezelite/lib"
+setrpath -f pkg/squeezelite/lib/libsoxr.so.0 "/opt/squeezelite/lib"
 
 cp -p lib/libvorbis.so.0 pkg/squeezelite/lib
-setrpath pkg/squeezelite/lib/libvorbis.so.0 "/opt/squeezelite/lib"
+setrpath -f pkg/squeezelite/lib/libvorbis.so.0 "/opt/squeezelite/lib"
 
 cp -p lib/libvorbisfile.so.3 pkg/squeezelite/lib
-setrpath pkg/squeezelite/lib/libvorbisfile.so.3 "/opt/squeezelite/lib"
+setrpath -f pkg/squeezelite/lib/libvorbisfile.so.3 "/opt/squeezelite/lib"
 
 cp -p lib/libavcodec.so.55 pkg/squeezelite/lib
-setrpath pkg/squeezelite/lib/libavcodec.so.55 "/opt/squeezelite/lib"
+setrpath -f pkg/squeezelite/lib/libavcodec.so.55 "/opt/squeezelite/lib"
 
 cp -p lib/libavformat.so.55 pkg/squeezelite/lib
-setrpath pkg/squeezelite/lib/libavformat.so.55 "/opt/squeezelite/lib"
+setrpath -f pkg/squeezelite/lib/libavformat.so.55 "/opt/squeezelite/lib"
 
 cp -p lib/libavutil.so.52 pkg/squeezelite/lib
-setrpath pkg/squeezelite/lib/libavutil.so.52 "/opt/squeezelite/lib"
+setrpath -f pkg/squeezelite/lib/libavutil.so.52 "/opt/squeezelite/lib"
 
 cp -p squeezelite-sun pkg/squeezelite/bin/squeezelite
 cp -p $startdir/../squeezelite-1.3/squeezelite-sun pkg/squeezelite/bin/squeezelite-1.3
