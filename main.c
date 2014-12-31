@@ -70,6 +70,9 @@ static void usage(const char *argv0) {
 #if ALSA
 		   "  -p <priority>\t\tSet real time priority of output thread (1-99)\n"
 #endif
+#if LINUX || FREEBSD || SUN
+		   "  -P <filename>\t\tStore the process id (PID) in filename\n"
+#endif
 		   "  -r <rates>[:<delay>]\tSample rates supported, allows output to be off when squeezelite is started; rates = <maxrate>|<minrate>-<maxrate>|<rate1>,<rate2>,<rate3>; delay = optional delay switching rates in ms\n"
 #if RESAMPLE
 		   "  -R -u [params]\tResample, params = <recipe>:<flags>:<attenuation>:<precision>:<passband_end>:<stopband_start>:<phase_response>,\n" 
@@ -91,6 +94,7 @@ static void usage(const char *argv0) {
 		   "  -z \t\t\tDaemonize\n"
 #endif
 		   "  -t \t\t\tLicense terms\n"
+		   "  -? \t\t\tDisplay this help text\n"
 		   "\n"
 		   "Build options:"
 #if SUN
@@ -196,6 +200,8 @@ int main(int argc, char **argv) {
 	char *output_params = NULL;
 #if LINUX || FREEBSD || SUN
 	bool daemonize = false;
+	char *pidfile = NULL;
+	FILE *pidfp = NULL;
 #endif
 #if ALSA
 	unsigned rt_priority = OUTPUT_RT_PRIORITY;
@@ -229,7 +235,7 @@ int main(int argc, char **argv) {
 
 	while (optind < argc && strlen(argv[optind]) >= 2 && argv[optind][0] == '-') {
 		char *opt = argv[optind] + 1;
-		if (strstr("oabcdefmMnNprs", opt) && optind < argc - 1) {
+		if (strstr("oabcdefmMnNpPrs?", opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
 			optind += 2;
 		} else if (strstr("ltz"
@@ -246,8 +252,9 @@ int main(int argc, char **argv) {
 			optarg = NULL;
 			optind += 1;
 		} else {
+			fprintf(stderr, "\nOption error: -%s\n\n", opt);
 			usage(argv[0]);
-			exit(0);
+			exit(1);
 		}
 
 		switch (opt[0]) {
@@ -285,8 +292,9 @@ int main(int argc, char **argv) {
 					if (!strcmp(l, "all") || !strcmp(l, "decode"))    log_decode = new;
 					if (!strcmp(l, "all") || !strcmp(l, "output"))    log_output = new;
 				} else {
+					fprintf(stderr, "\nDebug settings error: -d %s\n\n", optarg);
 					usage(argv[0]);
-					exit(0);
+					exit(1);
 				}
 			}
 			break;
@@ -369,9 +377,15 @@ int main(int argc, char **argv) {
 		case 'p':
 			rt_priority = atoi(optarg);
 			if (rt_priority > 99 || rt_priority < 1) {
+				fprintf(stderr, "\nError: invalid priority: %s\n\n", optarg);
 				usage(argv[0]);
-				exit(0);
+				exit(1);
 			}
+			break;
+#endif
+#if LINUX || FREEBSD || SUN
+		case 'P':
+			pidfile = optarg;
 			break;
 #endif
 		case 'l':
@@ -412,15 +426,20 @@ int main(int argc, char **argv) {
 		case 't':
 			license();
 			exit(0);
+		case '?':
+			usage(argv[0]);
+			exit(0);
 		default:
+			fprintf(stderr, "Arg error: %s\n", argv[optind]);
 			break;
 		}
 	}
 
 	// warn if command line includes something which isn't parsed
 	if (optind < argc) {
+		fprintf(stderr, "\nError: command line argument error\n\n");
 		usage(argv[0]);
-		exit(0);
+		exit(1);
 	}
 
 	signal(SIGINT, sighandler);
@@ -457,10 +476,23 @@ int main(int argc, char **argv) {
 	}
 
 #if LINUX || FREEBSD || SUN
+	if (pidfile) {
+		if (!(pidfp = fopen(pidfile, "w")) ) {
+			fprintf(stderr, "Error opening pidfile %s: %s\n", pidfile, strerror(errno));
+			exit(1);
+		}
+		pidfile = realpath(pidfile, NULL); // daemonize will change cwd
+	}
+
 	if (daemonize) {
 		if (daemon(0, logfile ? 1 : 0)) {
 			fprintf(stderr, "error daemonizing: %s\n", strerror(errno));
 		}
+	}
+
+	if (pidfp) {
+		fprintf(pidfp, "%d\n", (int) getpid());
+		fclose(pidfp);
 	}
 #endif
 
@@ -500,8 +532,8 @@ int main(int argc, char **argv) {
 #endif
 
 	if (name && namefile) {
-		printf("-n and -N option should not be used at same time\n");
-		exit(0);
+		fprintf(stderr, "-n and -N option should not be used at same time\n");
+		exit(1);
 	}
 
 	slimproto(log_slimproto, server, mac, name, namefile, modelname);
@@ -522,6 +554,13 @@ int main(int argc, char **argv) {
 
 #if WIN
 	winsock_close();
+#endif
+
+#if LINUX || FREEBSD || SUN
+	if (pidfile) {
+		unlink(pidfile);
+		free(pidfile);
+	}
 #endif
 
 	exit(0);
