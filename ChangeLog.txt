@@ -110,3 +110,13 @@ Version 1.6.5 21/11/14
 Minor changes
 - fix problem opening ALSA device if 44100 is not supported
 - trap setting of hw player mac address
+
+Version 1.7 1/1/15
+==================
+
+Minor changes
+- allow player modelname to be set at compile or run time
+- workaround alsa drivers reporting very large number of available frames
+- fix clicks on localfile playback of AIFF files
+- add -P option to store process id in a file
+- improve error messages for command line parsing
