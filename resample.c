@@ -74,6 +74,7 @@ void resample_samples(struct processstate *process) {
 		SOXR(r, process, r->resampler, process->inbuf, process->in_frames, &idone, process->outbuf, process->max_out_frames, &odone);
 	if (error) {
 		LOG_INFO("soxr_process error: %s", soxr_strerror(error));
+		return;
 	}
 	
 	if (idone != process->in_frames) {
@@ -100,6 +101,7 @@ bool resample_drain(struct processstate *process) {
 	soxr_error_t error = SOXR(r, process, r->resampler, NULL, 0, NULL, process->outbuf, process->max_out_frames, &odone);
 	if (error) {
 		LOG_INFO("soxr_process error: %s", soxr_strerror(error));
+		return true;
 	}
 	
 	process->out_frames = odone;

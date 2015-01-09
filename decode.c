@@ -242,6 +242,8 @@ void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, 
 			
 			codec->open(sample_size, sample_rate, channels, endianness);
 
+			decode.state = DECODE_READY;
+
 			UNLOCK_D;
 			return;
 		}

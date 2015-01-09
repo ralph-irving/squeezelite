@@ -280,9 +280,6 @@ static void process_strm(u8_t *pkt, int len) {
 			output.state = jiffies ? OUTPUT_START_AT : OUTPUT_RUNNING;
 			output.start_at = jiffies;
 			UNLOCK_O;
-			LOCK_D;
-			decode.state = DECODE_RUNNING;
-			UNLOCK_D;
 			LOG_DEBUG("unpause at: %u now: %u", jiffies, gettime_ms());
 			sendSTAT("STMr", 0);
 		}
@@ -630,8 +627,9 @@ static void slimproto_run() {
 				status.last = now;
 			}
 			if ((status.stream_state == STREAMING_HTTP || status.stream_state == STREAMING_FILE) && !sentSTMl 
-				&& decode.state == DECODE_STOPPED) {
+				&& decode.state == DECODE_READY) {
 				if (autostart == 0) {
+					decode.state = DECODE_RUNNING;
 					_sendSTMl = true;
 					sentSTMl = true;
 				} else if (autostart == 1) {
