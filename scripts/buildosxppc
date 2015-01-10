@@ -9,5 +9,6 @@ mv squeezelite-ppc-keep squeezelite-ppc
 strip squeezelite-ppc
 strip squeezelite-ppc64
 lipo -create squeezelite-ppc squeezelite-ppc64 -output squeezelite
+sudo cp squeezelite-ppc squeezelite-ppc64 squeezelite pkg/opt/squeezelite/bin
 make -f Makefile.ppc64 clean
 make -f Makefile.ppc clean
