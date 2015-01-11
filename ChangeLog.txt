@@ -120,3 +120,9 @@ Minor changes
 - fix clicks on localfile playback of AIFF files
 - add -P option to store process id in a file
 - improve error messages for command line parsing
+
+Version 1.7.1 10/1/15
+=====================
+
+Minor changes
+- fix crash which could occur when resampling
