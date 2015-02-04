@@ -248,7 +248,7 @@ int main(int argc, char **argv) {
 	int optind = 1;
 	int i;
 
-#define MAXCMDLINE 256
+#define MAXCMDLINE 512
 	char cmdline[MAXCMDLINE] = "";
 
 	get_mac(mac);
