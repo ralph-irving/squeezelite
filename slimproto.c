@@ -108,7 +108,7 @@ void send_packet(u8_t *packet, size_t len) {
 }
 
 static void sendHELO(bool reconnect, const char *fixed_cap, const char *var_cap, u8_t mac[6]) {
-	const char *base_cap = "Model=squeezelite,AccuratePlayPoints=1,HasDigitalOut=1";
+	const char *base_cap = "Model=squeezelite,AccuratePlayPoints=1,HasDigitalOut=1,HasPolarityInversion=1,Firmware=" VERSION;
 	struct HELO_packet pkt;
 
 	memset(&pkt, 0, sizeof(pkt));
@@ -353,6 +353,7 @@ static void process_strm(u8_t *pkt, int len) {
 			output.next_replay_gain = unpackN(&strm->replay_gain);
 			output.fade_mode = strm->transition_type - '0';
 			output.fade_secs = strm->transition_period;
+			output.polarity  = strm->flags & 0x03 ? -1 : 1;
 			LOG_DEBUG("set fade mode: %u", output.fade_mode);
 			UNLOCK_O;
 		}

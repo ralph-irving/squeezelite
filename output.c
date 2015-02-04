@@ -47,9 +47,9 @@ frames_t _output_frames(frames_t avail) {
 	
 	s32_t cross_gain_in = 0, cross_gain_out = 0; s32_t *cross_ptr = NULL;
 	
-	s32_t gainL = output.current_replay_gain ? gain(output.gainL, output.current_replay_gain) : output.gainL;
-	s32_t gainR = output.current_replay_gain ? gain(output.gainR, output.current_replay_gain) : output.gainR;
-	
+	s32_t gainL = output.polarity * (output.current_replay_gain ? gain(output.gainL, output.current_replay_gain) : output.gainL);
+	s32_t gainR = output.polarity * (output.current_replay_gain ? gain(output.gainR, output.current_replay_gain) : output.gainR);
+
 	frames = _buf_used(outputbuf) / BYTES_PER_FRAME;
 	silence = false;
 
@@ -218,8 +218,8 @@ frames_t _output_frames(frames_t avail) {
 							cur_f = dur_f - cur_f;
 						}
 						fade_gain = to_gain((float)cur_f / (float)dur_f);
-						gainL = gain(gainL, fade_gain);
-						gainR = gain(gainR, fade_gain);
+						gainL = output.polarity * gain(gainL, fade_gain);
+						gainR = output.polarity * gain(gainR, fade_gain);
 					}
 					if (output.fade_dir == FADE_CROSS) {
 						// cross fade requires special treatment - performed later based on these values
@@ -233,8 +233,8 @@ frames_t _output_frames(frames_t avail) {
 							if (output.next_replay_gain) {
 								cross_gain_in = gain(cross_gain_in, output.next_replay_gain);
 							}
-							gainL = output.gainL;
-							gainR = output.gainR;
+							gainL = output.polarity * output.gainL;
+							gainR = output.polarity * output.gainR;
 							cross_ptr = (s32_t *)(output.fade_end + cur_f * BYTES_PER_FRAME);
 						} else {
 							LOG_INFO("unable to continue crossfade - too few samples");
@@ -368,6 +368,7 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 	output.state = idle ? OUTPUT_OFF: OUTPUT_STOPPED;
 	output.device = device;
 	output.fade = FADE_INACTIVE;
+	output.polarity = 1;
 	output.error_opening = false;
 	output.idle_to = (u32_t) idle;
 
