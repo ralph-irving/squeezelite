@@ -100,6 +100,7 @@ static void usage(const char *argv0) {
 #endif
 #if ALSA
 		   "  -L \t\t\tList volume controls for output device\n"
+		   "  -U <control>\t\tUnmute ALSA control and set to full volume\n"
 		   "  -V <control>\t\tUse ALSA control for volume adjustment, otherwise use software volume adjustment\n"
 #endif
 #if LINUX || FREEBSD || SUN
@@ -222,6 +223,7 @@ int main(int argc, char **argv) {
 #if ALSA
 	unsigned rt_priority = OUTPUT_RT_PRIORITY;
 	char *output_mixer = NULL;
+	bool output_mixer_unmute = false;
 #endif
 #if DSD
 	bool dop = false;
@@ -260,7 +262,7 @@ int main(int argc, char **argv) {
 		char *opt = argv[optind] + 1;
 		if (strstr("oabcCdefmMnNpPrs"
 #if ALSA
-				   "V"
+				   "UV"
 #endif
 				   , opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
@@ -464,6 +466,8 @@ int main(int argc, char **argv) {
 			break;
 #endif
 #if ALSA
+		case 'U':
+			output_mixer_unmute = true;
 		case 'V':
 			output_mixer = optarg;
 			break;
@@ -568,7 +572,8 @@ int main(int argc, char **argv) {
 		output_init_stdout(log_output, output_buf_size, output_params, rates, rate_delay);
 	} else {
 #if ALSA
-		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, rt_priority, idle, output_mixer);
+		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, rt_priority, idle, output_mixer,
+						 output_mixer_unmute);
 #endif
 #if PORTAUDIO
 		output_init_pa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
