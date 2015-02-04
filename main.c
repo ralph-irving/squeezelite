@@ -46,8 +46,6 @@ static void usage(const char *argv0) {
 		   "  -o <output device>\tSpecify output device, default \"default\", - = output to stdout\n"
 		   "  -l \t\t\tList output devices\n"
 #if ALSA
-		   "  -L \t\t\tList volume controls for output device\n"
-		   "  -V <control>\t\tUse ALSA control for volume adjustment, otherwise use software volume adjustment\n"
 		   "  -a <b>:<p>:<f>:<m>\tSpecify ALSA params to open output device, b = buffer time in ms or size in bytes, p = period count or size in bytes, f sample format (16|24|24_3|32), m = use mmap (0|1)\n"
 #endif
 #if PORTAUDIO
@@ -99,6 +97,10 @@ static void usage(const char *argv0) {
 #endif
 #if VISEXPORT
 		   "  -v \t\t\tVisualiser support\n"
+#endif
+#if ALSA
+		   "  -L \t\t\tList volume controls for output device\n"
+		   "  -V <control>\t\tUse ALSA control for volume adjustment, otherwise use software volume adjustment\n"
 #endif
 #if LINUX || FREEBSD || SUN
 		   "  -z \t\t\tDaemonize\n"
