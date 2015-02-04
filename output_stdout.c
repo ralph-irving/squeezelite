@@ -67,7 +67,7 @@ static int _stdout_write_frames(frames_t out_frames, bool silence, s32_t gainL, 
 			   if (silence) {
 				   obuf = silencebuf_dop;
 			   }
-			   update_dop_marker((u32_t *)obuf, out_frames);
+			   update_dop((u32_t *)obuf, out_frames, output.invert);
 		   }
 	)
 

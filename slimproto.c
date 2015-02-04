@@ -353,7 +353,7 @@ static void process_strm(u8_t *pkt, int len) {
 			output.next_replay_gain = unpackN(&strm->replay_gain);
 			output.fade_mode = strm->transition_type - '0';
 			output.fade_secs = strm->transition_period;
-			output.polarity  = strm->flags & 0x03 ? -1 : 1;
+			output.invert    = (strm->flags & 0x03) == 0x03;
 			LOG_DEBUG("set fade mode: %u", output.fade_mode);
 			UNLOCK_O;
 		}

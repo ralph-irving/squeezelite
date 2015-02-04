@@ -58,17 +58,28 @@ bool is_flac_dop(u32_t *lptr, u32_t *rptr, frames_t frames) {
 	return false;
 }
 
-// update the dop marker for frames in the output buffer
+// update the dop marker and potentially invert polarity for frames in the output buffer
 // performaned on all output including silence to maintain marker phase consitency
-void update_dop_marker(u32_t *ptr, frames_t frames) {
+void update_dop(u32_t *ptr, frames_t frames, bool invert) {
 	static u32_t marker = 0x05;
-	while (frames--) {
-		u32_t scaled_marker = marker << 24;
-		*ptr = (*ptr & 0x00FFFFFF) | scaled_marker;
-		++ptr;
-		*ptr = (*ptr & 0x00FFFFFF) | scaled_marker;
-		++ptr;
-		marker = ( 0x05 + 0xFA ) - marker;
+	if (!invert) {
+		while (frames--) {
+			u32_t scaled_marker = marker << 24;
+			*ptr = (*ptr & 0x00FFFFFF) | scaled_marker;
+			++ptr;
+			*ptr = (*ptr & 0x00FFFFFF) | scaled_marker;
+			++ptr;
+			marker = ( 0x05 + 0xFA ) - marker;
+		}
+	} else {
+		while (frames--) {
+			u32_t scaled_marker = marker << 24;
+			*ptr = ((~(*ptr)) & 0x00FFFFFF) | scaled_marker;
+			++ptr;
+			*ptr = ((~(*ptr)) & 0x00FFFFFF) | scaled_marker;
+			++ptr;
+			marker = ( 0x05 + 0xFA ) - marker;
+		}
 	}
 }
 
