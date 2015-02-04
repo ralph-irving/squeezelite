@@ -200,14 +200,14 @@ void set_volume(unsigned left, unsigned right) {
 		snd_mixer_selem_set_playback_switch_all(elem, 1); // unmute
 	}
 
-	if ((err = snd_mixer_selem_get_playback_dB_range(elem, &min, &max)) < 0) {
-		// unable to get db range - set using raw values
+	if ((err = snd_mixer_selem_get_playback_dB_range(elem, &min, &max)) < 0 || max - min < 1000) {
+		// unable to get db range or range is less than 10dB - ignore and set using raw values
 		if ((err = snd_mixer_selem_get_playback_volume_range(elem, &min, &max)) < 0) {
-			LOG_ERROR("unable to get volume raw", min, max);
+			LOG_ERROR("unable to get volume raw");
 		} else {
-			long lraw = (MINVOL_DB + floor(ldB)) / MINVOL_DB * max;
-			long rraw = (MINVOL_DB + floor(rdB)) / MINVOL_DB * max;
-			LOG_DEBUG("setting vol raw [%ld-%ld]", min, max);
+			long lraw = (ldB > -MINVOL_DB ? MINVOL_DB + floor(ldB) : 0) / MINVOL_DB * max;
+			long rraw = (rdB > -MINVOL_DB ? MINVOL_DB + floor(rdB) : 0) / MINVOL_DB * max;
+			LOG_DEBUG("setting vol raw [%ld..%ld]", min, max);
 			if ((err = snd_mixer_selem_set_playback_volume(elem, SND_MIXER_SCHN_FRONT_LEFT, lraw)) < 0) {
 				LOG_ERROR("error setting left volume: %s", snd_strerror(err));
 			}
@@ -217,7 +217,7 @@ void set_volume(unsigned left, unsigned right) {
 		}
 	} else {
 		// set db directly
-		LOG_DEBUG("setting vol dB");
+		LOG_DEBUG("setting vol dB [%ld..%ld]", min, max);
 		if ((err = snd_mixer_selem_set_playback_dB(elem, SND_MIXER_SCHN_FRONT_LEFT, 100 * ldB, 1)) < 0) {
 			LOG_ERROR("error setting left volume: %s", snd_strerror(err));
 		}
