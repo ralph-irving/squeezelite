@@ -46,6 +46,8 @@ static void usage(const char *argv0) {
 		   "  -o <output device>\tSpecify output device, default \"default\", - = output to stdout\n"
 		   "  -l \t\t\tList output devices\n"
 #if ALSA
+		   "  -L \t\t\tList volume controls for output device\n"
+		   "  -V <control>\t\tUse ALSA control for volume adjustment, otherwise use software volume adjustment\n"
 		   "  -a <b>:<p>:<f>:<m>\tSpecify ALSA params to open output device, b = buffer time in ms or size in bytes, p = period count or size in bytes, f sample format (16|24|24_3|32), m = use mmap (0|1)\n"
 #endif
 #if PORTAUDIO
@@ -217,6 +219,7 @@ int main(int argc, char **argv) {
 #endif
 #if ALSA
 	unsigned rt_priority = OUTPUT_RT_PRIORITY;
+	char *output_mixer = NULL;
 #endif
 #if DSD
 	bool dop = false;
@@ -253,10 +256,17 @@ int main(int argc, char **argv) {
 
 	while (optind < argc && strlen(argv[optind]) >= 2 && argv[optind][0] == '-') {
 		char *opt = argv[optind] + 1;
-		if (strstr("oabcCdefmMnNpPrs", opt) && optind < argc - 1) {
+		if (strstr("oabcCdefmMnNpPrs"
+#if ALSA
+				   "V"
+#endif
+				   , opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
 			optind += 2;
 		} else if (strstr("ltz?"
+#if ALSA
+						  "L"
+#endif
 #if RESAMPLE
 						  "uR"
 #endif
@@ -422,6 +432,12 @@ int main(int argc, char **argv) {
 			list_devices();
 			exit(0);
 			break;
+#if ALSA
+		case 'L':
+			list_mixers(output_device);
+			exit(0);
+			break;
+#endif
 #if RESAMPLE
 		case 'u':
 		case 'R':
@@ -443,6 +459,11 @@ int main(int argc, char **argv) {
 #if VISEXPORT
 		case 'v':
 			visexport = true;
+			break;
+#endif
+#if ALSA
+		case 'V':
+			output_mixer = optarg;
 			break;
 #endif
 #if IR
@@ -545,7 +566,7 @@ int main(int argc, char **argv) {
 		output_init_stdout(log_output, output_buf_size, output_params, rates, rate_delay);
 	} else {
 #if ALSA
-		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, rt_priority, idle);
+		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, rt_priority, idle, output_mixer);
 #endif
 #if PORTAUDIO
 		output_init_pa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);

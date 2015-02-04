@@ -101,6 +101,14 @@ void list_devices(void) {
 	}
 }
 
+void set_volume(unsigned left, unsigned right) {
+	LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
+	LOCK;
+	output.gainL = left;
+	output.gainR = right;
+	UNLOCK;
+}
+
 static int pa_device_id(const char *device) {
 	int len = strlen(device);
 	int i;

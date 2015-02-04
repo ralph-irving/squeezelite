@@ -27,6 +27,7 @@
 #include <alsa/asoundlib.h>
 #include <sys/mman.h>
 #include <malloc.h>
+#include <math.h>
 
 #define MAX_DEVICE_LEN 128
 
@@ -49,6 +50,7 @@ static struct {
 	bool mmap;
 	bool reopen;
 	u8_t *write_buf;
+	const char *volume_mixer;
 } alsa;
 
 static snd_pcm_t *pcmp = NULL;
@@ -91,6 +93,149 @@ void list_devices(void) {
 		snd_device_name_free_hint(hints);
 	}
 	printf("\n");
+}
+
+void list_mixers(const char *output_device) {
+	int err;
+	snd_mixer_t *handle;
+	snd_mixer_selem_id_t *sid;
+	snd_mixer_elem_t *elem;
+	snd_mixer_selem_id_alloca(&sid);
+
+	LOG_INFO("listing mixers for: %s", output_device);
+
+	if ((err = snd_mixer_open(&handle, 0)) < 0) {
+		LOG_ERROR("open error: %s", snd_strerror(err));
+		return;
+	}
+	if ((err = snd_mixer_attach(handle, output_device)) < 0) {
+		LOG_ERROR("attach error: %s", snd_strerror(err));
+		snd_mixer_close(handle);
+		return;
+	}
+	if ((err = snd_mixer_selem_register(handle, NULL, NULL)) < 0) {
+		LOG_ERROR("register error: %s", snd_strerror(err));
+		snd_mixer_close(handle);
+		return;
+	}
+	if ((err = snd_mixer_load(handle)) < 0) {
+		LOG_ERROR("load error: %s", snd_strerror(err));
+		snd_mixer_close(handle);
+		return;
+	}
+
+	printf("Volume controls for %s\n", output_device);
+	for (elem = snd_mixer_first_elem(handle); elem; elem = snd_mixer_elem_next(elem)) {
+		if (snd_mixer_selem_has_playback_volume(elem)) {
+			snd_mixer_selem_get_id(elem, sid);
+			printf("   %s\n", snd_mixer_selem_id_get_name(sid));//, snd_mixer_selem_id_get_index(sid));
+		}
+	}
+	printf("\n");
+
+	snd_mixer_close(handle);
+}
+
+#define MINVOL_DB 72 // LMS volume map for SqueezePlay sends values in range ~ -72..0 dB
+
+void set_volume(unsigned left, unsigned right) {
+	int err;
+	float ldB, rdB;
+	long nleft, nright;
+	long min, max;
+	snd_mixer_t *handle;
+	snd_mixer_selem_id_t *sid;
+	snd_mixer_elem_t* elem;
+
+	if (!alsa.volume_mixer) {
+		LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
+		LOCK;
+		output.gainL = left;
+		output.gainR = right;
+		UNLOCK;
+		return;
+	} else {
+		LOCK;
+		output.gainL = FIXED_ONE;
+		output.gainR = FIXED_ONE;
+		UNLOCK;
+	}
+
+	// convert 16.16 fixed point to dB
+	ldB = 20 * log10( left  / 65536.0F );
+	rdB = 20 * log10( right / 65536.0F );
+
+	if ((err = snd_mixer_open(&handle, 0)) < 0) {
+		LOG_ERROR("open error: %s", snd_strerror(err));
+		return;
+	}
+	if ((err = snd_mixer_attach(handle, output.device)) < 0) {
+		LOG_ERROR("attach error: %s", snd_strerror(err));
+		snd_mixer_close(handle);
+		return;
+	}
+	if ((err = snd_mixer_selem_register(handle, NULL, NULL)) < 0) {
+		LOG_ERROR("register error: %s", snd_strerror(err));
+		snd_mixer_close(handle);
+		return;
+	}
+	if ((err = snd_mixer_load(handle)) < 0) {
+		LOG_ERROR("load error: %s", snd_strerror(err));
+		snd_mixer_close(handle);
+		return;
+	}
+
+	snd_mixer_selem_id_alloca(&sid);
+
+	snd_mixer_selem_id_set_index(sid, 0);
+	snd_mixer_selem_id_set_name(sid, alsa.volume_mixer);
+
+	if ((elem = snd_mixer_find_selem(handle, sid)) == NULL) {
+		LOG_ERROR("error find selem %s: %s", alsa.volume_mixer, snd_strerror(err));
+		snd_mixer_close(handle);
+		return;
+	}
+
+	if (snd_mixer_selem_has_playback_switch(elem)) {
+		snd_mixer_selem_set_playback_switch_all(elem, 1); // unmute
+	}
+
+	if ((err = snd_mixer_selem_get_playback_dB_range(elem, &min, &max)) < 0) {
+		// unable to get db range - set using raw values
+		if ((err = snd_mixer_selem_get_playback_volume_range(elem, &min, &max)) < 0) {
+			LOG_ERROR("unable to get volume raw", min, max);
+		} else {
+			long lraw = (MINVOL_DB + floor(ldB)) / MINVOL_DB * max;
+			long rraw = (MINVOL_DB + floor(rdB)) / MINVOL_DB * max;
+			LOG_DEBUG("setting vol raw [%ld-%ld]", min, max);
+			if ((err = snd_mixer_selem_set_playback_volume(elem, SND_MIXER_SCHN_FRONT_LEFT, lraw)) < 0) {
+				LOG_ERROR("error setting left volume: %s", snd_strerror(err));
+			}
+			if ((err = snd_mixer_selem_set_playback_volume(elem, SND_MIXER_SCHN_FRONT_RIGHT, rraw)) < 0) {
+				LOG_ERROR("error setting right volume: %s", snd_strerror(err));
+			}
+		}
+	} else {
+		// set db directly
+		LOG_DEBUG("setting vol dB");
+		if ((err = snd_mixer_selem_set_playback_dB(elem, SND_MIXER_SCHN_FRONT_LEFT, 100 * ldB, 1)) < 0) {
+			LOG_ERROR("error setting left volume: %s", snd_strerror(err));
+		}
+		if ((err = snd_mixer_selem_set_playback_dB(elem, SND_MIXER_SCHN_FRONT_RIGHT, 100 * rdB, 1)) < 0) {
+			LOG_ERROR("error setting right volume: %s", snd_strerror(err));
+		}
+	}
+
+	if ((err = snd_mixer_selem_get_playback_volume(elem, SND_MIXER_SCHN_FRONT_LEFT, &nleft)) < 0) {
+		LOG_ERROR("error getting left vol: %s", snd_strerror(err));
+	}
+	if ((err = snd_mixer_selem_get_playback_volume(elem, SND_MIXER_SCHN_FRONT_RIGHT, &nright)) < 0) {
+		LOG_ERROR("error getting right vol: %s", snd_strerror(err));
+	}
+
+	LOG_DEBUG("%s left: %3.1fdB -> %ld right: %3.1fdB -> %ld", alsa.volume_mixer, ldB, nleft, rdB, nright);
+
+	snd_mixer_close(handle);
 }
 
 static void *alsa_error_handler(const char *file, int line, const char *function, int err, const char *fmt, ...) {
@@ -619,7 +764,7 @@ static void *output_thread(void *arg) {
 static pthread_t thread;
 
 void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], 
-					  unsigned rate_delay, unsigned rt_priority, unsigned idle) {
+					  unsigned rate_delay, unsigned rt_priority, unsigned idle, const char *volume_mixer) {
 
 	unsigned alsa_buffer = ALSA_BUFFER_TIME;
 	unsigned alsa_period = ALSA_PERIOD_COUNT;
@@ -649,6 +794,7 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	alsa.write_buf = NULL;
 	alsa.format = 0;
 	alsa.reopen = alsa_reopen;
+	alsa.volume_mixer = volume_mixer;
 	output.format = 0;
 	output.buffer = alsa_buffer;
 	output.period = alsa_period;
