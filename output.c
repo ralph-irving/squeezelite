@@ -333,7 +333,7 @@ void _checkfade(bool start) {
 	}
 }
 
-void output_init_common(log_level level, const char *device, unsigned output_buf_size, unsigned rates[]) {
+void output_init_common(log_level level, const char *device, unsigned output_buf_size, unsigned rates[], unsigned idle) {
 	unsigned i;
 
 	loglevel = level;
@@ -367,6 +367,7 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 	output.device = device;
 	output.fade = FADE_INACTIVE;
 	output.error_opening = false;
+	output.idle_to = (u32_t) idle;
 
 	if (!rates[0]) {
 		if (!test_open(output.device, output.supported_rates)) {

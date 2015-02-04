@@ -126,3 +126,9 @@ Version 1.7.1 10/1/15
 
 Minor changes
 - fix crash which could occur when resampling
+
+Version 1.8
+===========
+
+Features
+- support for closing output device when idle with -C option

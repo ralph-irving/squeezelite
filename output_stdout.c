@@ -150,7 +150,7 @@ void output_init_stdout(log_level level, unsigned output_buf_size, char *params,
 		rates[0] = 44100;
 	}
 
-	output_init_common(level, "-", output_buf_size, rates);
+	output_init_common(level, "-", output_buf_size, rates, 0);
 
 #if LINUX || OSX || FREEBSD
 	pthread_attr_t attr;

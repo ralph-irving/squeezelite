@@ -60,6 +60,7 @@ static void usage(const char *argv0) {
 		   "  -a <f>\t\tSpecify sample format (16|24|32) of output file when using -o - to output samples to stdout (interleaved little endian only)\n"
 		   "  -b <stream>:<output>\tSpecify internal Stream and Output buffer sizes in Kbytes\n"
 		   "  -c <codec1>,<codec2>\tRestrict codecs to those specified, otherwise load all available codecs; known codecs: " CODECS "\n"
+		   "  -C <timeout>\t\tClose output device when idle after timeout seconds, default is to keep it open while player is 'on'\n"
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output, level: info|debug|sdebug\n"
 		   "  -e <codec1>,<codec2>\tExplicitly exclude native support of one or more codecs; known codecs: " CODECS "\n"
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
@@ -198,6 +199,7 @@ int main(int argc, char **argv) {
 	unsigned rate_delay = 0;
 	char *resample = NULL;
 	char *output_params = NULL;
+	unsigned idle = 0;
 #if LINUX || FREEBSD || SUN
 	bool daemonize = false;
 	char *pidfile = NULL;
@@ -235,7 +237,7 @@ int main(int argc, char **argv) {
 
 	while (optind < argc && strlen(argv[optind]) >= 2 && argv[optind][0] == '-') {
 		char *opt = argv[optind] + 1;
-		if (strstr("oabcdefmMnNpPrs", opt) && optind < argc - 1) {
+		if (strstr("oabcCdefmMnNpPrs", opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
 			optind += 2;
 		} else if (strstr("ltz?"
@@ -274,6 +276,11 @@ int main(int argc, char **argv) {
 			break;
 		case 'c':
 			include_codecs = optarg;
+			break;
+		case 'C':
+			if (atoi(optarg) > 0) {
+				idle = atoi(optarg) * 1000;
+			}
 			break;
 		case 'e':
 			exclude_codecs = optarg;
@@ -506,10 +513,10 @@ int main(int argc, char **argv) {
 		output_init_stdout(log_output, output_buf_size, output_params, rates, rate_delay);
 	} else {
 #if ALSA
-		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, rt_priority);
+		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, rt_priority, idle);
 #endif
 #if PORTAUDIO
-		output_init_pa(log_output, output_device, output_buf_size, output_params, rates, rate_delay);
+		output_init_pa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
 #endif
 	}
 

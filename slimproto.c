@@ -257,7 +257,12 @@ static void process_strm(u8_t *pkt, int len) {
 			unsigned interval = unpackN(&strm->replay_gain);
 			LOCK_O;
 			output.pause_frames = interval * status.current_sample_rate / 1000;
-			output.state = interval ? OUTPUT_PAUSE_FRAMES : OUTPUT_STOPPED;				
+			if (interval) {
+				output.state = OUTPUT_PAUSE_FRAMES;
+			} else {
+				output.state = OUTPUT_STOPPED;
+				output.stop_time = gettime_ms();
+			}
 			UNLOCK_O;
 			if (!interval) sendSTAT("STMp", 0);
 			LOG_DEBUG("pause interval: %u", interval);
@@ -368,8 +373,9 @@ static void process_aude(u8_t *pkt, int len) {
 	if (!aude->enable_spdif && output.state != OUTPUT_OFF) {
 		output.state = OUTPUT_OFF;
 	}
-	if (aude->enable_spdif && output.state == OUTPUT_OFF) {
+	if (aude->enable_spdif && output.state == OUTPUT_OFF && !output.idle_to) {
 		output.state = OUTPUT_STOPPED;
+		output.stop_time = gettime_ms();
 	}
 	UNLOCK_O;
 }
@@ -561,6 +567,8 @@ static void slimproto_run() {
 			bool _sendSTMo = false;
 			bool _sendSTMn = false;
 			bool _stream_disconnect = false;
+			bool _start_output = false;
+			decode_state _decode_state;
 			disconnect_code disconnect_code;
 			static char header[MAX_HEADER];
 			size_t header_len = 0;
@@ -591,6 +599,30 @@ static void slimproto_run() {
 				stream.meta_send = false;
 			}
 			UNLOCK_S;
+
+			LOCK_D;
+			if ((status.stream_state == STREAMING_HTTP || status.stream_state == STREAMING_FILE) && !sentSTMl
+				&& decode.state == DECODE_READY) {
+				if (autostart == 0) {
+					decode.state = DECODE_RUNNING;
+					_sendSTMl = true;
+					sentSTMl = true;
+				} else if (autostart == 1) {
+					decode.state = DECODE_RUNNING;
+					_start_output = true;
+				}
+				// autostart 2 and 3 require cont to be received first
+			}
+			if (decode.state == DECODE_COMPLETE || decode.state == DECODE_ERROR) {
+				if (decode.state == DECODE_COMPLETE) _sendSTMd = true;
+				if (decode.state == DECODE_ERROR)    _sendSTMn = true;
+				decode.state = DECODE_STOPPED;
+				if (status.stream_state == STREAMING_HTTP || status.stream_state == STREAMING_FILE) {
+					_stream_disconnect = true;
+				}
+			}
+			_decode_state = decode.state;
+			UNLOCK_D;
 			
 			LOCK_O;
 			status.output_full = _buf_used(outputbuf);
@@ -611,47 +643,31 @@ static void slimproto_run() {
 				output.pa_reopen = false;
 			}
 #endif
-			if (output.state == OUTPUT_RUNNING && !sentSTMu && status.output_full == 0 && status.stream_state <= DISCONNECT) {
+			if (_start_output && (output.state == OUTPUT_STOPPED || OUTPUT_OFF)) {
+				output.state = OUTPUT_BUFFER;
+			}
+			if (output.state == OUTPUT_RUNNING && !sentSTMu && status.output_full == 0 && status.stream_state <= DISCONNECT &&
+				_decode_state == DECODE_STOPPED) {
 				_sendSTMu = true;
 				sentSTMu = true;
+				LOG_DEBUG("output underrun");
+				output.state = OUTPUT_STOPPED;
+				output.stop_time = now;
 			}
 			if (output.state == OUTPUT_RUNNING && !sentSTMo && status.output_full == 0 && status.stream_state == STREAMING_HTTP) {
 				_sendSTMo = true;
 				sentSTMo = true;
 			}
-			UNLOCK_O;
-
-			LOCK_D;
-			if (decode.state == DECODE_RUNNING && now - status.last > 1000) {
+			if (output.state == OUTPUT_STOPPED && output.idle_to && (now - output.stop_time > output.idle_to)) {
+				output.state = OUTPUT_OFF;
+				LOG_DEBUG("output timeout");
+			}
+			if (output.state == OUTPUT_RUNNING && now - status.last > 1000) {
 				_sendSTMt = true;
 				status.last = now;
 			}
-			if ((status.stream_state == STREAMING_HTTP || status.stream_state == STREAMING_FILE) && !sentSTMl 
-				&& decode.state == DECODE_READY) {
-				if (autostart == 0) {
-					decode.state = DECODE_RUNNING;
-					_sendSTMl = true;
-					sentSTMl = true;
-				} else if (autostart == 1) {
-					decode.state = DECODE_RUNNING;
-					LOCK_O;
-					if (output.state == OUTPUT_STOPPED) {
-						output.state = OUTPUT_BUFFER;
-					}
-					UNLOCK_O;
-				}
-				// autostart 2 and 3 require cont to be received first
-			}
-			if (decode.state == DECODE_COMPLETE || decode.state == DECODE_ERROR) {
-				if (decode.state == DECODE_COMPLETE) _sendSTMd = true;
-				if (decode.state == DECODE_ERROR)    _sendSTMn = true;
-				decode.state = DECODE_STOPPED;
-				if (status.stream_state == STREAMING_HTTP || status.stream_state == STREAMING_FILE) { 
-					_stream_disconnect = true;
-				}
-			}
-			UNLOCK_D;
-		
+			UNLOCK_O;
+
 			if (_stream_disconnect) stream_disconnect();
 
 			// send packets once locks released as packet sending can block
