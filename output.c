@@ -363,7 +363,9 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 		dop_silence_frames((u32_t *)silencebuf_dop, MAX_SILENCE_FRAMES);
 	)
 
-	output.state = OUTPUT_STOPPED;
+	LOG_DEBUG("idle timeout: %u", idle);
+
+	output.state = idle ? OUTPUT_OFF: OUTPUT_STOPPED;
 	output.device = device;
 	output.fade = FADE_INACTIVE;
 	output.error_opening = false;

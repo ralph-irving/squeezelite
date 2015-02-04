@@ -440,7 +440,8 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 
 static void *output_thread(void *arg) {
 	bool start = true;
-	bool output_off = false, probe_device = (arg != NULL);
+	bool output_off = (output.state == OUTPUT_OFF);
+	bool probe_device = (arg != NULL);
 	int err;
 
 	while (running) {
