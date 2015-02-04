@@ -61,9 +61,16 @@ static void usage(const char *argv0) {
 		   "  -b <stream>:<output>\tSpecify internal Stream and Output buffer sizes in Kbytes\n"
 		   "  -c <codec1>,<codec2>\tRestrict codecs to those specified, otherwise load all available codecs; known codecs: " CODECS "\n"
 		   "  -C <timeout>\t\tClose output device when idle after timeout seconds, default is to keep it open while player is 'on'\n"
+#if !IR
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output, level: info|debug|sdebug\n"
+#else
+		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output|ir, level: info|debug|sdebug\n"
+#endif
 		   "  -e <codec1>,<codec2>\tExplicitly exclude native support of one or more codecs; known codecs: " CODECS "\n"
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
+#if IR
+		   "  -i [<filename>]\tEnable lirc remote control support (lirc config file ~/.lircrc used if filename not specified)\n"
+#endif
 		   "  -m <mac addr>\t\tSet mac address, format: ab:cd:ef:12:34:56\n"
 		   "  -M <modelname>\tSet the squeezelite player model name sent to the server (default: " MODEL_NAME_STRING ")\n"
 		   "  -n <name>\t\tSet the player name\n"
@@ -147,6 +154,9 @@ static void usage(const char *argv0) {
 #if VISEXPORT
 		   " VISEXPORT"
 #endif
+#if IR
+		   " IR"
+#endif
 #if DSD
 		   " DSD"
 #endif
@@ -215,11 +225,17 @@ int main(int argc, char **argv) {
 #if VISEXPORT
 	bool visexport = false;
 #endif
+#if IR
+	char *lircrc = NULL;
+#endif
 	
 	log_level log_output = lWARN;
 	log_level log_stream = lWARN;
 	log_level log_decode = lWARN;
 	log_level log_slimproto = lWARN;
+#if IR
+	log_level log_ir     = lWARN;
+#endif
 
 	char *optarg = NULL;
 	int optind = 1;
@@ -250,6 +266,10 @@ int main(int argc, char **argv) {
 #if VISEXPORT
 						  "v"
 #endif
+#if IR
+						  "i"
+#endif
+
 						  , opt)) {
 			optarg = NULL;
 			optind += 1;
@@ -298,6 +318,9 @@ int main(int argc, char **argv) {
 					if (!strcmp(l, "all") || !strcmp(l, "stream"))    log_stream = new;
 					if (!strcmp(l, "all") || !strcmp(l, "decode"))    log_decode = new;
 					if (!strcmp(l, "all") || !strcmp(l, "output"))    log_output = new;
+#if IR
+					if (!strcmp(l, "all") || !strcmp(l, "ir"))        log_ir     = new;
+#endif
 				} else {
 					fprintf(stderr, "\nDebug settings error: -d %s\n\n", optarg);
 					usage(argv[0]);
@@ -422,6 +445,15 @@ int main(int argc, char **argv) {
 			visexport = true;
 			break;
 #endif
+#if IR
+		case 'i':
+			if (optind < argc && argv[optind] && argv[optind][0] != '-') {
+				lircrc = argv[optind++];
+			} else {
+				lircrc = "~/.lircrc"; // liblirc_client will expand ~/
+			}
+			break;
+#endif
 #if LINUX || FREEBSD || SUN
 		case 'z':
 			daemonize = true;
@@ -538,13 +570,19 @@ int main(int argc, char **argv) {
 	}
 #endif
 
+#if IR
+	if (lircrc) {
+		ir_init(log_ir, lircrc);
+	}
+#endif
+
 	if (name && namefile) {
 		fprintf(stderr, "-n and -N option should not be used at same time\n");
 		exit(1);
 	}
 
 	slimproto(log_slimproto, server, mac, name, namefile, modelname);
-	
+
 	decode_close();
 	stream_close();
 
@@ -558,6 +596,10 @@ int main(int argc, char **argv) {
 		output_close_pa();
 #endif
 	}
+
+#if IR
+	ir_close();
+#endif
 
 #if WIN
 	winsock_close();

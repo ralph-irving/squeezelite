@@ -18,9 +18,9 @@
  *
  */
 
-// make may define: PORTAUDIO, SELFPIPE, RESAMPLE, VISEXPORT, DSD, LINKALL to influence build
+// make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, IR, DSD, LINKALL to influence build
 
-#define VERSION "v1.8-dev-550"
+#define VERSION "v1.8-dev-551"
 
 #if !defined(MODEL_NAME)
 #define MODEL_NAME SqueezeLite
@@ -119,6 +119,13 @@
 #define VISEXPORT 0
 #endif
 
+#if LINUX && defined(IR)
+#undef IR
+#define IR 1
+#else
+#define IR 0
+#endif
+
 #if defined(DSD)
 #undef DSD
 #define DSD       1
@@ -152,6 +159,7 @@
 #define LIBAVCODEC  "libavcodec.so.%d"
 #define LIBAVFORMAT "libavformat.so.%d"
 #define LIBSOXR "libsoxr.so.0"
+#define LIBLIRC "liblirc_client.so.0"
 #endif
 
 #if OSX
@@ -239,6 +247,7 @@
 #define STREAM_THREAD_STACK_SIZE  64 * 1024
 #define DECODE_THREAD_STACK_SIZE 128 * 1024
 #define OUTPUT_THREAD_STACK_SIZE  64 * 1024
+#define IR_THREAD_STACK_SIZE      64 * 1024
 #define thread_t pthread_t;
 #define closesocket(s) close(s)
 #define last_error() errno
@@ -666,3 +675,15 @@ struct codec *register_vorbis(void);
 struct codec *register_faad(void);
 struct codec *register_dsd(void);
 struct codec *register_ff(const char *codec);
+
+// ir.c
+#if IR
+struct irstate {
+	mutex_type mutex;
+	u32_t code;
+	u32_t ts;
+};
+
+void ir_init(log_level level, char *lircrc);
+void ir_close(void);
+#endif

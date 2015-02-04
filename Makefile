@@ -9,6 +9,7 @@ OPT_FF      = -DFFMPEG
 OPT_LINKALL = -DLINKALL
 OPT_RESAMPLE= -DRESAMPLE
 OPT_VIS     = -DVISEXPORT
+OPT_IR      = -DIR
 
 SOURCES = \
 	main.c slimproto.c buffer.c stream.c utils.c \
@@ -19,12 +20,14 @@ SOURCES_DSD      = dsd.c dop.c dsd2pcm/dsd2pcm.c
 SOURCES_FF       = ffmpeg.c
 SOURCES_RESAMPLE = process.c resample.c
 SOURCES_VIS      = output_vis.c
+SOURCES_IR       = ir.c
 
 LINK_LINUX       = -ldl
 
 LINKALL          = -lFLAC -lmad -lvorbisfile -lfaad -lmpg123
 LINKALL_FF       = -lavcodec -lavformat -lavutil
 LINKALL_RESAMPLE = -lsoxr
+LINKALL_IR       = -llirc_client
 
 DEPS             = squeezelite.h slimproto.h
 
@@ -43,6 +46,9 @@ endif
 ifneq (,$(findstring $(OPT_VIS), $(CFLAGS)))
 	SOURCES += $(SOURCES_VIS)
 endif
+ifneq (,$(findstring $(OPT_IR), $(CFLAGS)))
+	SOURCES += $(SOURCES_IR)
+endif
 
 # add optional link options
 ifneq (,$(findstring $(OPT_LINKALL), $(CFLAGS)))
@@ -52,6 +58,9 @@ ifneq (,$(findstring $(OPT_FF), $(CFLAGS)))
 endif
 ifneq (,$(findstring $(OPT_RESAMPLE), $(CFLAGS)))
 	LDFLAGS += $(LINKALL_RESAMPLE)
+endif
+ifneq (,$(findstring $(OPT_IR), $(CFLAGS)))
+	LDFLAGS += $(LINKALL_IR)
 endif
 else
 # if not LINKALL and linux add LINK_LINUX

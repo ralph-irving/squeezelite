@@ -92,6 +92,17 @@ struct SETD_header {
 	// data
 };
 
+#if IR
+struct IR_packet {
+	char  opcode[4];
+	u32_t length;
+	u32_t jiffies;
+	u8_t  format; // ignored by server
+	u8_t  bits;   // ignored by server
+	u32_t ir_code;
+};
+#endif
+
 // from S:P:Squeezebox stream_s
 struct strm_packet {
 	char  opcode[4];

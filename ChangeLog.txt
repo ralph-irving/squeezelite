@@ -132,3 +132,4 @@ Version 1.8
 
 Features
 - support for closing output device when idle with -C option
+- add support for basic IR input using LIRC on Linux

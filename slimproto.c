@@ -46,6 +46,9 @@ extern struct outputstate output;
 extern struct decodestate decode;
 
 extern struct codec *codecs[];
+#if IR
+extern struct irstate ir;
+#endif
 
 event_event wake_e;
 
@@ -55,6 +58,10 @@ event_event wake_e;
 #define UNLOCK_O mutex_unlock(outputbuf->mutex)
 #define LOCK_D   mutex_lock(decode.mutex)
 #define UNLOCK_D mutex_unlock(decode.mutex)
+#if IR
+#define LOCK_I   mutex_lock(ir.mutex)
+#define UNLOCK_I mutex_unlock(ir.mutex)
+#endif
 
 static struct {
 	u32_t updated;
@@ -225,6 +232,23 @@ static void sendSETDName(const char *name) {
 	send_packet((u8_t *)&pkt_header, sizeof(pkt_header));
 	send_packet((u8_t *)name, strlen(name) + 1);
 }
+
+#if IR
+void sendIR(u32_t code, u32_t ts) {
+	struct IR_packet pkt;
+
+	memset(&pkt, 0, sizeof(pkt));
+	memcpy(&pkt.opcode, "IR  ", 4);
+	pkt.length = htonl(sizeof(pkt) - 8);
+
+	packN(&pkt.jiffies, ts);
+	pkt.ir_code = htonl(code);
+
+	LOG_DEBUG("IR: ir code: 0x%x ts: %u", code, ts);
+
+	send_packet((u8_t *)&pkt, sizeof(pkt));
+}
+#endif
 
 static void process_strm(u8_t *pkt, int len) {
 	struct strm_packet *strm = (struct strm_packet *)pkt;
@@ -572,6 +596,10 @@ static void slimproto_run() {
 			disconnect_code disconnect_code;
 			static char header[MAX_HEADER];
 			size_t header_len = 0;
+#if IR
+			bool _sendIR   = false;
+			u32_t ir_code, ir_ts;
+#endif
 			last = now;
 
 			LOCK_S;
@@ -668,6 +696,17 @@ static void slimproto_run() {
 			}
 			UNLOCK_O;
 
+#if IR
+			LOCK_I;
+			if (ir.code) {
+				_sendIR = true;
+				ir_code = ir.code;
+				ir_ts   = ir.ts;
+				ir.code = 0;
+			}
+			UNLOCK_I;
+#endif
+
 			if (_stream_disconnect) stream_disconnect();
 
 			// send packets once locks released as packet sending can block
@@ -681,6 +720,9 @@ static void slimproto_run() {
 			if (_sendSTMn) sendSTAT("STMn", 0);
 			if (_sendRESP) sendRESP(header, header_len);
 			if (_sendMETA) sendMETA(header, header_len);
+#if IR
+			if (_sendIR)   sendIR(ir_code, ir_ts);
+#endif
 		}
 	}
 }
