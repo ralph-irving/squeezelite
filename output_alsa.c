@@ -552,7 +552,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 			if (silence) {
 				inputptr = (s32_t *) silencebuf_dop;
 			}
-			update_dop((u32_t *) inputptr, out_frames, output.invert);
+			update_dop((u32_t *) inputptr, out_frames, output.invert && !silence);
 		}
 	)
 
