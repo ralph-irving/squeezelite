@@ -100,7 +100,7 @@ static void usage(const char *argv0) {
 #endif
 #if ALSA
 		   "  -L \t\t\tList volume controls for output device\n"
-		   "  -U <control>\t\tUnmute ALSA control and set to full volume\n"
+		   "  -U <control>\t\tUnmute ALSA control and set to full volume (not supported with -V)\n"
 		   "  -V <control>\t\tUse ALSA control for volume adjustment, otherwise use software volume adjustment\n"
 #endif
 #if LINUX || FREEBSD || SUN
@@ -469,6 +469,10 @@ int main(int argc, char **argv) {
 		case 'U':
 			output_mixer_unmute = true;
 		case 'V':
+			if (output_mixer) {
+				fprintf(stderr, "-U and -V option should not be used at same time\n");
+				exit(1);
+			}
 			output_mixer = optarg;
 			break;
 #endif
