@@ -188,7 +188,7 @@ static void set_mixer(const char *device, const char *mixer, int mixer_index, bo
 
 	err = snd_mixer_selem_get_playback_dB_range(elem, &min, &max);
 
-	if (err < 0 || max - min < 1000 || setmax) {
+	if (err < 0 || max - min < 1000) {
 		// unable to get db range or range is less than 10dB - ignore and set using raw values
 		if ((err = snd_mixer_selem_get_playback_volume_range(elem, &min, &max)) < 0) {
 			LOG_ERROR("unable to get volume raw range");
@@ -211,10 +211,18 @@ static void set_mixer(const char *device, const char *mixer, int mixer_index, bo
 	} else {
 		// set db directly
 		LOG_DEBUG("setting vol dB [%ld..%ld]", min, max);
-		if ((err = snd_mixer_selem_set_playback_dB(elem, SND_MIXER_SCHN_FRONT_LEFT, 100 * ldB + max, 1)) < 0) {
+		if (setmax) {
+			// set to 0dB if available as this should be max volume for music recored at max pcm values
+			if (max >= 0 && min <= 0) {
+				ldB = rdB = 0;
+			} else {
+				ldB = rdB = max;
+			}
+		}
+		if ((err = snd_mixer_selem_set_playback_dB(elem, SND_MIXER_SCHN_FRONT_LEFT, 100 * ldB, 1)) < 0) {
 			LOG_ERROR("error setting left volume: %s", snd_strerror(err));
 		}
-		if ((err = snd_mixer_selem_set_playback_dB(elem, SND_MIXER_SCHN_FRONT_RIGHT, 100 * rdB + max, 1)) < 0) {
+		if ((err = snd_mixer_selem_set_playback_dB(elem, SND_MIXER_SCHN_FRONT_RIGHT, 100 * rdB, 1)) < 0) {
 			LOG_ERROR("error setting right volume: %s", snd_strerror(err));
 		}
 	}
