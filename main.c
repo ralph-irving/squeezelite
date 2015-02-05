@@ -98,7 +98,7 @@ static void usage(const char *argv0) {
 #if VISEXPORT
 		   "  -v \t\t\tVisualiser support\n"
 #endif
-#if ALSA
+# if ALSA
 		   "  -L \t\t\tList volume controls for output device\n"
 		   "  -U <control>\t\tUnmute ALSA control and set to full volume (not supported with -V)\n"
 		   "  -V <control>\t\tUse ALSA control for volume adjustment, otherwise use software volume adjustment\n"

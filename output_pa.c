@@ -82,7 +82,7 @@ void list_devices(void) {
 		LOG_WARN("error initialising port audio: %s", Pa_GetErrorText(err));
 		return;
 	}
-
+	
 	printf("Output devices:\n");
 #ifndef PA18API
 	for (i = 0; i < Pa_GetDeviceCount(); ++i) {
@@ -95,8 +95,8 @@ void list_devices(void) {
 #endif
 	}
 	printf("\n");
-
- 	if ((err = Pa_Terminate()) != paNoError) {
+	
+	if ((err = Pa_Terminate()) != paNoError) {
 		LOG_WARN("error closing port audio: %s", Pa_GetErrorText(err));
 	}
 }
@@ -339,12 +339,13 @@ void _pa_open(void) {
 			LOG_WARN("error setting finish callback: %s", Pa_GetErrorText(err));
 		}
 	
-		// StartStream can call pa_callback in a sychronised thread on freebsd, remove lock while it is called
-		UNLOCK;
+		UNLOCK; // StartStream can call pa_callback in a sychronised thread on freebsd, remove lock while it is called
+
 #endif
 		if ((err = Pa_StartStream(pa.stream)) != paNoError) {
 			LOG_WARN("error starting stream: %s", Pa_GetErrorText(err));
 		}
+
 #ifndef PA18API
 		LOCK;
 #endif
@@ -430,6 +431,7 @@ static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_
 	} else {
 		output.device_frames = 0;
 	}
+
 #else
 	output.device_frames = 0;
 #endif
@@ -503,7 +505,6 @@ void output_init_pa(log_level level, const char *device, unsigned output_buf_siz
 	if ( pa_nbufs != 0 )
 		paNumberOfBuffers = pa_nbufs;
 #endif /* PA18API */
-
 	output.format = 0;
 	output.start_frames = 0;
 	output.write_cb = &_write_frames;
