@@ -1,6 +1,6 @@
 # OSX 10.6 64-bit only
 CFLAGS  ?= -Wall -fPIC -O2 $(OPTS) -I./include64 -DRESAMPLE -DFFMPEG -DDSD -DLINKALL -isysroot /Developer/SDKs/MacOSX10.6.sdk -arch x86_64 -mmacosx-version-min=10.6
-LDFLAGS ?= -Wl,-syslibroot,/Developer/SDKs/MacOSX10.6.sdk -arch x86_64 -mmacosx-version-min=10.6 -L./lib64 -lportaudio -lFLAC -lvorbisfile -lvorbis -logg -lmad -lfaad -lmpg123 -lsoxr -lswscale -lavdevice -lavformat -lavcodec -lavutil -lpthread -ldl -lm -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon
+LDFLAGS ?= -Wl,-syslibroot,/Developer/SDKs/MacOSX10.6.sdk -arch x86_64 -mmacosx-version-min=10.6 -L./lib64 /opt/local/lib/libbz2.a -lportaudio -lFLAC -lvorbisfile -lvorbis -logg -lmad -lfaad -lmpg123 -lsoxr -lswscale -lavdevice -lavformat -lswresample -lavcodec /opt/local/lib/libiconv.a -lavutil -lpthread -ldl -lm -framework CoreVideo -framework VideoDecodeAcceleration -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon
 EXECUTABLE ?= squeezelite-x86_64
 
 SOURCES = main.c slimproto.c buffer.c stream.c utils.c output.c output_alsa.c output_pa.c output_stdout.c output_pack.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c dsd.c dop.c dsd2pcm/dsd2pcm.c ffmpeg.c process.c resample.c
