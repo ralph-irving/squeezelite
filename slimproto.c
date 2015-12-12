@@ -669,7 +669,7 @@ static void slimproto_run() {
 				output.pa_reopen = false;
 			}
 #endif
-			if (_start_output && (output.state == OUTPUT_STOPPED || OUTPUT_OFF)) {
+			if (_start_output && (output.state == OUTPUT_STOPPED || output.state == OUTPUT_OFF)) {
 				output.state = OUTPUT_BUFFER;
 			}
 			if (output.state == OUTPUT_RUNNING && !sentSTMu && status.output_full == 0 && status.stream_state <= DISCONNECT &&
