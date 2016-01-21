@@ -21,7 +21,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, IR, DSD, LINKALL to influence build
 
-#define VERSION "v1.8-698"
+#define VERSION "v1.8-699"
 
 #if !defined(MODEL_NAME)
 #define MODEL_NAME SqueezeLite
