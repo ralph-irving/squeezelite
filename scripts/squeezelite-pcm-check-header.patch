@@ -1,0 +1,109 @@
+Index: pcm.c
+===================================================================
+--- pcm.c	(revision 699)
++++ pcm.c	(working copy)
+@@ -30,6 +30,8 @@
+ extern struct decodestate decode;
+ extern struct processstate process;
+ 
++bool pcm_check_header = false;
++
+ #define LOCK_S   mutex_lock(streambuf->mutex)
+ #define UNLOCK_S mutex_unlock(streambuf->mutex)
+ #define LOCK_O   mutex_lock(outputbuf->mutex)
+@@ -168,7 +170,7 @@
+ 	
+ 	LOCK_S;
+ 
+-	if (decode.new_stream && stream.state == STREAMING_FILE) {
++	if ( decode.new_stream && ( ( stream.state == STREAMING_FILE ) || pcm_check_header ) ) {
+ 		_check_header();
+ 	}
+ 
+@@ -372,16 +374,36 @@
+ }
+ 
+ struct codec *register_pcm(void) {
+-	static struct codec ret = { 
+-		'p',         // id
+-		"aif,pcm",   // types
+-		4096,        // min read
+-		102400,      // min space
+-		pcm_open,    // open
+-		pcm_close,   // close
+-		pcm_decode,  // decode
+-	};
++	if ( pcm_check_header )
++	{
++		static struct codec ret = { 
++			'p',         // id
++			"wav,aif,pcm", // types
++			4096,        // min read
++			102400,      // min space
++			pcm_open,    // open
++			pcm_close,   // close
++			pcm_decode,  // decode
++		};
+ 
+-	LOG_INFO("using pcm to decode aif,pcm");
+-	return &ret;
++		LOG_INFO("using pcm to decode wav,aif,pcm");
++		return &ret;
++	}
++	else
++	{
++		static struct codec ret = { 
++			'p',         // id
++			"aif,pcm", // types
++			4096,        // min read
++			102400,      // min space
++			pcm_open,    // open
++			pcm_close,   // close
++			pcm_decode,  // decode
++		};
++
++		LOG_INFO("using pcm to decode aif,pcm");
++		return &ret;
++	}
++
++	return NULL;
+ }
+Index: main.c
+===================================================================
+--- main.c	(revision 699)
++++ main.c	(working copy)
+@@ -76,6 +76,7 @@
+ 		   "  -M <modelname>\tSet the squeezelite player model name sent to the server (default: " MODEL_NAME_STRING ")\n"
+ 		   "  -n <name>\t\tSet the player name\n"
+ 		   "  -N <filename>\t\tStore player name in filename to allow server defined name changes to be shared between servers (not supported with -n)\n"
++		   "  -W\t\t\tRead format from wave and aiff file headers, ignore server parameters\n"
+ #if ALSA
+ 		   "  -p <priority>\t\tSet real time priority of output thread (1-99)\n"
+ #endif
+@@ -207,6 +208,7 @@
+ 	char *name = NULL;
+ 	char *namefile = NULL;
+ 	char *modelname = NULL;
++	extern bool pcm_check_header;
+ 	char *logfile = NULL;
+ 	u8_t mac[6];
+ 	unsigned stream_buf_size = STREAMBUF_SIZE;
+@@ -268,7 +270,7 @@
+ 				   , opt) && optind < argc - 1) {
+ 			optarg = argv[optind + 1];
+ 			optind += 2;
+-		} else if (strstr("ltz?"
++		} else if (strstr("ltz?W"
+ #if ALSA
+ 						  "L"
+ #endif
+@@ -418,6 +420,9 @@
+ 		case 'N':
+ 			namefile = optarg;
+ 			break;
++		case 'W':
++			pcm_check_header = true;
++			break;
+ #if ALSA
+ 		case 'p':
+ 			rt_priority = atoi(optarg);
