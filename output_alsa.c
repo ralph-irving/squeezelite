@@ -44,6 +44,7 @@ static snd_pcm_format_t fmts[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S24_LE,
 // ouput device
 static struct {
 	char device[MAX_DEVICE_LEN + 1];
+	char *ctl;
 	snd_pcm_format_t format;
 	snd_pcm_uframes_t buffer_size;
 	snd_pcm_uframes_t period_size;
@@ -71,6 +72,24 @@ extern struct buffer *outputbuf;
 
 #define LOCK   mutex_lock(outputbuf->mutex)
 #define UNLOCK mutex_unlock(outputbuf->mutex)
+
+static char *ctl4device(const char *device) {
+	char *ctl = NULL;
+	
+	if (!strncmp(device, "hw:", 3))
+		ctl = strdup(device);
+	else if (!strncmp(device, "plughw:", 7))
+		ctl = strdup(device + 4);
+
+	if (ctl) {
+		char *comma;
+		if ((comma = strrchr(ctl, ',')))
+			*comma = '\0';
+	} else
+		ctl = strdup(device);
+
+	return ctl;
+}
 
 void list_devices(void) {
 	void **hints, **n;
@@ -102,6 +121,7 @@ void list_mixers(const char *output_device) {
 	snd_mixer_t *handle;
 	snd_mixer_selem_id_t *sid;
 	snd_mixer_elem_t *elem;
+	char *ctl = ctl4device(output_device);
 	snd_mixer_selem_id_alloca(&sid);
 
 	LOG_INFO("listing mixers for: %s", output_device);
@@ -110,11 +130,13 @@ void list_mixers(const char *output_device) {
 		LOG_ERROR("open error: %s", snd_strerror(err));
 		return;
 	}
-	if ((err = snd_mixer_attach(handle, output_device)) < 0) {
+	if ((err = snd_mixer_attach(handle, ctl)) < 0) {
 		LOG_ERROR("attach error: %s", snd_strerror(err));
 		snd_mixer_close(handle);
+		free(ctl);
 		return;
 	}
+	free(ctl);
 	if ((err = snd_mixer_selem_register(handle, NULL, NULL)) < 0) {
 		LOG_ERROR("register error: %s", snd_strerror(err));
 		snd_mixer_close(handle);
@@ -261,7 +283,7 @@ void set_volume(unsigned left, unsigned right) {
 	ldB = 20 * log10( left  / 65536.0F );
 	rdB = 20 * log10( right / 65536.0F );
 
-	set_mixer(output.device, alsa.volume_mixer_name, alsa.volume_mixer_index, false, ldB, rdB);
+	set_mixer(alsa.ctl, alsa.volume_mixer_name, alsa.volume_mixer_index, false, ldB, rdB);
 }
 
 static void *alsa_error_handler(const char *file, int line, const char *function, int err, const char *fmt, ...) {
@@ -823,6 +845,7 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	alsa.write_buf = NULL;
 	alsa.format = 0;
 	alsa.reopen = alsa_reopen;
+	alsa.ctl = ctl4device(device);
 
 	if (!mixer_unmute) {
 		alsa.volume_mixer_name = volume_mixer_name;
@@ -851,7 +874,7 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	output_init_common(level, device, output_buf_size, rates, idle);
 
 	if (mixer_unmute && volume_mixer_name) {
-		set_mixer(output.device, volume_mixer_name, volume_mixer_index ? atoi(volume_mixer_index) : 0, true, 0, 0);
+		set_mixer(alsa.ctl, volume_mixer_name, volume_mixer_index ? atoi(volume_mixer_index) : 0, true, 0, 0);
 	}
 
 #if LINUX
@@ -897,6 +920,7 @@ void output_close_alsa(void) {
 	pthread_join(thread, NULL);
 
 	if (alsa.write_buf) free(alsa.write_buf);
+	if (alsa.ctl) free(alsa.ctl);
 
 	output_close_common();
 }
