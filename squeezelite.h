@@ -17,11 +17,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ * Additions (c) Paul Hermann, 2015-2016 under the same license terms
+ *   -Control of Raspberry pi GPIO for amplifier power
+ *   -Launch script on power status change from LMS
  */
 
-// make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, IR, DSD, LINKALL to influence build
+// make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
-#define VERSION "v1.8.1-702"
+#define VERSION "v1.8.2-707"
 
 #if !defined(MODEL_NAME)
 #define MODEL_NAME SqueezeLite
@@ -680,6 +683,17 @@ struct codec *register_vorbis(void);
 struct codec *register_faad(void);
 struct codec *register_dsd(void);
 struct codec *register_ff(const char *codec);
+
+//gpio.c
+#if GPIO
+void relay( int state);
+void relay_script(int state);
+int gpio_pin;
+bool gpio_active;
+char *power_script;
+//  my amp state
+int ampstate;
+#endif
 
 // ir.c
 #if IR

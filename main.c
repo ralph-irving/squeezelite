@@ -17,6 +17,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ * Additions (c) Paul Hermann, 2015-2016 under the same license terms
+ *   -Control of Raspberry pi GPIO for amplifier power
+ *   -Launch script on power status change from LMS
  */
 
 #include "squeezelite.h"
@@ -67,6 +70,9 @@ static void usage(const char *argv0) {
 #else
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output|ir, level: info|debug|sdebug\n"
 #endif
+#if GPIO
+		   "  -G <Rpi GPIO Pin #>\tSpecify the GPIO pin to use for Amp Power Relay\n"
+#endif
 		   "  -e <codec1>,<codec2>\tExplicitly exclude native support of one or more codecs; known codecs: " CODECS "\n"
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
 #if IR
@@ -83,6 +89,9 @@ static void usage(const char *argv0) {
 		   "  -P <filename>\t\tStore the process id (PID) in filename\n"
 #endif
 		   "  -r <rates>[:<delay>]\tSample rates supported, allows output to be off when squeezelite is started; rates = <maxrate>|<minrate>-<maxrate>|<rate1>,<rate2>,<rate3>; delay = optional delay switching rates in ms\n"
+#if GPIO
+			"  -S <Power Script>\tAbsolute path to script to launch on power commands from LMS\n"
+#endif
 #if RESAMPLE
 		   "  -R -u [params]\tResample, params = <recipe>:<flags>:<attenuation>:<precision>:<passband_end>:<stopband_start>:<phase_response>,\n" 
 		   "  \t\t\t recipe = (v|h|m|l|q)(L|I|M)(s) [E|X], E = exception - resample only if native rate not supported, X = async - resample to max rate for device, otherwise to max sync rate\n"
@@ -163,6 +172,9 @@ static void usage(const char *argv0) {
 #if IR
 		   " IR"
 #endif
+#if GPIO
+		   " GPIO"
+#endif
 #if DSD
 		   " DSD"
 #endif
@@ -188,6 +200,12 @@ static void license(void) {
 #if DSD		   
 		   "Contains dsd2pcm library Copyright 2009, 2011 Sebastian Gesemann which\n"
 		   "is subject to its own license.\n\n"
+#endif
+#if GPIO
+		   "Additions (c) Paul Hermann, 2015, 2016 under the same license terms\n"
+		   "  -Control of Raspberry pi GPIO for amplifier power\n"
+			"  -Launch a script on power status change\n\n"
+		   "Contains gpio.c Copyright 2012 Kevin Sangeelee Released under GPLv2\n\n"
 #endif
 		   );
 }
@@ -483,6 +501,43 @@ int main(int argc, char **argv) {
 				lircrc = argv[optind++];
 			} else {
 				lircrc = "~/.lircrc"; // liblirc_client will expand ~/
+			}
+			break;
+#endif
+#if GPIO
+		case 'G':
+			if (power_script != NULL){
+				fprintf(stderr, "-G and -S options cannot be used together \n\n" );
+				usage(argv[0]);
+				exit(1);
+			}
+			if (optind < argc && argv[optind] && argv[optind][0] != '-') {
+				gpio_pin = atoi(argv[optind++]);
+				gpio_active = true; 
+			} else {
+				fprintf(stderr, "Error in GPIO Pin assignment.\n");
+				usage(argv[0]);
+				exit(1);
+			}
+			break;
+		case 'S':
+			if (gpio_active){
+				fprintf(stderr, "-G and -S options cannot be used together \n\n" );
+				usage(argv[0]);
+				exit(1);
+			}
+			if (optind < argc && argv[optind] && argv[optind][0] != '-') {
+				power_script = argv[optind++];
+				if( access( power_script, R_OK|X_OK ) == -1 ) {
+				    // file doesn't exist
+					fprintf(stderr, "Script %s, not found\n\n", argv[optind-1]);
+					usage(argv[0]);
+					exit(1);
+				}
+			} else {
+				fprintf(stderr, "No Script Name Given.\n\n");
+				usage(argv[0]);
+				exit(1);
 			}
 			break;
 #endif

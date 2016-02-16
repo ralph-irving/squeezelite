@@ -17,6 +17,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ * Additions (c) Paul Hermann, 2015-2016 under the same license terms
+ *   -Control of Raspberry pi GPIO for amplifier power
+ *   -Launch script on power status change from LMS
  */
 
 // Output using Alsa
@@ -674,6 +677,17 @@ static void *output_thread(void *arg) {
 				continue;
 			}
 			output.error_opening = false;
+#if GPIO
+			// Wake up amp
+			if (gpio_active){ 
+				ampstate = 1;
+	         relay(1);
+			}
+			if (power_script != NULL){
+				ampstate = 1;
+	         relay_script(1);
+			}
+#endif
 			start = true;
 			UNLOCK;
 		}
@@ -769,6 +783,17 @@ static void *output_thread(void *arg) {
 			pcmp = NULL;
 			output_off = true;
 			vis_stop();
+#if GPIO
+			//  Put Amp to Sleep
+			if (gpio_active){
+				ampstate = 0;
+				relay(0);
+			}
+			if (power_script != NULL ){
+				ampstate = 0;
+				relay_script(0);
+			}
+#endif
 			continue;
 		}
 

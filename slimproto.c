@@ -17,6 +17,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ * Additions (c) Paul Hermann, 2015-2016 under the same license terms
+ *   -Control of Raspberry pi GPIO for amplifier power
+ *   -Launch script on power status change from LMS
  */
 
 #include "squeezelite.h"
@@ -62,6 +65,14 @@ event_event wake_e;
 #if IR
 #define LOCK_I   mutex_lock(ir.mutex)
 #define UNLOCK_I mutex_unlock(ir.mutex)
+#endif
+
+#if GPIO
+static u32_t ampidletime = 0;
+static int ampidle = 0;
+static int ampidle_set = 0;
+extern int ampstate;
+#define SLEEP_DELAY 300000
 #endif
 
 static struct {
@@ -310,6 +321,9 @@ static void process_strm(u8_t *pkt, int len) {
 			output.state = jiffies ? OUTPUT_START_AT : OUTPUT_RUNNING;
 			output.start_at = jiffies;
 			UNLOCK_O;
+#if GPIO
+			ampidle = 0;
+#endif
 			LOG_DEBUG("unpause at: %u now: %u", jiffies, gettime_ms());
 			sendSTAT("STMr", 0);
 		}
@@ -326,6 +340,9 @@ static void process_strm(u8_t *pkt, int len) {
 					  strm->autostart, strm->transition_period, strm->transition_type - '0', strm->format);
 			
 			autostart = strm->autostart - '0';
+#if GPIO
+			ampidle = 0;
+#endif
 			sendSTAT("STMf", 0);
 			if (header_len > MAX_HEADER -1) {
 				LOG_WARN("header too long: %u", header_len);
@@ -601,6 +618,30 @@ static void slimproto_run() {
 #endif
 			last = now;
 
+#if GPIO
+			//Watch for paused player and put amp to sleep or wake up if playing resumes
+			if (gpio_active || power_script != NULL){
+	                        if ((ampstate == 1) && (ampidle_set == 0) && (ampidle == 1) && (now - ampidletime > SLEEP_DELAY) ){
+        	                        ampidle_set = 1;
+                	               if (gpio_active){
+												relay( 0);
+											}
+											else{
+												relay_script( 0);
+											}
+                        	}
+	                        if ( ampstate == 1 && ampidle_set == 1 && ampidle == 0){
+        	                        ampidletime = 0;
+                	                ampidle_set = 0;
+                	               if (gpio_active){
+												relay( 1);
+											}
+											else{
+												relay_script( 1);
+											}
+                        	}
+			}
+#endif
 			LOCK_S;
 			status.stream_full = _buf_used(streambuf);
 			status.stream_size = streambuf->size;
@@ -675,6 +716,11 @@ static void slimproto_run() {
 			}
 			if (output.state == OUTPUT_RUNNING && !sentSTMu && status.output_full == 0 && status.stream_state <= DISCONNECT &&
 				_decode_state == DECODE_STOPPED) {
+#if GPIO
+				//stream paused
+				ampidle = 1;
+				ampidletime = now;
+#endif
 				_sendSTMu = true;
 				sentSTMu = true;
 				LOG_DEBUG("output underrun");
@@ -682,6 +728,10 @@ static void slimproto_run() {
 				output.stop_time = now;
 			}
 			if (output.state == OUTPUT_RUNNING && !sentSTMo && status.output_full == 0 && status.stream_state == STREAMING_HTTP) {
+#if GPIO
+				//stream playing
+				ampidle = 0;
+#endif
 				_sendSTMo = true;
 				sentSTMo = true;
 			}
