@@ -71,7 +71,7 @@ static void usage(const char *argv0) {
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output|ir, level: info|debug|sdebug\n"
 #endif
 #if GPIO
-		   "  -G <Rpi GPIO Pin #>\tSpecify the GPIO pin to use for Amp Power Relay\n"
+		   "  -G <Rpi GPIO#>\tSpecify the GPIO# to use for Amp Power Relay\n"
 #endif
 		   "  -e <codec1>,<codec2>\tExplicitly exclude native support of one or more codecs; known codecs: " CODECS "\n"
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
@@ -301,6 +301,9 @@ int main(int argc, char **argv) {
 #endif
 #if IR
 						  "i"
+#endif
+#if GPIO
+						  "GS"
 #endif
 
 						  , opt)) {
