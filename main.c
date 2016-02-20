@@ -82,6 +82,7 @@ static void usage(const char *argv0) {
 		   "  -M <modelname>\tSet the squeezelite player model name sent to the server (default: " MODEL_NAME_STRING ")\n"
 		   "  -n <name>\t\tSet the player name\n"
 		   "  -N <filename>\t\tStore player name in filename to allow server defined name changes to be shared between servers (not supported with -n)\n"
+		   "  -W\t\t\tRead format from wave and aiff file headers, ignore server parameters\n"
 #if ALSA
 		   "  -p <priority>\t\tSet real time priority of output thread (1-99)\n"
 #endif
@@ -225,6 +226,7 @@ int main(int argc, char **argv) {
 	char *name = NULL;
 	char *namefile = NULL;
 	char *modelname = NULL;
+	extern bool pcm_check_header;
 	char *logfile = NULL;
 	u8_t mac[6];
 	unsigned stream_buf_size = STREAMBUF_SIZE;
@@ -286,7 +288,7 @@ int main(int argc, char **argv) {
 				   , opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
 			optind += 2;
-		} else if (strstr("ltz?"
+		} else if (strstr("ltz?W"
 #if ALSA
 						  "L"
 #endif
@@ -438,6 +440,9 @@ int main(int argc, char **argv) {
 			break;
 		case 'N':
 			namefile = optarg;
+			break;
+		case 'W':
+			pcm_check_header = true;
 			break;
 #if ALSA
 		case 'p':

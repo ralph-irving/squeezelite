@@ -30,6 +30,8 @@ extern struct outputstate output;
 extern struct decodestate decode;
 extern struct processstate process;
 
+bool pcm_check_header = false;
+
 #define LOCK_S   mutex_lock(streambuf->mutex)
 #define UNLOCK_S mutex_unlock(streambuf->mutex)
 #define LOCK_O   mutex_lock(outputbuf->mutex)
@@ -168,7 +170,7 @@ static decode_state pcm_decode(void) {
 	
 	LOCK_S;
 
-	if (decode.new_stream && stream.state == STREAMING_FILE) {
+	if ( decode.new_stream && ( ( stream.state == STREAMING_FILE ) || pcm_check_header ) ) {
 		_check_header();
 	}
 
@@ -372,16 +374,36 @@ static void pcm_close(void) {
 }
 
 struct codec *register_pcm(void) {
-	static struct codec ret = { 
-		'p',         // id
-		"aif,pcm",   // types
-		4096,        // min read
-		102400,      // min space
-		pcm_open,    // open
-		pcm_close,   // close
-		pcm_decode,  // decode
-	};
+	if ( pcm_check_header )
+	{
+		static struct codec ret = { 
+			'p',         // id
+			"wav,aif,pcm", // types
+			4096,        // min read
+			102400,      // min space
+			pcm_open,    // open
+			pcm_close,   // close
+			pcm_decode,  // decode
+		};
 
-	LOG_INFO("using pcm to decode aif,pcm");
-	return &ret;
+		LOG_INFO("using pcm to decode wav,aif,pcm");
+		return &ret;
+	}
+	else
+	{
+		static struct codec ret = { 
+			'p',         // id
+			"aif,pcm", // types
+			4096,        // min read
+			102400,      // min space
+			pcm_open,    // open
+			pcm_close,   // close
+			pcm_decode,  // decode
+		};
+
+		LOG_INFO("using pcm to decode aif,pcm");
+		return &ret;
+	}
+
+	return NULL;
 }
