@@ -53,8 +53,8 @@ struct ff_s {
 	unsigned (* avcodec_version)(void);
 	AVCodec * (* avcodec_find_decoder)(int);
 	int attribute_align_arg (* avcodec_open2)(AVCodecContext *, const AVCodec *, AVDictionary **);
-	AVFrame * (* avcodec_alloc_frame)(void);
-	void (* avcodec_free_frame)(AVFrame **);
+	AVFrame * (* av_frame_alloc)(void);
+	void (* av_frame_free)(AVFrame **);
 	int attribute_align_arg (* avcodec_decode_audio4)(AVCodecContext *, AVFrame *, int *, const AVPacket *);
 	// ffmpeg symbols to be dynamically loaded from libavformat
 	unsigned (* avformat_version)(void);
@@ -65,7 +65,7 @@ struct ff_s {
 	AVIOContext * (* avio_alloc_context)(unsigned char *, int, int,	void *,
 		int (*read_packet)(void *, uint8_t *, int), int (*write_packet)(void *, uint8_t *, int), int64_t (*seek)(void *, int64_t, int));
 	void (* av_init_packet)(AVPacket *);
-	void (* av_free_packet)(AVPacket *);
+	void (* av_packet_unref)(AVPacket *);
 	int (* av_read_frame)(AVFormatContext *, AVPacket *);
 	AVInputFormat * (* av_find_input_format)(const char *);
 	void (* av_register_all)(void);
@@ -325,7 +325,7 @@ static decode_state ff_decode(void) {
 
 		AVCODEC(ff, open2, ff->codecC, codec, NULL);
 
-		ff->frame = AVCODEC(ff, alloc_frame);
+		ff->frame = AV(ff, frame_alloc);
 
 		ff->avpkt = AV(ff, malloc, sizeof(AVPacket));
 		if (ff->avpkt == NULL) {
@@ -506,7 +506,7 @@ static decode_state ff_decode(void) {
 		}
 	}
 
-	AV(ff, free_packet, ff->avpkt);
+	AV(ff, packet_unref, ff->avpkt);
 
 	return DECODE_RUNNING;
 }
@@ -521,9 +521,9 @@ static void _free_ff_data(void) {
 	if (ff->frame) {
 		// ffmpeg version dependant free function
 #if !LINKALL
-		ff->avcodec_free_frame ? AVCODEC(ff, free_frame, &ff->frame) : AV(ff, freep, &ff->frame);
+		ff->av_frame_free ? AV(ff, frame_free, &ff->frame) : AV(ff, freep, &ff->frame);
 #elif LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(54,28,0)
-		AVCODEC(ff, free_frame, &ff->frame);
+		AV(ff, frame_free, &ff->frame);
 #else
 		AV(ff, freep, &ff->frame);
 #endif
@@ -531,7 +531,7 @@ static void _free_ff_data(void) {
 	}
 
 	if (ff->avpkt) {
-		AV(ff, free_packet, ff->avpkt);
+		AV(ff, packet_unref, ff->avpkt);
 		AV(ff, freep, &ff->avpkt);
 		ff->avpkt = NULL;
 	}
@@ -608,11 +608,11 @@ static bool load_ff() {
 	ff->avcodec_version = dlsym(handle_codec, "avcodec_version");
 	ff->avcodec_find_decoder = dlsym(handle_codec, "avcodec_find_decoder");
 	ff->avcodec_open2 = dlsym(handle_codec, "avcodec_open2");
-	ff->avcodec_alloc_frame = dlsym(handle_codec, "avcodec_alloc_frame");
-	ff->avcodec_free_frame = dlsym(handle_codec, "avcodec_free_frame");
+	ff->av_frame_alloc = dlsym(handle_codec, "av_frame_alloc");
+	ff->av_frame_free = dlsym(handle_codec, "av_frame_free");
 	ff->avcodec_decode_audio4 = dlsym(handle_codec, "avcodec_decode_audio4");
 	ff->av_init_packet = dlsym(handle_codec, "av_init_packet");
-	ff->av_free_packet = dlsym(handle_codec, "av_free_packet");
+	ff->av_packet_unref = dlsym(handle_codec, "av_packet_unref");
 
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
