@@ -17,7 +17,10 @@
 #if GPIO
 
 #define BCM2708_PERI_BASE        0x20000000
-#define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller */
+#define BCM2709_PERI_BASE        0x3F000000
+
+#define GPIO_RPI_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller for 0/A/A+/B/B+ */
+#define GPIO_RPI2_BASE               (BCM2709_PERI_BASE + 0x200000)/* GPIO controller for rPI2 */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,26 +81,67 @@ void relay( int state) {
 //
 void setup_io()
 {
+	int model=0;
+
+	FILE *cmd = popen("cat /proc/cpuinfo | grep Hardware | tr -s ' ' | cut -d ' ' -f2", "r");
+
+	if (cmd == NULL){
+		fprintf(stderr, "Error setting command for determining cpuinfo\n");
+		exit( -1);
+	}
+
+	size_t n;
+	char buff[8];
+	if ((n = fread(buff, 1, sizeof(buff)-1, cmd)) <= 0){
+		fprintf( stderr, "Error Reading /proc/cpuinfo\n" );
+		exit(-1);
+	}
+
+	buff[n] = '\0';
+	if (strstr(buff, "BCM2708") != NULL) {
+		model=1;  // Model 1 for 0/A/A+/B/B+
+	}
+	else if (strstr(buff, "BCM2709") != NULL){
+		model=2;   // Model 2 for rpi2
+	}
+	else {
+		fprintf (stderr, "Unable to determin CPU Type, GPIO will not function\n");
+		exit(-1);
+	}
+	
+	pclose(cmd);
+
    /* open /dev/mem */
    if ((mem_fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0) {
-      printf("can't open /dev/mem \n");
+      fprintf(stderr, "can't open /dev/mem \n");
       exit(-1);
    }
 
    /* mmap GPIO */
-   gpio_map = mmap(
-      NULL,             //Any adddress in our space will do
-      BLOCK_SIZE,       //Map length
-      PROT_READ|PROT_WRITE,// Enable reading & writting to mapped memory
-      MAP_SHARED,       //Shared with other processes
-      mem_fd,           //File to map
-      GPIO_BASE         //Offset to GPIO peripheral
-   );
-
+	if (model == 1){
+	   gpio_map = mmap(
+    	  NULL,             //Any adddress in our space will do
+	      BLOCK_SIZE,       //Map length
+    	  PROT_READ|PROT_WRITE,// Enable reading & writting to mapped memory
+	      MAP_SHARED,       //Shared with other processes
+    	  mem_fd,           //File to map
+	      GPIO_RPI_BASE         //Offset to GPIO peripheral
+	   );
+	}
+	else if (model == 2 ){
+	   gpio_map = mmap(
+    	  NULL,             //Any adddress in our space will do
+	      BLOCK_SIZE,       //Map length
+    	  PROT_READ|PROT_WRITE,// Enable reading & writting to mapped memory
+	      MAP_SHARED,       //Shared with other processes
+    	  mem_fd,           //File to map
+	      GPIO_RPI2_BASE         //Offset to GPIO peripheral
+	   );
+	}
    close(mem_fd); //No need to keep mem_fd open after mmap
 
    if (gpio_map == MAP_FAILED) {
-      printf("mmap error %d\n", (int)gpio_map);//errno also set!
+      fprintf(stderr, "mmap error %d\n", (int)gpio_map);//errno also set!
       exit(-1);
    }
 
