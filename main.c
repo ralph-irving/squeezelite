@@ -202,6 +202,8 @@ static void license(void) {
 		   "Contains dsd2pcm library Copyright 2009, 2011 Sebastian Gesemann which\n"
 		   "is subject to its own license.\n\n"
 #endif
+		   "Option to allow server side upsampling for PCM streams (-W) from\n"
+		   "squeezelite-R2 (c) Marco Curti 2015, marcoc1712@gmail.com.\n\n"
 #if GPIO
 		   "Additions (c) Paul Hermann, 2015, 2016 under the same license terms\n"
 		   "  -Control of Raspberry pi GPIO for amplifier power\n"
