@@ -24,7 +24,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
-#define VERSION "v1.8.3-716"
+#define VERSION "v1.8.3-717"
 
 #if !defined(MODEL_NAME)
 #define MODEL_NAME SqueezeLite
@@ -689,6 +689,7 @@ struct codec *register_ff(const char *codec);
 void relay( int state);
 void relay_script(int state);
 int gpio_pin;
+bool gpio_active_low;
 bool gpio_active;
 char *power_script;
 //  my amp state

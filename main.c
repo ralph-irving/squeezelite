@@ -71,7 +71,7 @@ static void usage(const char *argv0) {
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output|ir, level: info|debug|sdebug\n"
 #endif
 #if GPIO
-		   "  -G <Rpi GPIO#>\tSpecify the GPIO# to use for Amp Power Relay\n"
+		   "  -G <Rpi GPIO#>:<H/L>\tSpecify the BCM GPIO# to use for Amp Power Relay and if the output should be Active High or Low\n"
 #endif
 		   "  -e <codec1>,<codec2>\tExplicitly exclude native support of one or more codecs; known codecs: " CODECS "\n"
 		   "  -f <logfile>\t\tWrite debug to logfile\n"
@@ -208,7 +208,6 @@ static void license(void) {
 		   "Additions (c) Paul Hermann, 2015, 2016 under the same license terms\n"
 		   "  -Control of Raspberry pi GPIO for amplifier power\n"
 			"  -Launch a script on power status change\n\n"
-		   "Contains gpio.c Copyright 2012 Kevin Sangeelee Released under GPLv2\n\n"
 #endif
 		   );
 }
@@ -522,8 +521,25 @@ int main(int argc, char **argv) {
 				exit(1);
 			}
 			if (optind < argc && argv[optind] && argv[optind][0] != '-') {
-				gpio_pin = atoi(argv[optind++]);
-				gpio_active = true; 
+				char *gp = next_param(argv[optind++], ':');
+				char *go = next_param (NULL, ':');
+				gpio_pin = atoi(gp);
+				if (go != NULL){
+					if ((strcmp(go, "H")==0)|(strcmp(go, "h")==0)){
+						gpio_active_low=false;
+					}else if((strcmp(go, "L")==0)|(strcmp(go, "l")==0)){
+						gpio_active_low=true;
+					}else{
+						fprintf(stderr,"Must set output to be active High or Low i.e. -G18:H or -G18:L\n");
+						usage(argv[0]);
+						exit(1);
+					}
+				}else{
+					fprintf(stderr,"-G Option Error\n");
+					usage(argv[0]);
+					exit(1);
+				}
+				gpio_active = true;
 			} else {
 				fprintf(stderr, "Error in GPIO Pin assignment.\n");
 				usage(argv[0]);
