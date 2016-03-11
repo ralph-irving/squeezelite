@@ -82,7 +82,7 @@ static void usage(const char *argv0) {
 		   "  -M <modelname>\tSet the squeezelite player model name sent to the server (default: " MODEL_NAME_STRING ")\n"
 		   "  -n <name>\t\tSet the player name\n"
 		   "  -N <filename>\t\tStore player name in filename to allow server defined name changes to be shared between servers (not supported with -n)\n"
-		   "  -W\t\t\tRead format from wave and aiff file headers, ignore server parameters\n"
+		   "  -W\t\t\tRead wave and aiff format from header, ignore server parameters\n"
 #if ALSA
 		   "  -p <priority>\t\tSet real time priority of output thread (1-99)\n"
 #endif
