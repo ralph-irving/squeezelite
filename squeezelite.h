@@ -24,7 +24,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
-#define VERSION "v1.8.3-718"
+#define VERSION "v1.8.4-720"
 
 #if !defined(MODEL_NAME)
 #define MODEL_NAME SqueezeLite
@@ -459,7 +459,7 @@ void buf_init(struct buffer *buf, size_t size);
 void buf_destroy(struct buffer *buf);
 
 // slimproto.c
-void slimproto(log_level level, char *server, u8_t mac[6], const char *name, const char *namefile, const char *modelname);
+void slimproto(log_level level, char *server, u8_t mac[6], const char *name, const char *namefile, const char *modelname, int maxSampleRate);
 void slimproto_stop(void);
 void wake_controller(void);
 

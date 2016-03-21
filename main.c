@@ -117,6 +117,9 @@ static void usage(const char *argv0) {
 #if LINUX || FREEBSD || SUN
 		   "  -z \t\t\tDaemonize\n"
 #endif
+#if RESAMPLE
+		   "  -Z <rate>\t\tReport rate to server in helo as the maximum sample rate we can support\n"
+#endif
 		   "  -t \t\t\tLicense terms\n"
 		   "  -? \t\t\tDisplay this help text\n"
 		   "\n"
@@ -266,6 +269,8 @@ int main(int argc, char **argv) {
 	log_level log_ir     = lWARN;
 #endif
 
+	int maxSampleRate = 0;
+
 	char *optarg = NULL;
 	int optind = 1;
 	int i;
@@ -285,6 +290,13 @@ int main(int argc, char **argv) {
 		if (strstr("oabcCdefmMnNpPrs"
 #if ALSA
 				   "UV"
+#endif
+/* 
+ * only allow '-Z <rate>' override of maxSampleRate 
+ * reported by client if built with the capability to resample!
+ */
+#if RESAMPLE
+				   "Z"
 #endif
 				   , opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
@@ -478,6 +490,9 @@ int main(int argc, char **argv) {
 			} else {
 				resample = "";
 			}
+			break;
+		case 'Z':
+			maxSampleRate = atoi(optarg);
 			break;
 #endif
 #if DSD
@@ -695,7 +710,7 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 
-	slimproto(log_slimproto, server, mac, name, namefile, modelname);
+	slimproto(log_slimproto, server, mac, name, namefile, modelname, maxSampleRate);
 
 	decode_close();
 	stream_close();
