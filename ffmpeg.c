@@ -53,8 +53,13 @@ struct ff_s {
 	unsigned (* avcodec_version)(void);
 	AVCodec * (* avcodec_find_decoder)(int);
 	int attribute_align_arg (* avcodec_open2)(AVCodecContext *, const AVCodec *, AVDictionary **);
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55,28,1)
+	AVFrame * (* av_frame_alloc)(void);
+	void (* av_frame_free)(AVFrame **);
+#else
 	AVFrame * (* avcodec_alloc_frame)(void);
 	void (* avcodec_free_frame)(AVFrame **);
+#endif
 	int attribute_align_arg (* avcodec_decode_audio4)(AVCodecContext *, AVFrame *, int *, const AVPacket *);
 	// ffmpeg symbols to be dynamically loaded from libavformat
 	unsigned (* avformat_version)(void);
@@ -120,7 +125,7 @@ extern struct processstate process;
 
 
 // our own version of useful error function not included in earlier ffmpeg versions
-static char *av__err2str(errnum) {
+static char *av__err2str(int errnum) {
 	static char buf[64];
 	AV(ff, strerror, errnum, buf, 64); 
 	return buf;
@@ -325,7 +330,11 @@ static decode_state ff_decode(void) {
 
 		AVCODEC(ff, open2, ff->codecC, codec, NULL);
 
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55,28,1)
+		ff->frame = AV(ff, frame_alloc);
+#else
 		ff->frame = AVCODEC(ff, alloc_frame);
+#endif
 
 		ff->avpkt = AV(ff, malloc, sizeof(AVPacket));
 		if (ff->avpkt == NULL) {
@@ -521,9 +530,17 @@ static void _free_ff_data(void) {
 	if (ff->frame) {
 		// ffmpeg version dependant free function
 #if !LINKALL
+    #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55,28,1)
+		ff->av_frame_free ? AV(ff, frame_free, &ff->frame) : AV(ff, freep, &ff->frame);
+    #else
 		ff->avcodec_free_frame ? AVCODEC(ff, free_frame, &ff->frame) : AV(ff, freep, &ff->frame);
+    #endif
 #elif LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(54,28,0)
+    #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55,28,1)
+		AV(ff, frame_free, &ff->frame);
+    #else
 		AVCODEC(ff, free_frame, &ff->frame);
+    #endif
 #else
 		AV(ff, freep, &ff->frame);
 #endif
@@ -608,8 +625,13 @@ static bool load_ff() {
 	ff->avcodec_version = dlsym(handle_codec, "avcodec_version");
 	ff->avcodec_find_decoder = dlsym(handle_codec, "avcodec_find_decoder");
 	ff->avcodec_open2 = dlsym(handle_codec, "avcodec_open2");
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55,28,1)
+	ff->av_frame_alloc = dlsym(handle_codec, "av_frame_alloc");
+	ff->av_frame_free = dlsym(handle_codec, "av_frame_free");
+#else
 	ff->avcodec_alloc_frame = dlsym(handle_codec, "avcodec_alloc_frame");
 	ff->avcodec_free_frame = dlsym(handle_codec, "avcodec_free_frame");
+#endif
 	ff->avcodec_decode_audio4 = dlsym(handle_codec, "avcodec_decode_audio4");
 	ff->av_init_packet = dlsym(handle_codec, "av_init_packet");
 	ff->av_free_packet = dlsym(handle_codec, "av_free_packet");
