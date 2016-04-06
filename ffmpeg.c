@@ -70,7 +70,11 @@ struct ff_s {
 	AVIOContext * (* avio_alloc_context)(unsigned char *, int, int,	void *,
 		int (*read_packet)(void *, uint8_t *, int), int (*write_packet)(void *, uint8_t *, int), int64_t (*seek)(void *, int64_t, int));
 	void (* av_init_packet)(AVPacket *);
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57,24,102)
+	void (* av_packet_unref)(AVPacket *);
+#else
 	void (* av_free_packet)(AVPacket *);
+#endif
 	int (* av_read_frame)(AVFormatContext *, AVPacket *);
 	AVInputFormat * (* av_find_input_format)(const char *);
 	void (* av_register_all)(void);
@@ -515,7 +519,11 @@ static decode_state ff_decode(void) {
 		}
 	}
 
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57,24,102)
+	AV(ff, packet_unref, ff->avpkt);
+#else
 	AV(ff, free_packet, ff->avpkt);
+#endif
 
 	return DECODE_RUNNING;
 }
@@ -548,7 +556,11 @@ static void _free_ff_data(void) {
 	}
 
 	if (ff->avpkt) {
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57,24,102)
+		AV(ff, packet_unref, ff->avpkt);
+#else
 		AV(ff, free_packet, ff->avpkt);
+#endif
 		AV(ff, freep, &ff->avpkt);
 		ff->avpkt = NULL;
 	}
@@ -634,7 +646,11 @@ static bool load_ff() {
 #endif
 	ff->avcodec_decode_audio4 = dlsym(handle_codec, "avcodec_decode_audio4");
 	ff->av_init_packet = dlsym(handle_codec, "av_init_packet");
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57,24,102)
+	ff->av_packet_unref = dlsym(handle_codec, "av_packet_unref");
+#else
 	ff->av_free_packet = dlsym(handle_codec, "av_free_packet");
+#endif
 
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
