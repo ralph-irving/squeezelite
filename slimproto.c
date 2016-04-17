@@ -150,7 +150,6 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 
 	if (status.current_sample_rate && status.frames_played && status.frames_played > status.device_frames) {
 		ms_played = (u32_t)(((u64_t)(status.frames_played - status.device_frames) * (u64_t)1000) / (u64_t)status.current_sample_rate);
-		if (now > status.updated) ms_played += (now - status.updated);
 		LOG_SDEBUG("ms_played: %u (frames_played: %u device_frames: %u)", ms_played, status.frames_played, status.device_frames);
 	} else if (status.frames_played && now > status.stream_start) {
 		ms_played = now - status.stream_start;
@@ -320,6 +319,7 @@ static void process_strm(u8_t *pkt, int len) {
 			LOCK_O;
 			output.state = jiffies ? OUTPUT_START_AT : OUTPUT_RUNNING;
 			output.start_at = jiffies;
+			status.frames_played = output.frames_played;
 			UNLOCK_O;
 #if GPIO
 			ampidle = 0;
@@ -704,6 +704,7 @@ static void slimproto_run() {
 				_sendSTMs = true;
 				output.track_started = false;
 				status.stream_start = output.track_start_time;
+				status.frames_played = output.frames_played;
 			}
 #if PORTAUDIO
 			if (output.pa_reopen) {
@@ -835,6 +836,8 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 	unsigned failed_connect = 0;
 	unsigned slimproto_port = 0;
 	int i;
+
+	memset(&status, 0, sizeof(status));
 
 	wake_create(wake_e);
 
