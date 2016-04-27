@@ -1,7 +1,7 @@
 # OSX 10.4 Intel 32-bit
-CC=i686-apple-darwin10-gcc
-CXX=i686-apple-darwin10-gcc
-CFLAGS  ?= -s -Wall -fPIC -DRESAMPLE -DDSD -DLINKALL -O2 -I./include -isysroot /Developer/SDKs/MacOSX10.4u.sdk -arch i386 
+CC=gcc
+CXX=g++
+CFLAGS  ?= -Wall -fPIC -DRESAMPLE -DDSD -DLINKALL -O2 -I./include -isysroot /Developer/SDKs/MacOSX10.4u.sdk -arch i386 
 LDFLAGS ?= -Wl,-syslibroot,/Developer/SDKs/MacOSX10.4u.sdk -arch i386 -mmacosx-version-min=10.4 -L./lib -lportaudio -lFLAC -lvorbisfile -lvorbis -logg -lmad -lfaad -lmpg123 -lsoxr -lpthread -ldl -lm -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon
 EXECUTABLE ?= squeezelite-i386
 
