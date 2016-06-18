@@ -1,4 +1,4 @@
-Squeezelite v1.8.n, Copyright 2012-2015 Adrian Smith, 2015-2016 Ralph Irving.
+```Squeezelite v1.8.n, Copyright 2012-2015 Adrian Smith, 2015-2016 Ralph Irving.
 See -t for license terms
 
 Usage: squeezelite [options]
@@ -43,4 +43,4 @@ Usage: squeezelite [options]
   -t 			License terms
   -? 			Display this help text
 
-Build options: LINUX ALSA EVENTFD RESAMPLE FFMPEG VISEXPORT IR GPIO DSD LINKALL
+Build options: LINUX ALSA EVENTFD RESAMPLE FFMPEG VISEXPORT IR GPIO DSD LINKALL```
