@@ -555,6 +555,8 @@ int main(int argc, char **argv) {
 					exit(1);
 				}
 				gpio_active = true;
+				relay(0);
+
 			} else {
 				fprintf(stderr, "Error in GPIO Pin assignment.\n");
 				usage(argv[0]);
@@ -580,6 +582,7 @@ int main(int argc, char **argv) {
 				usage(argv[0]);
 				exit(1);
 			}
+			relay_script(0);
 			break;
 #endif
 #if LINUX || FREEBSD || SUN
