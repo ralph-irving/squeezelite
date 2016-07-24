@@ -110,9 +110,11 @@ static void usage(const char *argv0) {
 		   "  -v \t\t\tVisualiser support\n"
 #endif
 # if ALSA
+		   "  -O <mixer device>\tSpecify mixer device, defaults to 'output device'\n"
 		   "  -L \t\t\tList volume controls for output device\n"
 		   "  -U <control>\t\tUnmute ALSA control and set to full volume (not supported with -V)\n"
 		   "  -V <control>\t\tUse ALSA control for volume adjustment, otherwise use software volume adjustment\n"
+		   "  -X \t\t\t Use linear volume adjustments instead of in terms of dB (only for hardware volume control)\n"
 #endif
 #if LINUX || FREEBSD || SUN
 		   "  -z \t\t\tDaemonize\n"
@@ -247,8 +249,10 @@ int main(int argc, char **argv) {
 #endif
 #if ALSA
 	unsigned rt_priority = OUTPUT_RT_PRIORITY;
+	char *mixer_device = output_device;
 	char *output_mixer = NULL;
 	bool output_mixer_unmute = false;
+	bool linear_volume = false;
 #endif
 #if DSD
 	bool dop = false;
@@ -289,7 +293,7 @@ int main(int argc, char **argv) {
 		char *opt = argv[optind] + 1;
 		if (strstr("oabcCdefmMnNpPrs"
 #if ALSA
-				   "UV"
+				   "UVO"
 #endif
 /* 
  * only allow '-Z <rate>' override of maxSampleRate 
@@ -303,7 +307,7 @@ int main(int argc, char **argv) {
 			optind += 2;
 		} else if (strstr("ltz?W"
 #if ALSA
-						  "L"
+						  "LX"
 #endif
 #if RESAMPLE
 						  "uR"
@@ -478,8 +482,11 @@ int main(int argc, char **argv) {
 			break;
 #if ALSA
 		case 'L':
-			list_mixers(output_device);
+			list_mixers(mixer_device);
 			exit(0);
+			break;
+		case 'X':
+			linear_volume = true;
 			break;
 #endif
 #if RESAMPLE
@@ -509,6 +516,9 @@ int main(int argc, char **argv) {
 			break;
 #endif
 #if ALSA
+		case 'O':
+			mixer_device = optarg;
+			break;
 		case 'U':
 			output_mixer_unmute = true;
 		case 'V':
@@ -673,8 +683,8 @@ int main(int argc, char **argv) {
 		output_init_stdout(log_output, output_buf_size, output_params, rates, rate_delay);
 	} else {
 #if ALSA
-		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, rt_priority, idle, output_mixer,
-						 output_mixer_unmute);
+		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, rt_priority, idle, mixer_device, output_mixer,
+						 output_mixer_unmute, linear_volume);
 #endif
 #if PORTAUDIO
 		output_init_pa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);

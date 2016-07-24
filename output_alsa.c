@@ -48,6 +48,7 @@ static snd_pcm_format_t fmts[] = { SND_PCM_FORMAT_S32_LE, SND_PCM_FORMAT_S24_LE,
 static struct {
 	char device[MAX_DEVICE_LEN + 1];
 	char *ctl;
+	char *mixer_ctl;
 	snd_pcm_format_t format;
 	snd_pcm_uframes_t buffer_size;
 	snd_pcm_uframes_t period_size;
@@ -57,6 +58,7 @@ static struct {
 	u8_t *write_buf;
 	const char *volume_mixer_name;
 	int volume_mixer_index;
+	bool mixer_linear;
 } alsa;
 
 static snd_pcm_t *pcmp = NULL;
@@ -214,7 +216,7 @@ static void set_mixer(const char *device, const char *mixer, int mixer_index, bo
 
 	err = snd_mixer_selem_get_playback_dB_range(elem, &min, &max);
 
-	if (err < 0 || max - min < 1000) {
+	if (err < 0 || max - min < 1000 || alsa.mixer_linear) {
 		// unable to get db range or range is less than 10dB - ignore and set using raw values
 		if ((err = snd_mixer_selem_get_playback_volume_range(elem, &min, &max)) < 0) {
 			LOG_ERROR("unable to get volume raw range");
@@ -286,7 +288,7 @@ void set_volume(unsigned left, unsigned right) {
 	ldB = 20 * log10( left  / 65536.0F );
 	rdB = 20 * log10( right / 65536.0F );
 
-	set_mixer(alsa.ctl, alsa.volume_mixer_name, alsa.volume_mixer_index, false, ldB, rdB);
+	set_mixer(alsa.mixer_ctl, alsa.volume_mixer_name, alsa.volume_mixer_index, false, ldB, rdB);
 }
 
 static void *alsa_error_handler(const char *file, int line, const char *function, int err, const char *fmt, ...) {
@@ -837,7 +839,8 @@ static void *output_thread(void *arg) {
 static pthread_t thread;
 
 void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], 
-					  unsigned rate_delay, unsigned rt_priority, unsigned idle, char *volume_mixer, bool mixer_unmute) {
+					  unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, 
+					  bool mixer_unmute, bool mixer_linear) {
 
 	unsigned alsa_buffer = ALSA_BUFFER_TIME;
 	unsigned alsa_period = ALSA_PERIOD_COUNT;
@@ -871,6 +874,8 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	alsa.format = 0;
 	alsa.reopen = alsa_reopen;
 	alsa.ctl = ctl4device(device);
+	alsa.mixer_ctl = ctl4device(mixer_device);
+	alsa.mixer_linear = mixer_linear;
 
 	if (!mixer_unmute) {
 		alsa.volume_mixer_name = volume_mixer_name;
@@ -899,7 +904,7 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	output_init_common(level, device, output_buf_size, rates, idle);
 
 	if (mixer_unmute && volume_mixer_name) {
-		set_mixer(alsa.ctl, volume_mixer_name, volume_mixer_index ? atoi(volume_mixer_index) : 0, true, 0, 0);
+		set_mixer(alsa.mixer_ctl, volume_mixer_name, volume_mixer_index ? atoi(volume_mixer_index) : 0, true, 0, 0);
 	}
 
 #if LINUX
@@ -946,6 +951,7 @@ void output_close_alsa(void) {
 
 	if (alsa.write_buf) free(alsa.write_buf);
 	if (alsa.ctl) free(alsa.ctl);
+	if (alsa.mixer_ctl) free(alsa.mixer_ctl);
 
 	output_close_common();
 }
