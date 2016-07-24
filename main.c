@@ -70,7 +70,7 @@ static void usage(const char *argv0) {
 #else
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output|ir, level: info|debug|sdebug\n"
 #endif
-#if GPIO
+#if GPIO && __WIRING_PI_H__
 		   "  -G <Rpi GPIO#>:<H/L>\tSpecify the BCM GPIO# to use for Amp Power Relay and if the output should be Active High or Low\n"
 #endif
 		   "  -e <codec1>,<codec2>\tExplicitly exclude native support of one or more codecs; known codecs: " CODECS "\n"
@@ -317,8 +317,11 @@ int main(int argc, char **argv) {
 #if IR
 						  "i"
 #endif
+#if GPIO && __WIRING_PI_H__
+						  "G"
+#endif
 #if GPIO
-						  "GS"
+						  "S"
 #endif
 
 						  , opt)) {
@@ -528,7 +531,7 @@ int main(int argc, char **argv) {
 			}
 			break;
 #endif
-#if GPIO
+#if GPIO && __WIRING_PI_H__
 		case 'G':
 			if (power_script != NULL){
 				fprintf(stderr, "-G and -S options cannot be used together \n\n" );
@@ -561,6 +564,8 @@ int main(int argc, char **argv) {
 				exit(1);
 			}
 			break;
+#endif
+#if GPIO
 		case 'S':
 			if (gpio_active){
 				fprintf(stderr, "-G and -S options cannot be used together \n\n" );

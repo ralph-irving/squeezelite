@@ -10,6 +10,7 @@ OPT_LINKALL = -DLINKALL
 OPT_RESAMPLE= -DRESAMPLE
 OPT_VIS     = -DVISEXPORT
 OPT_IR      = -DIR
+OPT_GPIO    = -DGPIO
 
 SOURCES = \
 	main.c slimproto.c buffer.c stream.c utils.c \
@@ -21,6 +22,7 @@ SOURCES_FF       = ffmpeg.c
 SOURCES_RESAMPLE = process.c resample.c
 SOURCES_VIS      = output_vis.c
 SOURCES_IR       = ir.c
+SOURCES_GPIO     = gpio.c
 
 LINK_LINUX       = -ldl
 
@@ -48,6 +50,9 @@ ifneq (,$(findstring $(OPT_VIS), $(CFLAGS)))
 endif
 ifneq (,$(findstring $(OPT_IR), $(CFLAGS)))
 	SOURCES += $(SOURCES_IR)
+endif
+ifneq (,$(findstring $(OPT_GPIO), $(CFLAGS)))
+	SOURCES += $(SOURCES_GPIO)
 endif
 
 # add optional link options
