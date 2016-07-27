@@ -106,9 +106,14 @@ static void _check_header(void) {
 			if (format == WAVE && !memcmp(ptr, "data", 4)) {
 				ptr += 8;
 				_buf_inc_readp(streambuf, ptr - streambuf->readp);
-				audio_left = len;
-				LOG_INFO("audio size: %u", audio_left);
-				limit = true;
+				
+				// Reading from an upsampled stream, length could be wrong.
+				// Only use length in header for files.
+				if (stream.state == STREAMING_FILE) {
+					audio_left = len;
+					LOG_INFO("audio size: %u", audio_left);
+					limit = true;
+				}
 				return;
 			}
 
@@ -117,9 +122,14 @@ static void _check_header(void) {
 				// following 4 bytes is blocksize - ignored
 				ptr += 8 + 8;
 				_buf_inc_readp(streambuf, ptr + offset - streambuf->readp);
-				audio_left = len - 8 - offset;
-				LOG_INFO("audio size: %u", audio_left);
-				limit = true;
+				
+				// Reading from an upsampled stream, length could be wrong.
+				// Only use length in header for files.
+				if (stream.state == STREAMING_FILE) {
+					audio_left = len - 8 - offset;
+					LOG_INFO("audio size: %u", audio_left);
+					limit = true;
+				}
 				return;
 			}
 
