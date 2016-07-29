@@ -27,6 +27,8 @@
 
 static log_level loglevel;
 
+#define SQUEEZENETWORK "mysqueezebox.com:3483"
+
 #define PORT 3483
 
 #define MAXBUF 4096
@@ -468,11 +470,18 @@ static void process_setd(u8_t *pkt, int len) {
 
 static void process_serv(u8_t *pkt, int len) {
 	struct serv_packet *serv = (struct serv_packet *)pkt;
-
+	
+	unsigned slimproto_port = 0;
+	char squeezeserver[] = SQUEEZENETWORK;
+	
+	if(pkt[4] == 0 && pkt[5] == 0 && pkt[6] == 0 && pkt[7] == 1) {
+		server_addr(squeezeserver, &new_server, &slimproto_port);
+	} else {
+		new_server = serv->server_ip;
+	}
+	
 	LOG_INFO("switch server");
-
-	new_server = serv->server_ip;
-
+	
 	if (len - sizeof(struct serv_packet) == 10) {
 		if (!new_server_cap) {
 			new_server_cap = malloc(SYNC_CAP_LEN + 10 + 1);
