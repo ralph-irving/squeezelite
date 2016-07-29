@@ -835,6 +835,7 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 	bool reconnect = false;
 	unsigned failed_connect = 0;
 	unsigned slimproto_port = 0;
+	in_addr_t previous_server = 0;
 	int i;
 
 	memset(&status, 0, sizeof(status));
@@ -906,6 +907,7 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 	while (running) {
 
 		if (new_server) {
+			previous_server = slimproto_ip;
 			slimproto_ip = serv_addr.sin_addr.s_addr = new_server;
 			LOG_INFO("switching server to %s:%d", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
 			new_server = 0;
@@ -918,9 +920,14 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 		set_nosigpipe(sock);
 
 		if (connect_timeout(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr), 5) != 0) {
-
-			LOG_INFO("unable to connect to server %u", failed_connect);
-			sleep(5);
+			
+			if (previous_server) {
+				slimproto_ip = serv_addr.sin_addr.s_addr = previous_server;
+				LOG_INFO("new server not reachable, reverting to previous server %s:%d", inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
+			} else {
+				LOG_INFO("unable to connect to server %u", failed_connect);
+				sleep(5);
+			}
 
 			// rediscover server if it was not set at startup
 			if (!server && ++failed_connect > 5) {
@@ -964,7 +971,9 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 
 			usleep(100000);
 		}
-
+		
+		previous_server = 0;
+        
 		closesocket(sock);
 	}
 }
