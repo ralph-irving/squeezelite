@@ -24,7 +24,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
-#define VERSION "v1.8.5-798"
+#define VERSION "v1.8.5-799"
 
 #if !defined(MODEL_NAME)
 #define MODEL_NAME SqueezeLite
@@ -628,8 +628,7 @@ void list_devices(void);
 void list_mixers(const char *output_device);
 void set_volume(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[]);
-void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], 
-					  unsigned rate_delay, unsigned rt_priority, unsigned idle, char *volume_mixer, bool mixer_unmute);
+void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, bool mixer_unmute, bool mixer_linear);
 void output_close_alsa(void);
 #endif
 
