@@ -791,11 +791,12 @@ void wake_controller(void) {
 	wake_signal(wake_e);
 }
 
-in_addr_t discover_server(void) {
+in_addr_t discover_server(char *default_server) {
 	struct sockaddr_in d;
 	struct sockaddr_in s;
 	char *buf;
 	struct pollfd pollinfo;
+	unsigned port;
 
 	int disc_sock = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -828,6 +829,10 @@ in_addr_t discover_server(void) {
 			LOG_INFO("got response from: %s:%d", inet_ntoa(s.sin_addr), ntohs(s.sin_port));
 		}
 
+		if (default_server) {
+			server_addr(default_server, &s.sin_addr.s_addr, &port);
+		}
+
 	} while (s.sin_addr.s_addr == 0 && running);
 
 	closesocket(disc_sock);
@@ -858,7 +863,7 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 	}
 
 	if (!slimproto_ip) {
-		slimproto_ip = discover_server();
+		slimproto_ip = discover_server(server);
 	}
 
 	if (!slimproto_port) {
@@ -933,7 +938,7 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 
 			// rediscover server if it was not set at startup
 			if (!server && ++failed_connect > 5) {
-				slimproto_ip = serv_addr.sin_addr.s_addr = discover_server();
+				slimproto_ip = serv_addr.sin_addr.s_addr = discover_server(NULL);
 			}
 
 		} else {
