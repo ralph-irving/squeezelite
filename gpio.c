@@ -25,7 +25,7 @@
 #if GPIO
 
 #include "squeezelite.h"
-#ifdef __WIRING_PI_H__
+#ifndef NORPI
 #include <wiringPi.h>
 #endif
 #include <stdio.h>
@@ -37,7 +37,7 @@ static int initialized = -1;
 static int power_state = -1;
 
 void relay( int state) {
-#ifdef __WIRING_PI_H__
+#ifndef NORPI
     gpio_state = state;
 
   // Set up gpio  using BCM Pin #'s

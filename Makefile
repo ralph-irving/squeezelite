@@ -53,6 +53,7 @@ ifneq (,$(findstring $(OPT_IR), $(CFLAGS)))
 endif
 ifneq (,$(findstring $(OPT_GPIO), $(CFLAGS)))
 	SOURCES += $(SOURCES_GPIO)
+	CFLAGS += -DNORPI
 endif
 
 # add optional link options

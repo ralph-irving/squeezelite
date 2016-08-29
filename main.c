@@ -70,7 +70,7 @@ static void usage(const char *argv0) {
 #else
 		   "  -d <log>=<level>\tSet logging level, logs: all|slimproto|stream|decode|output|ir, level: info|debug|sdebug\n"
 #endif
-#if GPIO && __WIRING_PI_H__
+#if defined(GPIO) && !defined(NORPI)
 		   "  -G <Rpi GPIO#>:<H/L>\tSpecify the BCM GPIO# to use for Amp Power Relay and if the output should be Active High or Low\n"
 #endif
 		   "  -e <codec1>,<codec2>\tExplicitly exclude native support of one or more codecs; known codecs: " CODECS "\n"
@@ -317,7 +317,7 @@ int main(int argc, char **argv) {
 #if IR
 						  "i"
 #endif
-#if GPIO && __WIRING_PI_H__
+#if defined(GPIO) && !defined(NORPI)
 						  "G"
 #endif
 #if GPIO
@@ -531,7 +531,7 @@ int main(int argc, char **argv) {
 			}
 			break;
 #endif
-#if GPIO && __WIRING_PI_H__
+#if defined(GPIO) && !defined(NORPI)
 		case 'G':
 			if (power_script != NULL){
 				fprintf(stderr, "-G and -S options cannot be used together \n\n" );
