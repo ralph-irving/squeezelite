@@ -629,7 +629,8 @@ void list_mixers(const char *output_device);
 void set_volume(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[]);
 void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], 
-					  unsigned rate_delay, unsigned rt_priority, unsigned idle, char *volume_mixer, bool mixer_unmute);
+					  unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, 
+					  bool mixer_unmute, bool mixer_linear);
 void output_close_alsa(void);
 #endif
 
