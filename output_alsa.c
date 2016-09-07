@@ -1,8 +1,8 @@
 /* 
- *  Squeezelite - lightweight headless squeezebox emulator
+ *	Squeezelite - lightweight headless squeezebox emulator
  *
- *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
- *      Ralph Irving 2015-2016, ralph_irving@hotmail.com
+ *	(c) Adrian Smith 2012-2015, triode1@btinternet.com
+ *		Ralph Irving 2015-2016, ralph_irving@hotmail.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,15 +11,15 @@
  * 
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.	 If not, see <http://www.gnu.org/licenses/>.
  *
  * Additions (c) Paul Hermann, 2015-2016 under the same license terms
- *   -Control of Raspberry pi GPIO for amplifier power
- *   -Launch script on power status change from LMS
+ *	 -Control of Raspberry pi GPIO for amplifier power
+ *	 -Launch script on power status change from LMS
  */
 
 // Output using Alsa
@@ -61,7 +61,7 @@ static struct {
 	bool mixer_linear;
 	
 	snd_mixer_elem_t* mixer_elem;
-    snd_mixer_t *mixer_handle;
+	snd_mixer_t *mixer_handle;
 	long mixer_min;
 	long mixer_max;
 } alsa;
@@ -109,7 +109,7 @@ void list_devices(void) {
 		while (*n) {
 			char *name = snd_device_name_get_hint(*n, "NAME");
 			char *desc = snd_device_name_get_hint(*n, "DESC");
-			if (name) printf("  %-30s", name);
+			if (name) printf("	%-30s", name);
 			if (desc) {
 				char *s1 = strtok(desc, "\n");
 				char *s2 = strtok(NULL, "\n");
@@ -181,20 +181,20 @@ static void set_mixer(bool setmax, float ldB, float rdB) {
 	long nleft, nright;
 	
 	if (alsa.mixer_linear) {
-        long lraw, rraw;
-        if (setmax) {
-            lraw = rraw = alsa.mixer_max;
-        } else {
-            lraw = ((ldB > -MINVOL_DB ? MINVOL_DB + floor(ldB) : 0) / MINVOL_DB * (alsa.mixer_max-alsa.mixer_min)) + alsa.mixer_min;
-            rraw = ((rdB > -MINVOL_DB ? MINVOL_DB + floor(rdB) : 0) / MINVOL_DB * (alsa.mixer_max-alsa.mixer_min)) + alsa.mixer_min;
-        }
-        LOG_DEBUG("setting vol raw [%ld..%ld]", alsa.mixer_min, alsa.mixer_max);
-        if ((err = snd_mixer_selem_set_playback_volume(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_LEFT, lraw)) < 0) {
-            LOG_ERROR("error setting left volume: %s", snd_strerror(err));
-        }
-        if ((err = snd_mixer_selem_set_playback_volume(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_RIGHT, rraw)) < 0) {
-            LOG_ERROR("error setting right volume: %s", snd_strerror(err));
-        }
+		long lraw, rraw;
+		if (setmax) {
+			lraw = rraw = alsa.mixer_max;
+		} else {
+			lraw = ((ldB > -MINVOL_DB ? MINVOL_DB + floor(ldB) : 0) / MINVOL_DB * (alsa.mixer_max-alsa.mixer_min)) + alsa.mixer_min;
+			rraw = ((rdB > -MINVOL_DB ? MINVOL_DB + floor(rdB) : 0) / MINVOL_DB * (alsa.mixer_max-alsa.mixer_min)) + alsa.mixer_min;
+		}
+		LOG_DEBUG("setting vol raw [%ld..%ld]", alsa.mixer_min, alsa.mixer_max);
+		if ((err = snd_mixer_selem_set_playback_volume(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_LEFT, lraw)) < 0) {
+			LOG_ERROR("error setting left volume: %s", snd_strerror(err));
+		}
+		if ((err = snd_mixer_selem_set_playback_volume(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_RIGHT, rraw)) < 0) {
+			LOG_ERROR("error setting right volume: %s", snd_strerror(err));
+		}
 	} else {
 		// set db directly
 		LOG_DEBUG("setting vol dB [%ld..%ld]", alsa.mixer_min, alsa.mixer_max);
@@ -242,7 +242,7 @@ void set_volume(unsigned left, unsigned right) {
 	}
 
 	// convert 16.16 fixed point to dB
-	ldB = 20 * log10( left  / 65536.0F );
+	ldB = 20 * log10( left	/ 65536.0F );
 	rdB = 20 * log10( right / 65536.0F );
 
 	set_mixer(false, ldB, rdB);
@@ -640,11 +640,11 @@ static void *output_thread(void *arg) {
 			// Wake up amp
 			if (gpio_active){ 
 				ampstate = 1;
-	         relay(1);
+			 relay(1);
 			}
 			if (power_script != NULL){
 				ampstate = 1;
-	         relay_script(1);
+			 relay_script(1);
 			}
 #endif
 			start = true;
@@ -743,7 +743,7 @@ static void *output_thread(void *arg) {
 			output_off = true;
 			vis_stop();
 #if GPIO
-			//  Put Amp to Sleep
+			//	Put Amp to Sleep
 			if (gpio_active){
 				ampstate = 0;
 				relay(0);
@@ -834,14 +834,14 @@ int mixer_init_alsa(const char *device, const char *mixer, int mixer_index) {
 	err = snd_mixer_selem_get_playback_dB_range(alsa.mixer_elem, &alsa.mixer_min, &alsa.mixer_max);
 
 	if (err < 0 || alsa.mixer_max - alsa.mixer_min < 1000 || alsa.mixer_linear) {
-	    alsa.mixer_linear = 1;
+		alsa.mixer_linear = 1;
 		// unable to get db range or range is less than 10dB - ignore and set using raw values
 		if ((err = snd_mixer_selem_get_playback_volume_range(alsa.mixer_elem, &alsa.mixer_min, &alsa.mixer_max)) < 0) {
-            LOG_ERROR("unable to get volume raw range");
-		    return -1;
+			LOG_ERROR("unable to get volume raw range");
+			return -1;
 		}
 	}
-    return 0;
+	return 0;
 }
 
 static pthread_t thread;
@@ -884,7 +884,7 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	alsa.mixer_handle = NULL;
 	alsa.ctl = ctl4device(device);
 	alsa.mixer_ctl = mixer_device ? ctl4device(mixer_device) : alsa.ctl;
-    alsa.volume_mixer_name = volume_mixer_name;
+	alsa.volume_mixer_name = volume_mixer_name;
 	alsa.mixer_linear = mixer_linear;
 
 	output.format = 0;
@@ -895,7 +895,7 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	output.rate_delay = rate_delay;
 
 	if (alsa_sample_fmt) {
-		if (!strcmp(alsa_sample_fmt, "32"))	alsa.format = SND_PCM_FORMAT_S32_LE;
+		if (!strcmp(alsa_sample_fmt, "32")) alsa.format = SND_PCM_FORMAT_S32_LE;
 		if (!strcmp(alsa_sample_fmt, "24")) alsa.format = SND_PCM_FORMAT_S24_LE;
 		if (!strcmp(alsa_sample_fmt, "24_3")) alsa.format = SND_PCM_FORMAT_S24_3LE;
 		if (!strcmp(alsa_sample_fmt, "16")) alsa.format = SND_PCM_FORMAT_S16_LE;
@@ -909,12 +909,12 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	output_init_common(level, device, output_buf_size, rates, idle);
 	
 	if (volume_mixer_name) {
-        if (mixer_init_alsa(alsa.mixer_ctl, alsa.volume_mixer_name, volume_mixer_index ? atoi(volume_mixer_index) : 0) < 0) {
-            LOG_ERROR("initialisation of mixer failed, reverting to software volume");
-            alsa.mixer_handle = NULL;
-            alsa.volume_mixer_name = NULL;
-        }
-    }
+		if (mixer_init_alsa(alsa.mixer_ctl, alsa.volume_mixer_name, volume_mixer_index ? atoi(volume_mixer_index) : 0) < 0) {
+			LOG_ERROR("initialisation of mixer failed, reverting to software volume");
+			alsa.mixer_handle = NULL;
+			alsa.volume_mixer_name = NULL;
+		}
+	}
 	if (mixer_unmute && alsa.volume_mixer_name) {
 		set_mixer(true, 0, 0);
 		alsa.volume_mixer_name = NULL;
@@ -965,7 +965,7 @@ void output_close_alsa(void) {
 	if (alsa.write_buf) free(alsa.write_buf);
 	if (alsa.ctl) free(alsa.ctl);
 	if (alsa.mixer_ctl) free(alsa.mixer_ctl);
-    if (alsa.mixer_handle != NULL) snd_mixer_close(alsa.mixer_handle);
+	if (alsa.mixer_handle != NULL) snd_mixer_close(alsa.mixer_handle);
 
 	output_close_common();
 }
