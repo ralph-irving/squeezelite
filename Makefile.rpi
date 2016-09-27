@@ -1,5 +1,5 @@
 # Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
-OPTS = -DRESAMPLE -DFFMPEG -DVISEXPORT -DDSD -DGPIO -DIR -I./include
+OPTS = -DRESAMPLE -DFFMPEG -DVISEXPORT -DDSD -DGPIO -DRPI -DIR -I./include
 CFLAGS  ?= -Wall -fPIC -s -O3 -march=armv6 -mfloat-abi=hard -mfpu=vfp $(OPTS)
 LDFLAGS ?= -s -lasound -lpthread -lm -ldl -lrt -L./lib -lwiringPi -Wl,-rpath,/usr/local/lib
 EXECUTABLE ?= squeezelite-rpi
