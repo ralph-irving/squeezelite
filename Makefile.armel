@@ -1,10 +1,10 @@
 # Makefile armel
-OPTS = -DRESAMPLE -DFFMPEG -DVISEXPORT -DDSD -DIR -I/usr/local/include
+OPTS = -DRESAMPLE -DFFMPEG -DVISEXPORT -DDSD -DIR -DGPIO -I/usr/local/include
 CFLAGS  ?= -s -Wall -fPIC -O3 -march=armv5te $(OPTS)
 LDFLAGS ?= -s -lasound -lpthread -ldl -lrt -Wl,-rpath,/usr/local/lib
-EXECUTABLE ?= squeezelite-ds
+EXECUTABLE ?= squeezelite
 
-SOURCES = main.c slimproto.c utils.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c output_alsa.c output.c output_pa.c output_pack.c output_stdout.c output_vis.c dop.c dsd.c dsd2pcm/dsd2pcm.c faad.c mpg.c resample.c process.c ffmpeg.c ir.c
+SOURCES = main.c slimproto.c utils.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c output_alsa.c output.c output_pa.c output_pack.c output_stdout.c output_vis.c dop.c dsd.c dsd2pcm/dsd2pcm.c faad.c mpg.c resample.c process.c ffmpeg.c ir.c gpio.c
 
 DEPS    = squeezelite.h slimproto.h dsd2pcm/dsd2pcm.h
 
