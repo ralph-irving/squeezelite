@@ -340,6 +340,9 @@ int main(int argc, char **argv) {
 		switch (opt[0]) {
 		case 'o':
 			output_device = optarg;
+#if ALSA
+			mixer_device = optarg;
+#endif
 			break;
 		case 'a':
 			output_params = optarg;
@@ -483,15 +486,6 @@ int main(int argc, char **argv) {
 			list_devices();
 			exit(0);
 			break;
-#if ALSA
-		case 'L':
-			list_mixers(mixer_device);
-			exit(0);
-			break;
-		case 'X':
-			linear_volume = true;
-			break;
-#endif
 #if RESAMPLE
 		case 'u':
 		case 'R':
@@ -521,6 +515,13 @@ int main(int argc, char **argv) {
 #if ALSA
 		case 'O':
 			mixer_device = optarg;
+			break;
+		case 'L':
+			list_mixers(mixer_device);
+			exit(0);
+			break;
+		case 'X':
+			linear_volume = true;
 			break;
 		case 'U':
 			output_mixer_unmute = true;
