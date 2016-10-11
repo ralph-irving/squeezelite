@@ -114,7 +114,7 @@ static void usage(const char *argv0) {
 		   "  -L \t\t\tList volume controls for output device\n"
 		   "  -U <control>\t\tUnmute ALSA control and set to full volume (not supported with -V)\n"
 		   "  -V <control>\t\tUse ALSA control for volume adjustment, otherwise use software volume adjustment\n"
-		   "  -X \t\t\t Use linear volume adjustments instead of in terms of dB (only for hardware volume control)\n"
+		   "  -X \t\t\tUse linear volume adjustments instead of in terms of dB (only for hardware volume control)\n"
 #endif
 #if LINUX || FREEBSD || SUN
 		   "  -z \t\t\tDaemonize\n"
