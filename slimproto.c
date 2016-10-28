@@ -109,7 +109,7 @@ void send_packet(u8_t *packet, size_t len) {
 		n = send(sock, ptr, len, MSG_NOSIGNAL);
 		if (n <= 0) {
 			if (n < 0 && last_error() == ERROR_WOULDBLOCK && try < 10) {
-				LOG_DEBUG("retrying (%d) writing to socket", ++try);
+				LOG_SQ_DEBUG("retrying (%d) writing to socket", ++try);
 				usleep(1000);
 				continue;
 			}
@@ -181,7 +181,7 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 	pkt.server_timestamp = server_timestamp; // keep this is server format - don't unpack/pack
 	// error_code;
 
-	LOG_DEBUG("STAT: %s", event);
+	LOG_SQ_DEBUG("STAT: %s", event);
 
 	if (loglevel == lSDEBUG) {
 		LOG_SDEBUG("received bytesL: %u streambuf: %u outputbuf: %u calc elapsed: %u real elapsed: %u (diff: %d) device: %u delay: %d",
@@ -200,7 +200,7 @@ static void sendDSCO(disconnect_code disconnect) {
 	pkt.length = htonl(sizeof(pkt) - 8);
 	pkt.reason = disconnect & 0xFF;
 
-	LOG_DEBUG("DSCO: %d", disconnect);
+	LOG_SQ_DEBUG("DSCO: %d", disconnect);
 
 	send_packet((u8_t *)&pkt, sizeof(pkt));
 }
@@ -212,7 +212,7 @@ static void sendRESP(const char *header, size_t len) {
 	memcpy(&pkt_header.opcode, "RESP", 4);
 	pkt_header.length = htonl(sizeof(pkt_header) + len - 8);
 
-	LOG_DEBUG("RESP");
+	LOG_SQ_DEBUG("RESP");
 
 	send_packet((u8_t *)&pkt_header, sizeof(pkt_header));
 	send_packet((u8_t *)header, len);
@@ -225,7 +225,7 @@ static void sendMETA(const char *meta, size_t len) {
 	memcpy(&pkt_header.opcode, "META", 4);
 	pkt_header.length = htonl(sizeof(pkt_header) + len - 8);
 
-	LOG_DEBUG("META");
+	LOG_SQ_DEBUG("META");
 
 	send_packet((u8_t *)&pkt_header, sizeof(pkt_header));
 	send_packet((u8_t *)meta, len);
@@ -240,7 +240,7 @@ static void sendSETDName(const char *name) {
 	pkt_header.id = 0; // id 0 is playername S:P:Squeezebox2
 	pkt_header.length = htonl(sizeof(pkt_header) + strlen(name) + 1 - 8);
 
-	LOG_DEBUG("set playername: %s", name);
+	LOG_SQ_DEBUG("set playername: %s", name);
 
 	send_packet((u8_t *)&pkt_header, sizeof(pkt_header));
 	send_packet((u8_t *)name, strlen(name) + 1);
@@ -257,7 +257,7 @@ void sendIR(u32_t code, u32_t ts) {
 	packN(&pkt.jiffies, ts);
 	pkt.ir_code = htonl(code);
 
-	LOG_DEBUG("IR: ir code: 0x%x ts: %u", code, ts);
+	LOG_SQ_DEBUG("IR: ir code: 0x%x ts: %u", code, ts);
 
 	send_packet((u8_t *)&pkt, sizeof(pkt));
 }
@@ -266,7 +266,7 @@ void sendIR(u32_t code, u32_t ts) {
 static void process_strm(u8_t *pkt, int len) {
 	struct strm_packet *strm = (struct strm_packet *)pkt;
 
-	LOG_DEBUG("strm command %c", strm->command);
+	LOG_SQ_DEBUG("strm command %c", strm->command);
 
 	switch(strm->command) {
 	case 't':
@@ -302,7 +302,7 @@ static void process_strm(u8_t *pkt, int len) {
 			}
 			UNLOCK_O;
 			if (!interval) sendSTAT("STMp", 0);
-			LOG_DEBUG("pause interval: %u", interval);
+			LOG_SQ_DEBUG("pause interval: %u", interval);
 		}
 		break;
 	case 'a':
@@ -312,7 +312,7 @@ static void process_strm(u8_t *pkt, int len) {
 			output.skip_frames = interval * status.current_sample_rate / 1000;
 			output.state = OUTPUT_SKIP_FRAMES;				
 			UNLOCK_O;
-			LOG_DEBUG("skip ahead interval: %u", interval);
+			LOG_SQ_DEBUG("skip ahead interval: %u", interval);
 		}
 		break;
 	case 'u':
@@ -326,7 +326,7 @@ static void process_strm(u8_t *pkt, int len) {
 #if GPIO
 			ampidle = 0;
 #endif
-			LOG_DEBUG("unpause at: %u now: %u", jiffies, gettime_ms());
+			LOG_SQ_DEBUG("unpause at: %u now: %u", jiffies, gettime_ms());
 			sendSTAT("STMr", 0);
 		}
 		break;
@@ -338,7 +338,7 @@ static void process_strm(u8_t *pkt, int len) {
 			u16_t port = strm->server_port; // keep in network byte order
 			if (ip == 0) ip = slimproto_ip; 
 
-			LOG_DEBUG("strm s autostart: %c transition period: %u transition type: %u codec: %c", 
+			LOG_SQ_DEBUG("strm s autostart: %c transition period: %u transition type: %u codec: %c", 
 					  strm->autostart, strm->transition_period, strm->transition_type - '0', strm->format);
 			
 			autostart = strm->autostart - '0';
@@ -354,7 +354,7 @@ static void process_strm(u8_t *pkt, int len) {
 				codec_open(strm->format, strm->pcm_sample_size, strm->pcm_sample_rate, strm->pcm_channels, strm->pcm_endianness);
 			} else if (autostart >= 2) {
 				// extension to slimproto to allow server to detect codec from response header and send back in codc message
-				LOG_DEBUG("streaming unknown codec");
+				LOG_SQ_DEBUG("streaming unknown codec");
 			} else {
 				LOG_WARN("unknown codec requires autostart >= 2");
 				break;
@@ -374,7 +374,7 @@ static void process_strm(u8_t *pkt, int len) {
 			output.fade_mode = strm->transition_type - '0';
 			output.fade_secs = strm->transition_period;
 			output.invert    = (strm->flags & 0x03) == 0x03;
-			LOG_DEBUG("set fade mode: %u", output.fade_mode);
+			LOG_SQ_DEBUG("set fade mode: %u", output.fade_mode);
 			UNLOCK_O;
 		}
 		break;
@@ -388,7 +388,7 @@ static void process_cont(u8_t *pkt, int len) {
 	struct cont_packet *cont = (struct cont_packet *)pkt;
 	cont->metaint = unpackN(&cont->metaint);
 
-	LOG_DEBUG("cont metaint: %u loop: %u", cont->metaint, cont->loop);
+	LOG_SQ_DEBUG("cont metaint: %u loop: %u", cont->metaint, cont->loop);
 
 	if (autostart > 1) {
 		autostart -= 2;
@@ -405,14 +405,14 @@ static void process_cont(u8_t *pkt, int len) {
 static void process_codc(u8_t *pkt, int len) {
 	struct codc_packet *codc = (struct codc_packet *)pkt;
 
-	LOG_DEBUG("codc: %c", codc->format);
+	LOG_SQ_DEBUG("codc: %c", codc->format);
 	codec_open(codc->format, codc->pcm_sample_size, codc->pcm_sample_rate, codc->pcm_channels, codc->pcm_endianness);
 }
 
 static void process_aude(u8_t *pkt, int len) {
 	struct aude_packet *aude = (struct aude_packet *)pkt;
 
-	LOG_DEBUG("enable spdif: %d dac: %d", aude->enable_spdif, aude->enable_dac);
+	LOG_SQ_DEBUG("enable spdif: %d dac: %d", aude->enable_spdif, aude->enable_dac);
 
 	LOCK_O;
 	if (!aude->enable_spdif && output.state != OUTPUT_OFF) {
@@ -430,7 +430,7 @@ static void process_audg(u8_t *pkt, int len) {
 	audg->gainL = unpackN(&audg->gainL);
 	audg->gainR = unpackN(&audg->gainR);
 
-	LOG_DEBUG("audg gainL: %u gainR: %u adjust: %u", audg->gainL, audg->gainR, audg->adjust);
+	LOG_SQ_DEBUG("audg gainL: %u gainR: %u adjust: %u", audg->gainL, audg->gainR, audg->adjust);
 
 	set_volume(audg->adjust ? audg->gainL : FIXED_ONE, audg->adjust ? audg->gainR : FIXED_ONE);
 }
@@ -518,7 +518,7 @@ static void process(u8_t *pack, int len) {
 	while (h->handler && strncmp((char *)pack, h->opcode, 4)) { h++; }
 
 	if (h->handler) {
-		LOG_DEBUG("%s", h->opcode);
+		LOG_SQ_DEBUG("%s", h->opcode);
 		h->handler(pack, len);
 	} else {
 		pack[4] = '\0';
@@ -733,7 +733,7 @@ static void slimproto_run() {
 #endif
 				_sendSTMu = true;
 				sentSTMu = true;
-				LOG_DEBUG("output underrun");
+				LOG_SQ_DEBUG("output underrun");
 				output.state = OUTPUT_STOPPED;
 				output.stop_time = now;
 			}
@@ -747,7 +747,7 @@ static void slimproto_run() {
 			}
 			if (output.state == OUTPUT_STOPPED && output.idle_to && (now - output.stop_time > output.idle_to)) {
 				output.state = OUTPUT_OFF;
-				LOG_DEBUG("output timeout");
+				LOG_SQ_DEBUG("output timeout");
 			}
 			if (output.state == OUTPUT_RUNNING && now - status.last > 1000) {
 				_sendSTMt = true;

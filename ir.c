@@ -116,7 +116,7 @@ static u32_t ir_key_map(const char *c, const char *r) {
 			if (keymap[i].repeat || !strcmp(r, "00")) {
 				return keymap[i].code;
 			}
-			LOG_DEBUG("repeat suppressed");
+			LOG_SQ_DEBUG("repeat suppressed");
 			break;
 		}
 	}
@@ -140,7 +140,7 @@ static void *ir_thread() {
 			while (LIRC(i, code2char, config, code, &c) == 0 && c != NULL) {
 				ir_code = ir_cmd_map(c);
 				if (ir_code) {
-					LOG_DEBUG("ir cmd: %s -> %x", c, ir_code);
+					LOG_SQ_DEBUG("ir cmd: %s -> %x", c, ir_code);
 				}
 			}
 		}
@@ -154,14 +154,14 @@ static void *ir_thread() {
 			b = strtok(NULL, " \n"); // key name
 			if (r && b) {
 				ir_code = ir_key_map(b, r);
-				LOG_DEBUG("ir lirc: %s [%s] -> %x", b, r, ir_code);
+				LOG_SQ_DEBUG("ir lirc: %s [%s] -> %x", b, r, ir_code);
 			}
 		}
 
 		if (ir_code) {
 			LOCK_I;
 			if (ir.code) {
-				LOG_DEBUG("code dropped");
+				LOG_SQ_DEBUG("code dropped");
 			}
 			ir.code = ir_code;
 			ir.ts = now;

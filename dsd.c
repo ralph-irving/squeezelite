@@ -189,11 +189,11 @@ static int _read_header(void) {
 		}
 
 		if (bytes >= consume) {
-			LOG_DEBUG("id: %s len: " FMT_u64 " consume: %d", id, len, consume);
+			LOG_SQ_DEBUG("id: %s len: " FMT_u64 " consume: %d", id, len, consume);
 			_buf_inc_readp(streambuf, consume);
 			bytes  -= consume;
 		} else if (consume > 0) {
-			LOG_DEBUG("id: %s len: " FMT_u64 " consume: %d - partial consume: %u", id, len, consume, bytes);
+			LOG_SQ_DEBUG("id: %s len: " FMT_u64 " consume: %d - partial consume: %u", id, len, consume, bytes);
 			_buf_inc_readp(streambuf, bytes);
 			d->consume = consume - bytes;
 			break;
@@ -502,7 +502,7 @@ static decode_state dsd_decode(void) {
 
 	if (d->consume) {
 		unsigned consume = min(d->consume, min(_buf_used(streambuf), _buf_cont_read(streambuf)));
-		LOG_DEBUG("consume: %u of %u", consume, d->consume);
+		LOG_SQ_DEBUG("consume: %u of %u", consume, d->consume);
 		_buf_inc_readp(streambuf, consume);
 		d->consume -= consume;
 		if (d->consume) {

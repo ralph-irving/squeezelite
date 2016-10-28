@@ -148,7 +148,7 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 			}
 			config_len = mp4_desc_length(&ptr);
 			if (NEAAC(a, Init2, a->hAac, ptr, config_len, samplerate_p, channels_p) == 0) {
-				LOG_DEBUG("playable aac track: %u", trak);
+				LOG_SQ_DEBUG("playable aac track: %u", trak);
 				play = trak;
 			}
 		}
@@ -165,7 +165,7 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				a->sttssamples += count * size;
 				ptr += 8;
 			}
-			LOG_DEBUG("total number of samples contained in stts: " FMT_u64, a->sttssamples);
+			LOG_SQ_DEBUG("total number of samples contained in stts: " FMT_u64, a->sttssamples);
 		}
 
 		// stash sample to chunk info, assume it comes before stco
@@ -233,10 +233,10 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 			a->pos += 8;
 			bytes  -= 8;
 			if (play) {
-				LOG_DEBUG("type: mdat len: %u pos: %u", len, a->pos);
+				LOG_SQ_DEBUG("type: mdat len: %u pos: %u", len, a->pos);
 				if (a->chunkinfo && a->chunkinfo[0].offset > a->pos) {
 					u32_t skip = a->chunkinfo[0].offset - a->pos; 	
-					LOG_DEBUG("skipping: %u", skip);
+					LOG_SQ_DEBUG("skipping: %u", skip);
 					if (skip <= bytes) {
 						_buf_inc_readp(streambuf, skip);
 						a->pos += skip;
@@ -247,7 +247,7 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				a->sample = a->nextchunk = 1;
 				return 1;
 			} else {
-				LOG_DEBUG("type: mdat len: %u, no playable track found", len);
+				LOG_SQ_DEBUG("type: mdat len: %u, no playable track found", len);
 				return -1;
 			}
 		}
@@ -266,9 +266,9 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				// data is stored as hex strings: 0 start end samples
 				u32_t b, c; u64_t d;
 				if (sscanf((const char *)(ptr + 16), "%x %x %x " FMT_x64, &b, &b, &c, &d) == 4) {
-					LOG_DEBUG("iTunSMPB start: %u end: %u samples: " FMT_u64, b, c, d);
+					LOG_SQ_DEBUG("iTunSMPB start: %u end: %u samples: " FMT_u64, b, c, d);
 					if (a->sttssamples && a->sttssamples < b + c + d) {
-						LOG_DEBUG("reducing samples as stts count is less");
+						LOG_SQ_DEBUG("reducing samples as stts count is less");
 						d = a->sttssamples - (b + c);
 					}
 					a->skip = b;
@@ -292,13 +292,13 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 
 		// consume rest of box if it has been parsed (all in the buffer) or is not one we want to parse
 		if (bytes >= consume) {
-			LOG_DEBUG("type: %s len: %u consume: %u", type, len, consume);
+			LOG_SQ_DEBUG("type: %s len: %u consume: %u", type, len, consume);
 			_buf_inc_readp(streambuf, consume);
 			a->pos += consume;
 			bytes -= consume;
 		} else if ( !(!strcmp(type, "esds") || !strcmp(type, "stts") || !strcmp(type, "stsc") || 
 					 !strcmp(type, "stco") || !strcmp(type, "----")) ) {
-			LOG_DEBUG("type: %s len: %u consume: %u - partial consume: %u", type, len, consume, bytes);
+			LOG_SQ_DEBUG("type: %s len: %u consume: %u - partial consume: %u", type, len, consume, bytes);
 			_buf_inc_readp(streambuf, bytes);
 			a->pos += bytes;
 			a->consume = consume - bytes;
@@ -330,7 +330,7 @@ static decode_state faad_decode(void) {
 
 	if (a->consume) {
 		u32_t consume = min(a->consume, bytes_wrap);
-		LOG_DEBUG("consume: %u of %u", consume, a->consume);
+		LOG_SQ_DEBUG("consume: %u of %u", consume, a->consume);
 		_buf_inc_readp(streambuf, consume);
 		a->pos += consume;
 		a->consume -= consume;
@@ -423,7 +423,7 @@ static decode_state faad_decode(void) {
 		if (a->chunkinfo[a->nextchunk].offset > a->pos) {
 			u32_t skip = a->chunkinfo[a->nextchunk].offset - a->pos;
 			if (skip != info.bytesconsumed) {
-				LOG_DEBUG("skipping to next chunk pos: %u consumed: %u != skip: %u", a->pos, info.bytesconsumed, skip);
+				LOG_SQ_DEBUG("skipping to next chunk pos: %u consumed: %u != skip: %u", a->pos, info.bytesconsumed, skip);
 			}
 			if (bytes_total >= skip) {
 				_buf_inc_readp(streambuf, skip);
@@ -467,10 +467,10 @@ static decode_state faad_decode(void) {
 		if (a->empty) {
 			a->empty = false;
 			a->skip -= frames;
-			LOG_DEBUG("gapless: first frame empty, skipped %u frames at start", frames);
+			LOG_SQ_DEBUG("gapless: first frame empty, skipped %u frames at start", frames);
 		}
 		skip = min(frames, a->skip);
-		LOG_DEBUG("gapless: skipping %u frames at start", skip);
+		LOG_SQ_DEBUG("gapless: skipping %u frames at start", skip);
 		frames -= skip;
 		a->skip -= skip;
 		iptr += skip * info.channels;
@@ -478,7 +478,7 @@ static decode_state faad_decode(void) {
 
 	if (a->samples) {
 		if (a->samples < frames) {
-			LOG_DEBUG("gapless: trimming %u frames from end", frames - a->samples);
+			LOG_SQ_DEBUG("gapless: trimming %u frames from end", frames - a->samples);
 			frames = (frames_t)a->samples;
 		}
 		a->samples -= frames;

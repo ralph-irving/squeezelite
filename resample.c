@@ -110,7 +110,7 @@ bool resample_drain(struct processstate *process) {
 	
 	clip_cnt = *(SOXR(r, num_clips, r->resampler));
 	if (clip_cnt - r->old_clips) {
-		LOG_DEBUG("resampling clips: %u", (unsigned)(clip_cnt - r->old_clips));
+		LOG_SQ_DEBUG("resampling clips: %u", (unsigned)(clip_cnt - r->old_clips));
 		r->old_clips = clip_cnt;
 	}
 	
@@ -209,7 +209,7 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 		r_spec = SOXR(r, runtime_spec, 0); // make use of libsoxr OpenMP support allowing parallel execution if multiple cores
 #endif		   
 
-		LOG_DEBUG("resampling with soxr_quality_spec_t[precision: %03.1f, passband_end: %03.6f, stopband_begin: %03.6f, "
+		LOG_SQ_DEBUG("resampling with soxr_quality_spec_t[precision: %03.1f, passband_end: %03.6f, stopband_begin: %03.6f, "
 				  "phase_response: %03.1f, flags: 0x%02x], soxr_io_spec_t[scale: %03.2f]", q_spec.precision,
 				  q_spec.passband_end, q_spec.stopband_begin, q_spec.phase_response, q_spec.flags, io_spec.scale);
 

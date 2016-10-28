@@ -184,7 +184,7 @@ Index: slimproto.c
 +	ir.noBits = noBits;
 +	ir.irCode = htonl(irCode);
 +
-+	LOG_DEBUG("INTERACTIVE: sending ir code: 0x%x to server", irCode);
++	LOG_SQ_DEBUG("INTERACTIVE: sending ir code: 0x%x to server", irCode);
 +
 +	send_packet((u8_t *)&ir, sizeof(ir));
 +}
@@ -287,7 +287,7 @@ Index: interactive.c
 +		}
 +	}
 +
-+	LOG_DEBUG("interactive processing thread exiting");
++	LOG_SQ_DEBUG("interactive processing thread exiting");
 +	return NULL;
 +}
 +
@@ -297,27 +297,27 @@ Index: interactive.c
 +
 +void interactive_init(void) {
 +	if (interactive.using_lirc) {
-+		LOG_DEBUG("Creating interactive processing thread...");
++		LOG_SQ_DEBUG("Creating interactive processing thread...");
 +		interactive.finished = false;
 +		if (pthread_create(&interactive.interactive_t, NULL, interactive_thread, (void *) &interactive) != 0) {
 +			LOG_WARN("Error creating interactive processing thread!\n");
 +		}
-+		LOG_DEBUG("Created interactive processing thread.");
++		LOG_SQ_DEBUG("Created interactive processing thread.");
 +	} else {
-+		LOG_DEBUG("Not creating interactive processing thread. (!interactive.using_lirc)");
++		LOG_SQ_DEBUG("Not creating interactive processing thread. (!interactive.using_lirc)");
 +	}
 +}
 +
 +void interactive_close(void) {
 +	if (interactive.using_lirc) {
-+		LOG_DEBUG("Stopping interactive processing thread...");
++		LOG_SQ_DEBUG("Stopping interactive processing thread...");
 +		interactive.finished = true;
 +		pthread_cancel(interactive.interactive_t);
 +		pthread_join(interactive.interactive_t, NULL);
 +		close_lirc();
-+		LOG_DEBUG("Stopped interactive processing thread.");
++		LOG_SQ_DEBUG("Stopped interactive processing thread.");
 +	} else {
-+		LOG_DEBUG("No need to stop interactive processing thread. (!interactive.using_lirc)");
++		LOG_SQ_DEBUG("No need to stop interactive processing thread. (!interactive.using_lirc)");
 +	}
 +}
 +
@@ -328,11 +328,11 @@ Index: interactive.c
 +void init_lirc(void) {
 +	if (interactive.using_lirc) {
 +		interactive.using_lirc = false;
-+		LOG_DEBUG("Initialising LIRC...");
++		LOG_SQ_DEBUG("Initialising LIRC...");
 +		if ((interactive.lirc_fd = lirc_init("squeezeslave", 1)) > 0) {
 +			if (lirc_readconfig(interactive.lircrc, &interactive.lircconfig, NULL) == 0) {
 +				interactive.using_lirc = true;
-+				LOG_DEBUG("Initialised LIRC.");
++				LOG_SQ_DEBUG("Initialised LIRC.");
 +			} else {
 +				interactive.using_lirc = false;
 +				close_lirc();
@@ -350,11 +350,11 @@ Index: interactive.c
 + */
 +void close_lirc(void) {
 +	if (interactive.using_lirc) {
-+		LOG_DEBUG("De-initialising LIRC...");
++		LOG_SQ_DEBUG("De-initialising LIRC...");
 +		lirc_freeconfig(interactive.lircconfig);
 +		lirc_deinit();
 +		interactive.using_lirc = false;
-+		LOG_DEBUG("De-initialised LIRC.");
++		LOG_SQ_DEBUG("De-initialised LIRC.");
 +	}
 +}
 +

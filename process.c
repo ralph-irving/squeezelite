@@ -113,7 +113,7 @@ void process_drain(void) {
 
 	} while (!done);
 
-	LOG_DEBUG("processing track complete - frames in: %lu out: %lu", process.total_in, process.total_out);
+	LOG_SQ_DEBUG("processing track complete - frames in: %lu out: %lu", process.total_in, process.total_out);
 }	
 
 // new stream - called with decode mutex set
@@ -142,14 +142,14 @@ unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned supp
 		}
 
 		if (process.max_in_frames != max_in_frames) {
-			LOG_DEBUG("creating process buf in frames: %u", max_in_frames);
+			LOG_SQ_DEBUG("creating process buf in frames: %u", max_in_frames);
 			if (process.inbuf) free(process.inbuf);
 			process.inbuf = malloc(max_in_frames * BYTES_PER_FRAME);
 			process.max_in_frames = max_in_frames;
 		}
 		
 		if (process.max_out_frames != max_out_frames) {
-			LOG_DEBUG("creating process buf out frames: %u", max_out_frames);
+			LOG_SQ_DEBUG("creating process buf out frames: %u", max_out_frames);
 			if (process.outbuf) free(process.outbuf);
 			process.outbuf = malloc(max_out_frames * BYTES_PER_FRAME);
 			process.max_out_frames = max_out_frames;

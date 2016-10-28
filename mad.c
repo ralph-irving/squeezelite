@@ -108,7 +108,7 @@ static unsigned _check_id3_tag(size_t bytes) {
 		// size is encoded as syncsafe integer, add 10 if footer present
 		if (*(ptr+6) < 0x80 && *(ptr+7) < 0x80 && *(ptr+8) < 0x80 && *(ptr+9) < 0x80) {
 			size = 10 + (*(ptr+6) << 21) + (*(ptr+7) << 14) + (*(ptr+8) << 7) + *(ptr+9) + ((*(ptr+5) & 0x10) ? 10 : 0);
-			LOG_DEBUG("id3.2 tag len: %u", size);
+			LOG_SQ_DEBUG("id3.2 tag len: %u", size);
 		}
 	}
 
@@ -175,7 +175,7 @@ static decode_state mad_decode(void) {
 		}
 		if (m->consume) {
 			u32_t consume = min(m->consume, bytes);
-			LOG_DEBUG("consume: %u of %u", consume, m->consume);
+			LOG_SQ_DEBUG("consume: %u of %u", consume, m->consume);
 			_buf_inc_readp(streambuf, consume);
 			m->consume -= consume;
 			UNLOCK_S;
@@ -201,7 +201,7 @@ static decode_state mad_decode(void) {
 
 	if (stream.state <= DISCONNECT && _buf_used(streambuf) == 0) {
 		eos = true;
-		LOG_DEBUG("end of stream");
+		LOG_SQ_DEBUG("end of stream");
 		memset(m->readbuf + m->readbuf_len, 0, MAD_BUFFER_GUARD);
 		m->readbuf_len += MAD_BUFFER_GUARD;
 	}
@@ -228,7 +228,7 @@ static decode_state mad_decode(void) {
 			} else {
 				if (m->stream.error != m->last_error) {
 					// suppress repeat error messages
-					LOG_DEBUG("mad_frame_decode error: %s", MAD(m, stream_errorstr, &m->stream));
+					LOG_SQ_DEBUG("mad_frame_decode error: %s", MAD(m, stream_errorstr, &m->stream));
 				}
 				ret = DECODE_RUNNING;
 			}
@@ -269,7 +269,7 @@ static decode_state mad_decode(void) {
 
 		if (m->skip) {
 			u32_t skip = min(m->skip, frames);
-			LOG_DEBUG("gapless: skipping %u frames at start", skip);
+			LOG_SQ_DEBUG("gapless: skipping %u frames at start", skip);
 			frames -= skip;
 			m->skip -= skip;
 			iptrl += skip;
@@ -278,14 +278,14 @@ static decode_state mad_decode(void) {
 
 		if (m->samples) {
 			if (m->samples < frames) {
-				LOG_DEBUG("gapless: trimming %u frames from end", frames - m->samples);
+				LOG_SQ_DEBUG("gapless: trimming %u frames from end", frames - m->samples);
 				frames = (size_t)m->samples;
 			}
 			m->samples -= frames;
 			if (m->samples > 0 && eos && !(m->stream.next_frame[0] == 0xff && (m->stream.next_frame[1] & 0xf0) == 0xf0)) {
 				// this is the last frame to be decoded, but more samples expected so we must have skipped, remove padding
 				// note this only works if the padding is less than one frame of 1152 bytes otherswise some gap will remain
-				LOG_DEBUG("gapless: early end - trimming padding from end");
+				LOG_SQ_DEBUG("gapless: early end - trimming padding from end");
 				if (frames >= m->padding) {
 					frames -= m->padding;
 				} else {

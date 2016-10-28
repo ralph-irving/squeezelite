@@ -66,7 +66,7 @@ void _vis_export(struct buffer *outputbuf, struct outputstate *output, frames_t 
 		}
 		
 		if (err) {
-			LOG_DEBUG("failed to get wrlock - skipping visulizer export");
+			LOG_SQ_DEBUG("failed to get wrlock - skipping visulizer export");
 			
 		} else {
 			

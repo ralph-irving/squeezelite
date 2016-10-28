@@ -103,7 +103,7 @@ void list_devices(void) {
 }
 
 void set_volume(unsigned left, unsigned right) {
-	LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
+	LOG_SQ_DEBUG("setting internal gain left: %u right: %u", left, right);
 	LOCK;
 	output.gainL = left;
 	output.gainR = right;
@@ -215,12 +215,12 @@ static void *pa_monitor() {
 	LOCK;
 
 	if (monitor_thread_running) {
-		LOG_DEBUG("monitor thread already running");
+		LOG_SQ_DEBUG("monitor thread already running");
 		UNLOCK;
 		return 0;
 	}
 
-	LOG_DEBUG("start monitor thread");
+	LOG_SQ_DEBUG("start monitor thread");
 
 	monitor_thread_running = true;
 	output_off = (output.state == OUTPUT_OFF);
@@ -249,7 +249,7 @@ static void *pa_monitor() {
 		LOCK;
 	}
 
-	LOG_DEBUG("end monitor thread");
+	LOG_SQ_DEBUG("end monitor thread");
 
 	monitor_thread_running = false;
 	pa.stream = NULL;
@@ -445,7 +445,7 @@ static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_
 	} while (pa_frames_wanted > 0 && frames != 0);
 
 	if (pa_frames_wanted > 0) {
-		LOG_DEBUG("pad with silence");
+		LOG_SQ_DEBUG("pad with silence");
 		memset(optr, 0, pa_frames_wanted * BYTES_PER_FRAME);
 	}
 

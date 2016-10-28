@@ -344,7 +344,7 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 	loglevel = level;
 
 	output_buf_size = output_buf_size - (output_buf_size % BYTES_PER_FRAME);
-	LOG_DEBUG("outputbuf size: %u", output_buf_size);
+	LOG_SQ_DEBUG("outputbuf size: %u", output_buf_size);
 
 	buf_init(outputbuf, output_buf_size);
 	if (!outputbuf->buf) {
@@ -368,7 +368,7 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 		dop_silence_frames((u32_t *)silencebuf_dop, MAX_SILENCE_FRAMES);
 	)
 
-	LOG_DEBUG("idle timeout: %u", idle);
+	LOG_SQ_DEBUG("idle timeout: %u", idle);
 
 	output.state = idle ? OUTPUT_OFF: OUTPUT_STOPPED;
 	output.device = device;

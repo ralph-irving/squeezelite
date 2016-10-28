@@ -292,7 +292,7 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 	loglevel = level;
 
 	LOG_INFO("init stream");
-	LOG_DEBUG("streambuf size: %u", stream_buf_size);
+	LOG_SQ_DEBUG("streambuf size: %u", stream_buf_size);
 
 	buf_init(streambuf, stream_buf_size);
 	if (streambuf->buf == NULL) {

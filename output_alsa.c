@@ -186,7 +186,7 @@ static void set_mixer(bool setmax, float ldB, float rdB) {
             lraw = ((ldB > -MINVOL_DB ? MINVOL_DB + floor(ldB) : 0) / MINVOL_DB * (alsa.mixer_max-alsa.mixer_min)) + alsa.mixer_min;
             rraw = ((rdB > -MINVOL_DB ? MINVOL_DB + floor(rdB) : 0) / MINVOL_DB * (alsa.mixer_max-alsa.mixer_min)) + alsa.mixer_min;
         }
-        LOG_DEBUG("setting vol raw [%ld..%ld]", alsa.mixer_min, alsa.mixer_max);
+        LOG_SQ_DEBUG("setting vol raw [%ld..%ld]", alsa.mixer_min, alsa.mixer_max);
         if ((err = snd_mixer_selem_set_playback_volume(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_LEFT, lraw)) < 0) {
             LOG_ERROR("error setting left volume: %s", snd_strerror(err));
         }
@@ -195,7 +195,7 @@ static void set_mixer(bool setmax, float ldB, float rdB) {
         }
 	} else {
 		// set db directly
-		LOG_DEBUG("setting vol dB [%ld..%ld]", alsa.mixer_min, alsa.mixer_max);
+		LOG_SQ_DEBUG("setting vol dB [%ld..%ld]", alsa.mixer_min, alsa.mixer_max);
 		if (setmax) {
 			// set to 0dB if available as this should be max volume for music recored at max pcm values
 			if (alsa.mixer_max >= 0 && alsa.mixer_min <= 0) {
@@ -219,14 +219,14 @@ static void set_mixer(bool setmax, float ldB, float rdB) {
 		LOG_ERROR("error getting right vol: %s", snd_strerror(err));
 	}
 
-	LOG_DEBUG("%s left: %3.1fdB -> %ld right: %3.1fdB -> %ld", alsa.volume_mixer_name, ldB, nleft, rdB, nright);
+	LOG_SQ_DEBUG("%s left: %3.1fdB -> %ld right: %3.1fdB -> %ld", alsa.volume_mixer_name, ldB, nleft, rdB, nright);
 }
 
 void set_volume(unsigned left, unsigned right) {
 	float ldB, rdB;
 
 	if (!alsa.volume_mixer_name) {
-		LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
+		LOG_SQ_DEBUG("setting internal gain left: %u right: %u", left, right);
 		LOCK;
 		output.gainL = left;
 		output.gainR = right;
@@ -611,7 +611,7 @@ static void *output_thread(void *arg) {
 		// wait until device returns - to allow usb audio devices to be turned off
 		if (probe_device) {
 			while (!pcm_probe(output.device)) {
-				LOG_DEBUG("waiting for device %s to return", output.device);
+				LOG_SQ_DEBUG("waiting for device %s to return", output.device);
 				sleep(5);
 			}
 			probe_device = false;
@@ -768,7 +768,7 @@ static void *output_thread(void *arg) {
 				usleep(100000);
 				continue;
 			} else {
-				LOG_DEBUG("snd_pcm_delay returns: %d", err);
+				LOG_SQ_DEBUG("snd_pcm_delay returns: %d", err);
 			}
 		} else {
 			output.device_frames = delay;
@@ -946,9 +946,9 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	struct sched_param param;
 	param.sched_priority = rt_priority;
 	if (pthread_setschedparam(thread, SCHED_FIFO, &param) != 0) {
-		LOG_DEBUG("unable to set output sched fifo: %s", strerror(errno));
+		LOG_SQ_DEBUG("unable to set output sched fifo: %s", strerror(errno));
 	} else {
-		LOG_DEBUG("set output sched fifo rt: %u", param.sched_priority);
+		LOG_SQ_DEBUG("set output sched fifo rt: %u", param.sched_priority);
 	}
 }
 
