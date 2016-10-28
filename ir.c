@@ -181,7 +181,7 @@ static bool load_lirc() {
 	char *err;
 
 	if (!handle) {
-		LOG_INFO("dlerror: %s", dlerror());
+		LOG_SQ_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 
@@ -193,11 +193,11 @@ static bool load_lirc() {
 	i->lirc_code2char = dlsym(handle, "lirc_code2char");
 
 	if ((err = dlerror()) != NULL) {
-		LOG_INFO("dlerror: %s", err);
+		LOG_SQ_INFO("dlerror: %s", err);
 		return false;
 	}
 
-	LOG_INFO("loaded "LIBLIRC);
+	LOG_SQ_INFO("loaded "LIBLIRC);
 	return true;
 }
 #endif
@@ -216,7 +216,7 @@ void ir_init(log_level level, char *lircrc) {
 
 	if (fd > 0) {
 		if (LIRC(i, readconfig,lircrc, &config, NULL) != 0) {
-			LOG_WARN("error reading config: %s", lircrc);
+			LOG_SQ_WARN("error reading config: %s", lircrc);
 		}
 
 		mutex_create(ir.mutex);
@@ -228,7 +228,7 @@ void ir_init(log_level level, char *lircrc) {
 		pthread_attr_destroy(&attr);
 
 	} else {
-		LOG_WARN("failed to connect to lircd - ir processing disabled");
+		LOG_SQ_WARN("failed to connect to lircd - ir processing disabled");
 	}
 }
 

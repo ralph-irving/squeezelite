@@ -133,9 +133,9 @@ void output_vis_init(log_level level, u8_t *mac) {
 		vis_mmap->running = false;
 		vis_mmap->rate = 44100;
 		pthread_rwlockattr_destroy(&attr);
-		LOG_INFO("opened visulizer shared memory as %s", vis_shm_path);
+		LOG_SQ_INFO("opened visulizer shared memory as %s", vis_shm_path);
 	} else {
-		LOG_WARN("unable to open visualizer shared memory");
+		LOG_SQ_WARN("unable to open visualizer shared memory");
 		vis_mmap = NULL;
 	}
 

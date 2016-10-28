@@ -50,7 +50,7 @@ diff -ur --new-file squeezelite-1.6.4-75a72d5.orig/interactive.c squeezelite-1.6
 +			ir = getircode(key);
 +			LOG_SDEBUG("IR KEY: %i, IR CODE: %lu", key, ir);
 +			if (ir == 0x01) {
-+				LOG_WARN("interactive processing thread calling simproto_stop()");
++				LOG_SQ_WARN("interactive processing thread calling simproto_stop()");
 +				slimproto_stop();
 +			} else if (ir != 0) {
 +				sendIR(1, 1, ir);
@@ -71,7 +71,7 @@ diff -ur --new-file squeezelite-1.6.4-75a72d5.orig/interactive.c squeezelite-1.6
 +		LOG_SQ_DEBUG("Creating interactive processing thread...");
 +		interactive.finished = false;
 +		if (pthread_create(&interactive.interactive_t, NULL, interactive_thread, (void *) &interactive) != 0) {
-+			LOG_WARN("Error creating interactive processing thread!\n");
++			LOG_SQ_WARN("Error creating interactive processing thread!\n");
 +		}
 +		LOG_SQ_DEBUG("Created interactive processing thread.");
 +	} else {
@@ -111,7 +111,7 @@ diff -ur --new-file squeezelite-1.6.4-75a72d5.orig/interactive.c squeezelite-1.6
 +		}
 +		
 +		if (!interactive.using_lirc ) {
-+			LOG_WARN("Failed to initialise LIRC!");
++			LOG_SQ_WARN("Failed to initialise LIRC!");
 +		}
 +   }
 +}

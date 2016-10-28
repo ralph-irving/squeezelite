@@ -124,11 +124,11 @@ static thread_type thread;
 void output_init_stdout(log_level level, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay) {
 	loglevel = level;
 
-	LOG_INFO("init output stdout");
+	LOG_SQ_INFO("init output stdout");
 
 	buf = malloc(FRAME_BLOCK * BYTES_PER_FRAME);
 	if (!buf) {
-		LOG_ERROR("unable to malloc buf");
+		LOG_SQ_ERROR("unable to malloc buf");
 		return;
 	}
 	buffill = 0;
@@ -168,7 +168,7 @@ void output_init_stdout(log_level level, unsigned output_buf_size, char *params,
 }
 
 void output_close_stdout(void) {
-	LOG_INFO("close output");
+	LOG_SQ_INFO("close output");
 
 	LOCK;
 	running = false;

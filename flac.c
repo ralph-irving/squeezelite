@@ -113,13 +113,13 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 	
 	if (decode.new_stream) {
 		LOCK_O;
-		LOG_INFO("setting track_start");
+		LOG_SQ_INFO("setting track_start");
 		output.track_start = outputbuf->writep;
 		decode.new_stream = false;
 
 #if DSD
 		if (output.has_dop && bits_per_sample == 24 && is_flac_dop((u32_t *)lptr, (u32_t *)rptr, frames)) {
-			LOG_INFO("file contains DOP");
+			LOG_SQ_INFO("file contains DOP");
 			output.next_dop = true;
 			output.next_sample_rate = frame->header.sample_rate;
 			output.fade = FADE_INACTIVE;
@@ -177,7 +177,7 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 				*optr++ = *rptr++;
 			}
 		} else {
-			LOG_ERROR("unsupported bits per sample: %u", bits_per_sample);
+			LOG_SQ_ERROR("unsupported bits per sample: %u", bits_per_sample);
 		}
 
 		frames -= f;
@@ -187,7 +187,7 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 		);
 		IF_PROCESS(
 			process.in_frames = f;
-			if (frames) LOG_ERROR("unhandled case");
+			if (frames) LOG_SQ_ERROR("unhandled case");
 		);
 	}
 
@@ -197,7 +197,7 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 }
 
 static void error_cb(const FLAC__StreamDecoder *decoder, FLAC__StreamDecoderErrorStatus status, void *client_data) {
-	LOG_INFO("flac error: %s", FLAC_A(f, StreamDecoderErrorStatusString)[status]);
+	LOG_SQ_INFO("flac error: %s", FLAC_A(f, StreamDecoderErrorStatusString)[status]);
 }
 
 static void flac_open(u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t endianness) {
@@ -219,7 +219,7 @@ static decode_state flac_decode(void) {
 	FLAC__StreamDecoderState state = FLAC(f, stream_decoder_get_state, f->decoder);
 	
 	if (!ok && state != FLAC__STREAM_DECODER_END_OF_STREAM) {
-		LOG_INFO("flac error: %s", FLAC_A(f, StreamDecoderStateString)[state]);
+		LOG_SQ_INFO("flac error: %s", FLAC_A(f, StreamDecoderStateString)[state]);
 	};
 	
 	if (state == FLAC__STREAM_DECODER_END_OF_STREAM) {
@@ -237,7 +237,7 @@ static bool load_flac() {
 	char *err;
 
 	if (!handle) {
-		LOG_INFO("dlerror: %s", dlerror());
+		LOG_SQ_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 
@@ -251,11 +251,11 @@ static bool load_flac() {
 	f->FLAC__stream_decoder_get_state = dlsym(handle, "FLAC__stream_decoder_get_state");
 
 	if ((err = dlerror()) != NULL) {
-		LOG_INFO("dlerror: %s", err);		
+		LOG_SQ_INFO("dlerror: %s", err);		
 		return false;
 	}
 
-	LOG_INFO("loaded "LIBFLAC);
+	LOG_SQ_INFO("loaded "LIBFLAC);
 #endif
 
 	return true;
@@ -283,6 +283,6 @@ struct codec *register_flac(void) {
 		return NULL;
 	}
 
-	LOG_INFO("using flac to decode flc");
+	LOG_SQ_INFO("using flac to decode flc");
 	return &ret;
 }

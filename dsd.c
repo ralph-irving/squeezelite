@@ -106,7 +106,7 @@ static int _read_header(void) {
 		} else if (!memcmp(streambuf->readp, "DSD ", 4)) {
 			d->type = DSF;
 		} else {
-			LOG_WARN("bad type");
+			LOG_SQ_WARN("bad type");
 			return -1;
 		}
 	}
@@ -123,7 +123,7 @@ static int _read_header(void) {
 				if (!memcmp(streambuf->readp + 12, "DSD ", 4)) {
 					consume = 16; // read into
 				} else {
-					LOG_WARN("bad dsdiff FRM8");
+					LOG_SQ_WARN("bad dsdiff FRM8");
 					return -1;
 				}
 			}
@@ -131,19 +131,19 @@ static int _read_header(void) {
 				consume = 16; // read into
 			}
 			if (!strcmp(id, "FVER")) {
-				LOG_INFO("DSDIFF version: %u.%u.%u.%u", *(streambuf->readp + 12), *(streambuf->readp + 13),
+				LOG_SQ_INFO("DSDIFF version: %u.%u.%u.%u", *(streambuf->readp + 12), *(streambuf->readp + 13),
 					 *(streambuf->readp + 14), *(streambuf->readp + 15));
 			}
 			if (!strcmp(id, "FS  ")) {
 				d->sample_rate = unpackN((void *)(streambuf->readp + 12));
-				LOG_INFO("sample rate: %u", d->sample_rate);
+				LOG_SQ_INFO("sample rate: %u", d->sample_rate);
 			}
 			if (!strcmp(id, "CHNL")) {
 				d->channels = unpackn((void *)(streambuf->readp + 12));
-				LOG_INFO("channels: %u", d->channels);
+				LOG_SQ_INFO("channels: %u", d->channels);
 			}
 			if (!strcmp(id, "DSD ")) {
-				LOG_INFO("found dsd len: " FMT_u64, len);
+				LOG_SQ_INFO("found dsd len: " FMT_u64, len);
 				d->sample_bytes = len;
 				_buf_inc_readp(streambuf, 12);
 				bytes  -= 12;
@@ -156,9 +156,9 @@ static int _read_header(void) {
 				if (bytes >= len && bytes >= 52) {
 					u32_t version = unpack32le((void *)(streambuf->readp + 12));
 					u32_t format  = unpack32le((void *)(streambuf->readp + 16));
-					LOG_INFO("DSF version: %u format: %u", version, format);
+					LOG_SQ_INFO("DSF version: %u format: %u", version, format);
 					if (format != 0) {
-						LOG_WARN("only support DSD raw format");
+						LOG_SQ_WARN("only support DSD raw format");
 						return -1;
 					}
 					d->channels = unpack32le((void *)(streambuf->readp + 24));
@@ -166,17 +166,17 @@ static int _read_header(void) {
 					d->lsb_first = (unpack32le((void *)(streambuf->readp + 32)) == 1);
 					d->sample_bytes = unpack64le((void *)(streambuf->readp + 36)) / 8;
 					d->block_size = unpack32le((void *)(streambuf->readp + 44));
-					LOG_INFO("channels: %u", d->channels);
-					LOG_INFO("sample rate: %u", d->sample_rate);
-					LOG_INFO("lsb first: %u", d->lsb_first);
-					LOG_INFO("sample bytes: " FMT_u64, d->sample_bytes);
-					LOG_INFO("block size: %u", d->block_size);
+					LOG_SQ_INFO("channels: %u", d->channels);
+					LOG_SQ_INFO("sample rate: %u", d->sample_rate);
+					LOG_SQ_INFO("lsb first: %u", d->lsb_first);
+					LOG_SQ_INFO("sample bytes: " FMT_u64, d->sample_bytes);
+					LOG_SQ_INFO("block size: %u", d->block_size);
 				} else {
 					consume = -1; // come back later
 				}
 			}
 			if (!strcmp(id, "data")) {
-				LOG_INFO("found dsd len: " FMT_u64, len);
+				LOG_SQ_INFO("found dsd len: " FMT_u64, len);
 				_buf_inc_readp(streambuf, 12);
 				bytes  -= 12;
 				return 1; // got to the audio
@@ -216,7 +216,7 @@ static decode_state _decode_dsf(void) {
 	unsigned bytes_per_frame = dop ? 2 : 1;
 	
 	if (bytes < d->block_size * d->channels) {
-		LOG_INFO("stream too short"); // this can occur when scanning the track
+		LOG_SQ_INFO("stream too short"); // this can occur when scanning the track
 		return DECODE_COMPLETE;
 	}
 	
@@ -256,7 +256,7 @@ static decode_state _decode_dsf(void) {
 				frames = 1;
 			} else {
 				// should not get here due to wrapping m/2 for dop should never result in 0 as header len is always even
-				LOG_INFO("frames got to zero");
+				LOG_SQ_INFO("frames got to zero");
 				return DECODE_COMPLETE;
 			}
 		}
@@ -339,7 +339,7 @@ static decode_state _decode_dsf(void) {
 		if (d->sample_bytes > bytes_read) {
 			d->sample_bytes -= bytes_read;
 		} else {
-			LOG_INFO("end of track samples");
+			LOG_SQ_INFO("end of track samples");
 			block_left = 0;
 			d->sample_bytes = 0;
 		}
@@ -473,7 +473,7 @@ static decode_state _decode_dsdiff(void) {
 	if (d->sample_bytes > bytes_read) {
 		d->sample_bytes -= bytes_read;
 	} else {
-		LOG_INFO("end of track samples");
+		LOG_SQ_INFO("end of track samples");
 		d->sample_bytes = 0;
 	}
 	
@@ -525,23 +525,23 @@ static decode_state dsd_decode(void) {
 
 		LOCK_O;
 
-		LOG_INFO("setting track_start");
+		LOG_SQ_INFO("setting track_start");
 		output.track_start = outputbuf->writep;
 
 		dop = output.has_dop;
 
 		if (dop && d->sample_rate / 16 > output.supported_rates[0]) {
-			LOG_INFO("DOP sample rate too high for device - converting to PCM");
+			LOG_SQ_INFO("DOP sample rate too high for device - converting to PCM");
 			dop = false;
 		}
 
 		if (dop) {
-			LOG_INFO("DOP output");
+			LOG_SQ_INFO("DOP output");
 			output.next_dop = true;
 			output.next_sample_rate = d->sample_rate / 16;
 			output.fade = FADE_INACTIVE;
 		} else {
-			LOG_INFO("DSD to PCM output");
+			LOG_SQ_INFO("DSD to PCM output");
 			output.next_dop = false;
 			output.next_sample_rate = decode_newstream(d->sample_rate / 8, output.supported_rates);
 			if (output.fade_mode) _checkfade(true);
@@ -622,7 +622,7 @@ struct codec *register_dsd(void) {
 
 	dsd2pcm_precalc();
 
-	LOG_INFO("using dsd to decode dsf,dff");
+	LOG_SQ_INFO("using dsd to decode dsf,dff");
 	return &ret;
 }
 

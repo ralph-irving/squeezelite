@@ -59,7 +59,7 @@ frames_t _output_frames(frames_t avail) {
 	// start when threshold met
 	if (output.state == OUTPUT_BUFFER && frames > output.threshold * output.next_sample_rate / 100 && frames > output.start_frames) {
 		output.state = OUTPUT_RUNNING;
-		LOG_INFO("start buffer frames: %u", frames);
+		LOG_SQ_INFO("start buffer frames: %u", frames);
 		wake_controller();
 	}
 	
@@ -67,7 +67,7 @@ frames_t _output_frames(frames_t avail) {
 	if (output.state == OUTPUT_SKIP_FRAMES) {
 		if (frames > 0) {
 			frames_t skip = min(frames, output.skip_frames);
-			LOG_INFO("skip %u of %u frames", skip, output.skip_frames);
+			LOG_SQ_INFO("skip %u of %u frames", skip, output.skip_frames);
 			frames -= skip;
 			output.frames_played += skip;
 			while (skip > 0) {
@@ -81,7 +81,7 @@ frames_t _output_frames(frames_t avail) {
 	
 	// pause frames - play silence for required frames
 	if (output.state == OUTPUT_PAUSE_FRAMES) {
-		LOG_INFO("pause %u frames", output.pause_frames);
+		LOG_SQ_INFO("pause %u frames", output.pause_frames);
 		if (output.pause_frames == 0) {
 			output.state = OUTPUT_RUNNING;
 		} else {
@@ -144,7 +144,7 @@ frames_t _output_frames(frames_t avail) {
 						output.delay_active = false; // second delay - process track start
 					}
 				}
-				LOG_INFO("track start sample rate: %u replay_gain: %u", output.next_sample_rate, output.next_replay_gain);
+				LOG_SQ_INFO("track start sample rate: %u replay_gain: %u", output.next_sample_rate, output.next_replay_gain);
 				output.frames_played = 0;
 				output.track_started = true;
 				output.track_start_time = gettime_ms();
@@ -172,7 +172,7 @@ frames_t _output_frames(frames_t avail) {
 		if (output.fade && !silence) {
 			if (output.fade == FADE_DUE) {
 				if (output.fade_start == outputbuf->readp) {
-					LOG_INFO("fade start reached");
+					LOG_SQ_INFO("fade start reached");
 					output.fade = FADE_ACTIVE;
 				} else if (output.fade_start > outputbuf->readp) {
 					cont_frames = min(cont_frames, (output.fade_start - outputbuf->readp) / BYTES_PER_FRAME);
@@ -186,7 +186,7 @@ frames_t _output_frames(frames_t avail) {
 					(output.fade_end + outputbuf->size - output.fade_start) / BYTES_PER_FRAME;
 				if (cur_f >= dur_f) {
 					if (output.fade_mode == FADE_INOUT && output.fade_dir == FADE_DOWN) {
-						LOG_INFO("fade down complete, starting fade up");
+						LOG_SQ_INFO("fade down complete, starting fade up");
 						output.fade_dir = FADE_UP;
 						output.fade_start = outputbuf->readp;
 						output.fade_end = outputbuf->readp + dur_f * BYTES_PER_FRAME;
@@ -195,17 +195,17 @@ frames_t _output_frames(frames_t avail) {
 						}
 						cur_f = 0;
 					} else if (output.fade_mode == FADE_CROSSFADE) {
-						LOG_INFO("crossfade complete");
+						LOG_SQ_INFO("crossfade complete");
 						if (_buf_used(outputbuf) >= dur_f * BYTES_PER_FRAME) {
 							_buf_inc_readp(outputbuf, dur_f * BYTES_PER_FRAME);
-							LOG_INFO("skipped crossfaded start");
+							LOG_SQ_INFO("skipped crossfaded start");
 						} else {
-							LOG_WARN("unable to skip crossfaded start");
+							LOG_SQ_WARN("unable to skip crossfaded start");
 						}
 						output.fade = FADE_INACTIVE;
 						output.current_replay_gain = output.next_replay_gain;
 					} else {
-						LOG_INFO("fade complete");
+						LOG_SQ_INFO("fade complete");
 						output.fade = FADE_INACTIVE;
 					}
 				}
@@ -242,7 +242,7 @@ frames_t _output_frames(frames_t avail) {
 							if (output.invert) { gainL = -gainL; gainR = -gainR; }
 							cross_ptr = (s32_t *)(output.fade_end + cur_f * BYTES_PER_FRAME);
 						} else {
-							LOG_INFO("unable to continue crossfade - too few samples");
+							LOG_SQ_INFO("unable to continue crossfade - too few samples");
 							output.fade = FADE_INACTIVE;
 						}
 					}
@@ -279,7 +279,7 @@ frames_t _output_frames(frames_t avail) {
 void _checkfade(bool start) {
 	frames_t bytes;
 
-	LOG_INFO("fade mode: %u duration: %u %s", output.fade_mode, output.fade_secs, start ? "track-start" : "track-end");
+	LOG_SQ_INFO("fade mode: %u duration: %u %s", output.fade_mode, output.fade_secs, start ? "track-start" : "track-end");
 
 	bytes = output.next_sample_rate * BYTES_PER_FRAME * output.fade_secs;
 	if (output.fade_mode == FADE_INOUT) {
@@ -288,7 +288,7 @@ void _checkfade(bool start) {
 
 	if (start && (output.fade_mode == FADE_IN || (output.fade_mode == FADE_INOUT && _buf_used(outputbuf) == 0))) {
 		bytes = min(bytes, outputbuf->size - BYTES_PER_FRAME); // shorter than full buffer otherwise start and end align
-		LOG_INFO("fade IN: %u frames", bytes / BYTES_PER_FRAME);
+		LOG_SQ_INFO("fade IN: %u frames", bytes / BYTES_PER_FRAME);
 		output.fade = FADE_DUE;
 		output.fade_dir = FADE_UP;
 		output.fade_start = outputbuf->writep;
@@ -300,7 +300,7 @@ void _checkfade(bool start) {
 
 	if (!start && (output.fade_mode == FADE_OUT || output.fade_mode == FADE_INOUT)) {
 		bytes = min(_buf_used(outputbuf), bytes);
-		LOG_INFO("fade %s: %u frames", output.fade_mode == FADE_INOUT ? "IN-OUT" : "OUT", bytes / BYTES_PER_FRAME);
+		LOG_SQ_INFO("fade %s: %u frames", output.fade_mode == FADE_INOUT ? "IN-OUT" : "OUT", bytes / BYTES_PER_FRAME);
 		output.fade = FADE_DUE;
 		output.fade_dir = FADE_DOWN;
 		output.fade_start = outputbuf->writep - bytes;
@@ -313,12 +313,12 @@ void _checkfade(bool start) {
 	if (start && output.fade_mode == FADE_CROSSFADE) {
 		if (_buf_used(outputbuf) != 0) {
 			if (output.next_sample_rate != output.current_sample_rate) {
-				LOG_INFO("crossfade disabled as sample rates differ");
+				LOG_SQ_INFO("crossfade disabled as sample rates differ");
 				return;
 			}
 			bytes = min(bytes, _buf_used(outputbuf));               // max of current remaining samples from previous track
 			bytes = min(bytes, (frames_t)(outputbuf->size * 0.9));  // max of 90% of outputbuf as we consume additional buffer during crossfade
-			LOG_INFO("CROSSFADE: %u frames", bytes / BYTES_PER_FRAME);
+			LOG_SQ_INFO("CROSSFADE: %u frames", bytes / BYTES_PER_FRAME);
 			output.fade = FADE_DUE;
 			output.fade_dir = FADE_CROSS;
 			output.fade_start = outputbuf->writep - bytes;
@@ -329,7 +329,7 @@ void _checkfade(bool start) {
 			output.track_start = output.fade_start;
 		} else if (outputbuf->size == OUTPUTBUF_SIZE && outputbuf->readp == outputbuf->buf) {
 			// if default setting used and nothing in buffer attempt to resize to provide full crossfade support
-			LOG_INFO("resize outputbuf for crossfade");
+			LOG_SQ_INFO("resize outputbuf for crossfade");
 			_buf_resize(outputbuf, OUTPUTBUF_SIZE_CROSSFADE);
 #if LINUX || FREEBSD
 			touch_memory(outputbuf->buf, outputbuf->size);
@@ -348,13 +348,13 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 
 	buf_init(outputbuf, output_buf_size);
 	if (!outputbuf->buf) {
-		LOG_ERROR("unable to malloc output buffer");
+		LOG_SQ_ERROR("unable to malloc output buffer");
 		exit(0);
 	}
 
 	silencebuf = malloc(MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
 	if (!silencebuf) {
-		LOG_ERROR("unable to malloc silence buffer");
+		LOG_SQ_ERROR("unable to malloc silence buffer");
 		exit(0);
 	}
 	memset(silencebuf, 0, MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
@@ -362,7 +362,7 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 	IF_DSD(
 		silencebuf_dop = malloc(MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
 		if (!silencebuf_dop) {
-			LOG_ERROR("unable to malloc silence dop buffer");
+			LOG_SQ_ERROR("unable to malloc silence dop buffer");
 			exit(0);
 		}
 		dop_silence_frames((u32_t *)silencebuf_dop, MAX_SILENCE_FRAMES);
@@ -379,7 +379,7 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 
 	if (!rates[0]) {
 		if (!test_open(output.device, output.supported_rates)) {
-			LOG_ERROR("unable to open output device");
+			LOG_SQ_ERROR("unable to open output device");
 			exit(0);
 		}
 	} else {
@@ -408,7 +408,7 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 			sprintf(s, "%d ", output.supported_rates[i]);
 			strcat(rates_buf, s);
 		}
-		LOG_INFO("supported rates: %s", rates_buf);
+		LOG_SQ_INFO("supported rates: %s", rates_buf);
 	}
 }
 
@@ -421,7 +421,7 @@ void output_close_common(void) {
 }
 
 void output_flush(void) {
-	LOG_INFO("flush output buffer");
+	LOG_SQ_INFO("flush output buffer");
 	buf_flush(outputbuf);
 	LOCK;
 	output.fade = FADE_INACTIVE;

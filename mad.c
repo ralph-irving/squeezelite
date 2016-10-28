@@ -157,7 +157,7 @@ static void _check_lame_header(size_t bytes) {
 		m->samples = frame_count * 1152 - enc_delay - enc_padding;
 		m->padding = enc_padding;
 		
-		LOG_INFO("gapless: skip: %u samples: " FMT_u64 " delay: %u padding: %u", m->skip, m->samples, enc_delay, enc_padding);
+		LOG_SQ_INFO("gapless: skip: %u samples: " FMT_u64 " delay: %u padding: %u", m->skip, m->samples, enc_delay, enc_padding);
 	}
 }
 
@@ -223,7 +223,7 @@ static decode_state mad_decode(void) {
 			} else if (eos && (m->stream.error == MAD_ERROR_BUFLEN || m->stream.error == MAD_ERROR_LOSTSYNC)) {
 				ret = DECODE_COMPLETE;
 			} else if (!MAD_RECOVERABLE(m->stream.error)) {
-				LOG_INFO("mad_frame_decode error: %s - stopping decoder", MAD(m, stream_errorstr, &m->stream));
+				LOG_SQ_INFO("mad_frame_decode error: %s - stopping decoder", MAD(m, stream_errorstr, &m->stream));
 				ret = DECODE_COMPLETE;
 			} else {
 				if (m->stream.error != m->last_error) {
@@ -240,7 +240,7 @@ static decode_state mad_decode(void) {
 
 		if (decode.new_stream) {
 			LOCK_O;
-			LOG_INFO("setting track_start");
+			LOG_SQ_INFO("setting track_start");
 			output.next_sample_rate = decode_newstream(m->synth.pcm.samplerate, output.supported_rates);
 			IF_DSD(	output.next_dop = false; )
 			output.track_start = outputbuf->writep;
@@ -259,7 +259,7 @@ static decode_state mad_decode(void) {
 		);
 		
 		if (m->synth.pcm.length > max_frames) {
-			LOG_WARN("too many samples - dropping samples");
+			LOG_SQ_WARN("too many samples - dropping samples");
 			m->synth.pcm.length = max_frames;
 		}
 		
@@ -362,7 +362,7 @@ static bool load_mad() {
 	char *err;
 
 	if (!handle) {
-		LOG_INFO("dlerror: %s", dlerror());
+		LOG_SQ_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 	
@@ -377,11 +377,11 @@ static bool load_mad() {
 	m->mad_stream_errorstr = dlsym(handle, "mad_stream_errorstr");
 
 	if ((err = dlerror()) != NULL) {
-		LOG_INFO("dlerror: %s", err);		
+		LOG_SQ_INFO("dlerror: %s", err);		
 		return false;
 	}
 
-	LOG_INFO("loaded "LIBMAD);
+	LOG_SQ_INFO("loaded "LIBMAD);
 #endif
 
 	return true;
@@ -410,6 +410,6 @@ struct codec *register_mad(void) {
 		return NULL;
 	}
 
-	LOG_INFO("using mad to decode mp3");
+	LOG_SQ_INFO("using mad to decode mp3");
 	return &ret;
 }

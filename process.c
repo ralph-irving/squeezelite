@@ -82,7 +82,7 @@ static void _write_samples(void) {
 		} else {
 
 			// bail out if no space found after 100ms to avoid locking
-			LOG_ERROR("unable to get space in output buffer");
+			LOG_SQ_ERROR("unable to get space in output buffer");
 			UNLOCK_O;
 			return;
 		}
@@ -121,7 +121,7 @@ unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned supp
 
 	bool active = NEWSTREAM_FUNC(&process, raw_sample_rate, supported_rates);
 
-	LOG_INFO("processing: %s", active ? "active" : "inactive");
+	LOG_SQ_INFO("processing: %s", active ? "active" : "inactive");
 
 	*direct = !active;
 
@@ -156,7 +156,7 @@ unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned supp
 		}
 		
 		if (!process.inbuf || !process.outbuf) {
-			LOG_ERROR("malloc fail creating process buffers");
+			LOG_SQ_ERROR("malloc fail creating process buffers");
 			*direct = true;
 			return raw_sample_rate;
 		}
@@ -170,7 +170,7 @@ unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned supp
 // process flush - called with decode mutex set
 void process_flush(void) {
 
-	LOG_INFO("process flush");
+	LOG_SQ_INFO("process flush");
 
 	FLUSH_FUNC();
 

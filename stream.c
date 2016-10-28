@@ -55,7 +55,7 @@ static void send_header(void) {
 				usleep(1000);
 				continue;
 			}
-			LOG_INFO("failed writing to socket: %s", strerror(last_error()));
+			LOG_SQ_INFO("failed writing to socket: %s", strerror(last_error()));
 			stream.disconnect = LOCAL_DISCONNECT;
 			stream.state = DISCONNECT;
 			wake_controller();
@@ -99,7 +99,7 @@ static void *stream_thread() {
 
 			int n = read(fd, streambuf->writep, space);
 			if (n == 0) {
-				LOG_INFO("end of stream");
+				LOG_SQ_INFO("end of stream");
 				_disconnect(DISCONNECT, DISCONNECT_OK);
 			}
 			if (n > 0) {
@@ -108,7 +108,7 @@ static void *stream_thread() {
 				LOG_SDEBUG("streambuf read %d bytes", n);
 			}
 			if (n < 0) {
-				LOG_WARN("error reading: %s", strerror(last_error()));
+				LOG_SQ_WARN("error reading: %s", strerror(last_error()));
 				_disconnect(DISCONNECT, REMOTE_DISCONNECT);
 			}
 
@@ -159,7 +159,7 @@ static void *stream_thread() {
 							UNLOCK;
 							continue;
 						}
-						LOG_INFO("error reading headers: %s", n ? strerror(last_error()) : "closed");
+						LOG_SQ_INFO("error reading headers: %s", n ? strerror(last_error()) : "closed");
 						_disconnect(STOPPED, LOCAL_DISCONNECT);
 						UNLOCK;
 						continue;
@@ -169,7 +169,7 @@ static void *stream_thread() {
 					stream.header_len++;
 
 					if (stream.header_len > MAX_HEADER - 1) {
-						LOG_ERROR("received headers too long: %u", stream.header_len);
+						LOG_SQ_ERROR("received headers too long: %u", stream.header_len);
 						_disconnect(DISCONNECT, LOCAL_DISCONNECT);
 					}
 
@@ -177,7 +177,7 @@ static void *stream_thread() {
 						endtok++;
 						if (endtok == 4) {
 							*(stream.header + stream.header_len) = '\0';
-							LOG_INFO("headers: len: %d\n%s", stream.header_len, stream.header);
+							LOG_SQ_INFO("headers: len: %d\n%s", stream.header_len, stream.header);
 							stream.state = stream.cont_wait ? STREAMING_WAIT : STREAMING_BUFFERING;
 							wake_controller();
 						}
@@ -201,7 +201,7 @@ static void *stream_thread() {
 								UNLOCK;
 								continue;
 							}
-							LOG_INFO("error reading icy meta: %s", n ? strerror(last_error()) : "closed");
+							LOG_SQ_INFO("error reading icy meta: %s", n ? strerror(last_error()) : "closed");
 							_disconnect(STOPPED, LOCAL_DISCONNECT);
 							UNLOCK;
 							continue;
@@ -218,7 +218,7 @@ static void *stream_thread() {
 								UNLOCK;
 								continue;
 							}
-							LOG_INFO("error reading icy meta: %s", n ? strerror(last_error()) : "closed");
+							LOG_SQ_INFO("error reading icy meta: %s", n ? strerror(last_error()) : "closed");
 							_disconnect(STOPPED, LOCAL_DISCONNECT);
 							UNLOCK;
 							continue;
@@ -230,7 +230,7 @@ static void *stream_thread() {
 					if (stream.meta_left == 0) {
 						if (stream.header_len) {
 							*(stream.header + stream.header_len) = '\0';
-							LOG_INFO("icy meta: len: %u\n%s", stream.header_len, stream.header);
+							LOG_SQ_INFO("icy meta: len: %u\n%s", stream.header_len, stream.header);
 							stream.meta_send = true;
 							wake_controller();
 						}
@@ -250,11 +250,11 @@ static void *stream_thread() {
 					
 					n = recv(fd, streambuf->writep, space, 0);
 					if (n == 0) {
-						LOG_INFO("end of stream");
+						LOG_SQ_INFO("end of stream");
 						_disconnect(DISCONNECT, DISCONNECT_OK);
 					}
 					if (n < 0 && last_error() != ERROR_WOULDBLOCK) {
-						LOG_INFO("error reading: %s", strerror(last_error()));
+						LOG_SQ_INFO("error reading: %s", strerror(last_error()));
 						_disconnect(DISCONNECT, REMOTE_DISCONNECT);
 					}
 					
@@ -291,12 +291,12 @@ static thread_type thread;
 void stream_init(log_level level, unsigned stream_buf_size) {
 	loglevel = level;
 
-	LOG_INFO("init stream");
+	LOG_SQ_INFO("init stream");
 	LOG_SQ_DEBUG("streambuf size: %u", stream_buf_size);
 
 	buf_init(streambuf, stream_buf_size);
 	if (streambuf->buf == NULL) {
-		LOG_ERROR("unable to malloc buffer");
+		LOG_SQ_ERROR("unable to malloc buffer");
 		exit(0);
 	}
 	
@@ -328,7 +328,7 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 }
 
 void stream_close(void) {
-	LOG_INFO("close stream");
+	LOG_SQ_INFO("close stream");
 	LOCK;
 	running = false;
 	UNLOCK;
@@ -348,7 +348,7 @@ void stream_file(const char *header, size_t header_len, unsigned threshold) {
 	memcpy(stream.header, header, header_len);
 	*(stream.header+header_len) = '\0';
 
-	LOG_INFO("opening local file: %s", stream.header);
+	LOG_SQ_INFO("opening local file: %s", stream.header);
 
 #if WIN
 	fd = open(stream.header, O_RDONLY | O_BINARY);
@@ -358,7 +358,7 @@ void stream_file(const char *header, size_t header_len, unsigned threshold) {
 
 	stream.state = STREAMING_FILE;
 	if (fd < 0) {
-		LOG_INFO("can't open file: %s", stream.header);
+		LOG_SQ_INFO("can't open file: %s", stream.header);
 		stream.state = DISCONNECT;
 	}
 	wake_controller();
@@ -381,7 +381,7 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (sock < 0) {
-		LOG_ERROR("failed to create socket");
+		LOG_SQ_ERROR("failed to create socket");
 		return;
 	}
 
@@ -390,13 +390,13 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	addr.sin_addr.s_addr = ip;
 	addr.sin_port = port;
 
-	LOG_INFO("connecting to %s:%d", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+	LOG_SQ_INFO("connecting to %s:%d", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 
 	set_nonblock(sock);
 	set_nosigpipe(sock);
 
 	if (connect_timeout(sock, (struct sockaddr *) &addr, sizeof(addr), 10) < 0) {
-		LOG_INFO("unable to connect to server");
+		LOG_SQ_INFO("unable to connect to server");
 		LOCK;
 		stream.state = DISCONNECT;
 		stream.disconnect = UNREACHABLE;
@@ -419,7 +419,7 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	memcpy(stream.header, header, header_len);
 	*(stream.header+header_len) = '\0';
 
-	LOG_INFO("header: %s", stream.header);
+	LOG_SQ_INFO("header: %s", stream.header);
 
 	stream.sent_headers = false;
 	stream.bytes = 0;
