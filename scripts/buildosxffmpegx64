@@ -1,0 +1,69 @@
+#!/bin/bash
+sudo port deactivate ffmpeg
+
+export CFLAGS="-s -O3 -isysroot /Developer/SDKs/MacOSX10.6.sdk -arch x86_64"
+export CPPFLAGS="${CFLAGS}"
+export CXXFLAGS="${CFLAGS}"
+export LDFLAGS="-Wl,-syslibroot,/Developer/SDKs/MacOSX10.6.sdk -arch x86_64 -mmacosx-version-min=10.6"
+
+make clean
+
+./configure \
+    --prefix=/opt/squeezelite \
+    --disable-debug \
+    --enable-static \
+    --disable-avresample \
+    --disable-dxva2 \
+    --disable-fontconfig \
+    --enable-gpl \
+    --disable-libass \
+    --disable-libbluray \
+    --disable-libfreetype \
+    --disable-libgsm \
+    --disable-libmodplug \
+    --disable-libmp3lame \
+    --disable-libopencore_amrnb \
+    --disable-libopencore_amrwb \
+    --disable-libopenjpeg \
+    --disable-libopus \
+    --disable-libpulse \
+    --disable-librtmp \
+    --disable-libschroedinger \
+    --disable-libspeex \
+    --disable-libtheora \
+    --disable-libv4l2 \
+    --disable-libvorbis \
+    --disable-libvpx \
+    --disable-libx264 \
+    --disable-libxvid \
+    --disable-libxcb \
+    --disable-libxcb-shm \
+    --disable-libxcb-xfixes \
+    --disable-libxcb-shape \
+    --disable-sdl \
+    --disable-doc \
+    --enable-pic \
+    --disable-iconv \
+    --disable-postproc \
+    --enable-runtime-cpudetect \
+    --enable-shared \
+    --enable-swresample \
+    --disable-vdpau \
+    --enable-version3 \
+    --disable-x11grab \
+    --disable-xlib \
+    --disable-zlib \
+    --disable-bzlib \
+    --extra-ldflags=-Wl,-rpath,/opt/squeezelite/lib
+
+make || return 1
+
+sudo port activate ffmpeg @1.0.1_1+gpl2+nonfree
+
+if [ -d pkg ]; then
+	rm -rf pkg
+fi
+
+make install-headers DESTDIR=`pwd`/pkg
+make install-libs DESTDIR=`pwd`/pkg
+
