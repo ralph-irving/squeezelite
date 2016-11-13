@@ -80,7 +80,7 @@ void list_devices(void) {
 	int i;
 
 	if ((err = Pa_Initialize()) != paNoError) {
-		LOG_WARN("error initialising port audio: %s", Pa_GetErrorText(err));
+		LOG_SQ_WARN("error initialising port audio: %s", Pa_GetErrorText(err));
 		return;
 	}
 	
@@ -98,12 +98,12 @@ void list_devices(void) {
 	printf("\n");
 	
 	if ((err = Pa_Terminate()) != paNoError) {
-		LOG_WARN("error closing port audio: %s", Pa_GetErrorText(err));
+		LOG_SQ_WARN("error closing port audio: %s", Pa_GetErrorText(err));
 	}
 }
 
 void set_volume(unsigned left, unsigned right) {
-	LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
+	LOG_SQ_DEBUG("setting internal gain left: %u right: %u", left, right);
 	LOCK;
 	output.gainL = left;
 	output.gainR = right;
@@ -157,7 +157,7 @@ bool test_open(const char *device, unsigned rates[]) {
 	int device_id, i, ind;
 
 	if ((device_id = pa_device_id(device)) == -1) {
-		LOG_INFO("device %s not found", device);
+		LOG_SQ_INFO("device %s not found", device);
 		return false;
 	}
 
@@ -188,7 +188,7 @@ bool test_open(const char *device, unsigned rates[]) {
 	}
 
 	if (!rates[0]) {
-		LOG_WARN("no available rate found");
+		LOG_SQ_WARN("no available rate found");
 		return false;
 	}
 
@@ -198,7 +198,7 @@ bool test_open(const char *device, unsigned rates[]) {
 
 static void pa_stream_finished(void *userdata) {
 	if (running) {
-		LOG_INFO("stream finished");
+		LOG_SQ_INFO("stream finished");
 		LOCK;
 		output.pa_reopen = true;
 		wake_controller();
@@ -215,12 +215,12 @@ static void *pa_monitor() {
 	LOCK;
 
 	if (monitor_thread_running) {
-		LOG_DEBUG("monitor thread already running");
+		LOG_SQ_DEBUG("monitor thread already running");
 		UNLOCK;
 		return 0;
 	}
 
-	LOG_DEBUG("start monitor thread");
+	LOG_SQ_DEBUG("start monitor thread");
 
 	monitor_thread_running = true;
 	output_off = (output.state == OUTPUT_OFF);
@@ -228,18 +228,18 @@ static void *pa_monitor() {
 	while (monitor_thread_running) {
 		if (output_off) {
 			if (output.state != OUTPUT_OFF) {
-				LOG_INFO("output on");
+				LOG_SQ_INFO("output on");
 				break;
 			}
 		} else {
 			// this is a hack to partially support hot plugging of devices
 			// we rely on terminating and reinitalising PA to get an updated list of devices and use name for output.device
-			LOG_INFO("probing device %s", output.device);
+			LOG_SQ_INFO("probing device %s", output.device);
 			Pa_Terminate();
 			Pa_Initialize();
 			pa.stream = NULL;
 			if (pa_device_id(output.device) != -1) {
-				LOG_INFO("device reopen");
+				LOG_SQ_INFO("device reopen");
 				break;
 			}
 		}
@@ -249,7 +249,7 @@ static void *pa_monitor() {
 		LOCK;
 	}
 
-	LOG_DEBUG("end monitor thread");
+	LOG_SQ_DEBUG("end monitor thread");
 
 	monitor_thread_running = false;
 	pa.stream = NULL;
@@ -268,7 +268,7 @@ void _pa_open(void) {
 
 	if (pa.stream) {
 		if ((err = Pa_CloseStream(pa.stream)) != paNoError) {
-			LOG_WARN("error closing stream: %s", Pa_GetErrorText(err));
+			LOG_SQ_WARN("error closing stream: %s", Pa_GetErrorText(err));
 		}
 	}
 
@@ -278,7 +278,7 @@ void _pa_open(void) {
 		err = 1;
 
 	} else if ((device_id = pa_device_id(output.device)) == -1) {
-		LOG_INFO("device %s not found", output.device);
+		LOG_SQ_INFO("device %s not found", output.device);
 		err = 1;
 
 	} else {
@@ -299,10 +299,10 @@ void _pa_open(void) {
 		PaMacCoreStreamInfo macInfo;
 		unsigned long streamInfoFlags;
 	 	if (output.osx_playnice) {
-			LOG_INFO("opening device in PlayNice mode");
+			LOG_SQ_INFO("opening device in PlayNice mode");
 			streamInfoFlags = paMacCorePlayNice;
 		} else {
-			LOG_INFO("opening device in Pro mode");
+			LOG_SQ_INFO("opening device in Pro mode");
 			streamInfoFlags = paMacCorePro;
 		}
 		PaMacCore_SetupStreamInfo(&macInfo, streamInfoFlags);
@@ -320,16 +320,16 @@ void _pa_open(void) {
 							paNumberOfBuffers, paDitherOff, pa_callback, NULL)) != paNoError) {
 
 #endif
-		LOG_WARN("error opening device %i - %s : %s", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name, 
+		LOG_SQ_WARN("error opening device %i - %s : %s", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name, 
 				 Pa_GetErrorText(err));
 	}
 
 	if (!err) {
 #ifndef PA18API
-		LOG_INFO("opened device %i - %s at %u latency %u ms", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name,
+		LOG_SQ_INFO("opened device %i - %s at %u latency %u ms", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name,
 				 (unsigned int)Pa_GetStreamInfo(pa.stream)->sampleRate, (unsigned int)(Pa_GetStreamInfo(pa.stream)->outputLatency * 1000));
 #else
-		LOG_INFO("opened device %i - %s at %u fpb %u nbf %u", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name,
+		LOG_SQ_INFO("opened device %i - %s at %u fpb %u nbf %u", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name,
 				 (unsigned int)output.current_sample_rate, paFramesPerBuffer, paNumberOfBuffers);
 
 #endif
@@ -337,14 +337,14 @@ void _pa_open(void) {
 
 #ifndef PA18API
 		if ((err = Pa_SetStreamFinishedCallback(pa.stream, pa_stream_finished)) != paNoError) {
-			LOG_WARN("error setting finish callback: %s", Pa_GetErrorText(err));
+			LOG_SQ_WARN("error setting finish callback: %s", Pa_GetErrorText(err));
 		}
 	
 		UNLOCK; // StartStream can call pa_callback in a sychronised thread on freebsd, remove lock while it is called
 
 #endif
 		if ((err = Pa_StartStream(pa.stream)) != paNoError) {
-			LOG_WARN("error starting stream: %s", Pa_GetErrorText(err));
+			LOG_SQ_WARN("error starting stream: %s", Pa_GetErrorText(err));
 		}
 
 #ifndef PA18API
@@ -445,12 +445,12 @@ static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_
 	} while (pa_frames_wanted > 0 && frames != 0);
 
 	if (pa_frames_wanted > 0) {
-		LOG_DEBUG("pad with silence");
+		LOG_SQ_DEBUG("pad with silence");
 		memset(optr, 0, pa_frames_wanted * BYTES_PER_FRAME);
 	}
 
 	if (output.state == OUTPUT_OFF) {
-		LOG_INFO("output off");
+		LOG_SQ_INFO("output off");
 		ret = paComplete;
 	} else if (pa.rate != output.current_sample_rate) {
 		ret = paComplete;
@@ -493,7 +493,7 @@ void output_init_pa(log_level level, const char *device, unsigned output_buf_siz
 
 	loglevel = level;
 
-	LOG_INFO("init output");
+	LOG_SQ_INFO("init output");
 
 	memset(&output, 0, sizeof(output));
 
@@ -513,11 +513,11 @@ void output_init_pa(log_level level, const char *device, unsigned output_buf_siz
 	pa.stream = NULL;
 
 #ifndef PA18API
-	LOG_INFO("requested latency: %u", output.latency);
+	LOG_SQ_INFO("requested latency: %u", output.latency);
 #endif
 
 	if ((err = Pa_Initialize()) != paNoError) {
-		LOG_WARN("error initialising port audio: %s", Pa_GetErrorText(err));
+		LOG_SQ_WARN("error initialising port audio: %s", Pa_GetErrorText(err));
 		exit(0);
 	}
 
@@ -533,7 +533,7 @@ void output_init_pa(log_level level, const char *device, unsigned output_buf_siz
 void output_close_pa(void) {
 	PaError err;
 
-	LOG_INFO("close output");
+	LOG_SQ_INFO("close output");
 
 	LOCK;
 
@@ -542,12 +542,12 @@ void output_close_pa(void) {
 
 	if (pa.stream) {
 		if ((err = Pa_AbortStream(pa.stream)) != paNoError) {
-			LOG_WARN("error closing stream: %s", Pa_GetErrorText(err));
+			LOG_SQ_WARN("error closing stream: %s", Pa_GetErrorText(err));
 		}
 	}
 
 	if ((err = Pa_Terminate()) != paNoError) {
-		LOG_WARN("error closing port audio: %s", Pa_GetErrorText(err));
+		LOG_SQ_WARN("error closing port audio: %s", Pa_GetErrorText(err));
 	}
 
 	UNLOCK;

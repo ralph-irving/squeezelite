@@ -139,7 +139,7 @@ static decode_state vorbis_decode(void) {
 		}
 
 		if ((err = OV(v, open_callbacks, streambuf, v->vf, NULL, 0, cbs)) < 0) {
-			LOG_WARN("open_callbacks error: %d", err);
+			LOG_SQ_WARN("open_callbacks error: %d", err);
 			UNLOCK_O_direct;
 			UNLOCK_S;
 			return DECODE_COMPLETE;
@@ -148,7 +148,7 @@ static decode_state vorbis_decode(void) {
 
 		info = OV(v, info, v->vf, -1);
 
-		LOG_INFO("setting track_start");
+		LOG_SQ_INFO("setting track_start");
 		LOCK_O_not_direct;
 		output.next_sample_rate = decode_newstream(info->rate, output.supported_rates); 
 		IF_DSD(	output.next_dop = false; )
@@ -164,7 +164,7 @@ static decode_state vorbis_decode(void) {
 		channels = info->channels;
 
 		if (channels > 2) {
-			LOG_WARN("too many channels: %d", channels);
+			LOG_SQ_WARN("too many channels: %d", channels);
 			UNLOCK_O_direct;
 			UNLOCK_S;
 			return DECODE_ERROR;
@@ -226,7 +226,7 @@ static decode_state vorbis_decode(void) {
 
 	} else if (n == 0) {
 
-		LOG_INFO("end of stream");
+		LOG_SQ_INFO("end of stream");
 		UNLOCK_O_direct;
 		UNLOCK_S;
 		return DECODE_COMPLETE;
@@ -234,11 +234,11 @@ static decode_state vorbis_decode(void) {
 	} else if (n == OV_HOLE) {
 
 		// recoverable hole in stream, seen when skipping
-		LOG_DEBUG("hole in stream");
+		LOG_SQ_DEBUG("hole in stream");
 	
 	} else {
 
-		LOG_INFO("ov_read error: %d", n);
+		LOG_SQ_INFO("ov_read error: %d", n);
 		UNLOCK_O_direct;
 		UNLOCK_S;
 		return DECODE_COMPLETE;
@@ -282,7 +282,7 @@ static bool load_vorbis() {
 		if (handle) {
 			tremor = true;
 		} else {
-			LOG_INFO("dlerror: %s", dlerror());
+			LOG_SQ_INFO("dlerror: %s", dlerror());
 			return false;
 		}
 	}
@@ -294,11 +294,11 @@ static bool load_vorbis() {
 	v->ov_open_callbacks = dlsym(handle, "ov_open_callbacks");
 	
 	if ((err = dlerror()) != NULL) {
-		LOG_INFO("dlerror: %s", err);		
+		LOG_SQ_INFO("dlerror: %s", err);		
 		return false;
 	}
 	
-	LOG_INFO("loaded %s", tremor ? LIBTREMOR : LIBVORBIS);
+	LOG_SQ_INFO("loaded %s", tremor ? LIBTREMOR : LIBVORBIS);
 #endif
 
 	return true;
@@ -327,6 +327,6 @@ struct codec *register_vorbis(void) {
 		return NULL;
 	}
 
-	LOG_INFO("using vorbis to decode ogg");
+	LOG_SQ_INFO("using vorbis to decode ogg");
 	return &ret;
 }

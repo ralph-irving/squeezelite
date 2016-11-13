@@ -82,7 +82,7 @@ static void _write_samples(void) {
 		} else {
 
 			// bail out if no space found after 100ms to avoid locking
-			LOG_ERROR("unable to get space in output buffer");
+			LOG_SQ_ERROR("unable to get space in output buffer");
 			UNLOCK_O;
 			return;
 		}
@@ -113,7 +113,7 @@ void process_drain(void) {
 
 	} while (!done);
 
-	LOG_DEBUG("processing track complete - frames in: %lu out: %lu", process.total_in, process.total_out);
+	LOG_SQ_DEBUG("processing track complete - frames in: %lu out: %lu", process.total_in, process.total_out);
 }	
 
 // new stream - called with decode mutex set
@@ -121,7 +121,7 @@ unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned supp
 
 	bool active = NEWSTREAM_FUNC(&process, raw_sample_rate, supported_rates);
 
-	LOG_INFO("processing: %s", active ? "active" : "inactive");
+	LOG_SQ_INFO("processing: %s", active ? "active" : "inactive");
 
 	*direct = !active;
 
@@ -142,21 +142,21 @@ unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned supp
 		}
 
 		if (process.max_in_frames != max_in_frames) {
-			LOG_DEBUG("creating process buf in frames: %u", max_in_frames);
+			LOG_SQ_DEBUG("creating process buf in frames: %u", max_in_frames);
 			if (process.inbuf) free(process.inbuf);
 			process.inbuf = malloc(max_in_frames * BYTES_PER_FRAME);
 			process.max_in_frames = max_in_frames;
 		}
 		
 		if (process.max_out_frames != max_out_frames) {
-			LOG_DEBUG("creating process buf out frames: %u", max_out_frames);
+			LOG_SQ_DEBUG("creating process buf out frames: %u", max_out_frames);
 			if (process.outbuf) free(process.outbuf);
 			process.outbuf = malloc(max_out_frames * BYTES_PER_FRAME);
 			process.max_out_frames = max_out_frames;
 		}
 		
 		if (!process.inbuf || !process.outbuf) {
-			LOG_ERROR("malloc fail creating process buffers");
+			LOG_SQ_ERROR("malloc fail creating process buffers");
 			*direct = true;
 			return raw_sample_rate;
 		}
@@ -170,7 +170,7 @@ unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned supp
 // process flush - called with decode mutex set
 void process_flush(void) {
 
-	LOG_INFO("process flush");
+	LOG_SQ_INFO("process flush");
 
 	FLUSH_FUNC();
 

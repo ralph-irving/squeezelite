@@ -132,26 +132,26 @@ void list_mixers(const char *output_device) {
 	char *ctl = ctl4device(output_device);
 	snd_mixer_selem_id_alloca(&sid);
 
-	LOG_INFO("listing mixers for: %s", output_device);
+	LOG_SQ_INFO("listing mixers for: %s", output_device);
 
 	if ((err = snd_mixer_open(&handle, 0)) < 0) {
-		LOG_ERROR("open error: %s", snd_strerror(err));
+		LOG_SQ_ERROR("open error: %s", snd_strerror(err));
 		return;
 	}
 	if ((err = snd_mixer_attach(handle, ctl)) < 0) {
-		LOG_ERROR("attach error: %s", snd_strerror(err));
+		LOG_SQ_ERROR("attach error: %s", snd_strerror(err));
 		snd_mixer_close(handle);
 		free(ctl);
 		return;
 	}
 	free(ctl);
 	if ((err = snd_mixer_selem_register(handle, NULL, NULL)) < 0) {
-		LOG_ERROR("register error: %s", snd_strerror(err));
+		LOG_SQ_ERROR("register error: %s", snd_strerror(err));
 		snd_mixer_close(handle);
 		return;
 	}
 	if ((err = snd_mixer_load(handle)) < 0) {
-		LOG_ERROR("load error: %s", snd_strerror(err));
+		LOG_SQ_ERROR("load error: %s", snd_strerror(err));
 		snd_mixer_close(handle);
 		return;
 	}
@@ -186,16 +186,16 @@ static void set_mixer(bool setmax, float ldB, float rdB) {
             lraw = ((ldB > -MINVOL_DB ? MINVOL_DB + floor(ldB) : 0) / MINVOL_DB * (alsa.mixer_max-alsa.mixer_min)) + alsa.mixer_min;
             rraw = ((rdB > -MINVOL_DB ? MINVOL_DB + floor(rdB) : 0) / MINVOL_DB * (alsa.mixer_max-alsa.mixer_min)) + alsa.mixer_min;
         }
-        LOG_DEBUG("setting vol raw [%ld..%ld]", alsa.mixer_min, alsa.mixer_max);
+        LOG_SQ_DEBUG("setting vol raw [%ld..%ld]", alsa.mixer_min, alsa.mixer_max);
         if ((err = snd_mixer_selem_set_playback_volume(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_LEFT, lraw)) < 0) {
-            LOG_ERROR("error setting left volume: %s", snd_strerror(err));
+            LOG_SQ_ERROR("error setting left volume: %s", snd_strerror(err));
         }
         if ((err = snd_mixer_selem_set_playback_volume(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_RIGHT, rraw)) < 0) {
-            LOG_ERROR("error setting right volume: %s", snd_strerror(err));
+            LOG_SQ_ERROR("error setting right volume: %s", snd_strerror(err));
         }
 	} else {
 		// set db directly
-		LOG_DEBUG("setting vol dB [%ld..%ld]", alsa.mixer_min, alsa.mixer_max);
+		LOG_SQ_DEBUG("setting vol dB [%ld..%ld]", alsa.mixer_min, alsa.mixer_max);
 		if (setmax) {
 			// set to 0dB if available as this should be max volume for music recored at max pcm values
 			if (alsa.mixer_max >= 0 && alsa.mixer_min <= 0) {
@@ -205,28 +205,28 @@ static void set_mixer(bool setmax, float ldB, float rdB) {
 			}
 		}
 		if ((err = snd_mixer_selem_set_playback_dB(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_LEFT, 100 * ldB, 1)) < 0) {
-			LOG_ERROR("error setting left volume: %s", snd_strerror(err));
+			LOG_SQ_ERROR("error setting left volume: %s", snd_strerror(err));
 		}
 		if ((err = snd_mixer_selem_set_playback_dB(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_RIGHT, 100 * rdB, 1)) < 0) {
-			LOG_ERROR("error setting right volume: %s", snd_strerror(err));
+			LOG_SQ_ERROR("error setting right volume: %s", snd_strerror(err));
 		}
 	}
 
 	if ((err = snd_mixer_selem_get_playback_volume(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_LEFT, &nleft)) < 0) {
-		LOG_ERROR("error getting left vol: %s", snd_strerror(err));
+		LOG_SQ_ERROR("error getting left vol: %s", snd_strerror(err));
 	}
 	if ((err = snd_mixer_selem_get_playback_volume(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_RIGHT, &nright)) < 0) {
-		LOG_ERROR("error getting right vol: %s", snd_strerror(err));
+		LOG_SQ_ERROR("error getting right vol: %s", snd_strerror(err));
 	}
 
-	LOG_DEBUG("%s left: %3.1fdB -> %ld right: %3.1fdB -> %ld", alsa.volume_mixer_name, ldB, nleft, rdB, nright);
+	LOG_SQ_DEBUG("%s left: %3.1fdB -> %ld right: %3.1fdB -> %ld", alsa.volume_mixer_name, ldB, nleft, rdB, nright);
 }
 
 void set_volume(unsigned left, unsigned right) {
 	float ldB, rdB;
 
 	if (!alsa.volume_mixer_name) {
-		LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
+		LOG_SQ_DEBUG("setting internal gain left: %u right: %u", left, right);
 		LOCK;
 		output.gainL = left;
 		output.gainR = right;
@@ -261,7 +261,7 @@ static void *alsa_error_handler(const char *file, int line, const char *function
 static void alsa_close(void) {
 	int err;
 	if ((err = snd_pcm_close(pcmp)) < 0) {
-		LOG_INFO("snd_pcm_close error: %s", snd_strerror(err));
+		LOG_SQ_INFO("snd_pcm_close error: %s", snd_strerror(err));
 	}
 }
 
@@ -274,13 +274,13 @@ bool test_open(const char *device, unsigned rates[]) {
 
 	// open device
 	if ((err = snd_pcm_open(&pcm, device, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-		LOG_ERROR("playback open error: %s", snd_strerror(err));
+		LOG_SQ_ERROR("playback open error: %s", snd_strerror(err));
 		return false;
 	}
 
 	// get max params
 	if ((err = snd_pcm_hw_params_any(pcm, hw_params)) < 0) {
-		LOG_ERROR("hwparam init error: %s", snd_strerror(err));
+		LOG_SQ_ERROR("hwparam init error: %s", snd_strerror(err));
 		return false;
 	}
 
@@ -295,7 +295,7 @@ bool test_open(const char *device, unsigned rates[]) {
 	}
 
 	if ((err = snd_pcm_close(pcm)) < 0) {
-		LOG_ERROR("snd_pcm_close error: %s", snd_strerror(err));
+		LOG_SQ_ERROR("snd_pcm_close error: %s", snd_strerror(err));
 		return false;
 	}
 
@@ -311,7 +311,7 @@ static bool pcm_probe(const char *device) {
 	}
 
 	if ((err = snd_pcm_close(pcm)) < 0) {
-		LOG_ERROR("snd_pcm_close error: %s", snd_strerror(err));
+		LOG_SQ_ERROR("snd_pcm_close error: %s", snd_strerror(err));
 	}
 
 	return true;
@@ -331,24 +331,24 @@ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buf
 	strcpy(alsa.device, device);
 
 	if (strlen(device) > MAX_DEVICE_LEN - 4 - 1) {
-		LOG_ERROR("device name too long: %s", device);
+		LOG_SQ_ERROR("device name too long: %s", device);
 		return -1;
 	}
 
-	LOG_INFO("opening device at: %u", sample_rate);
+	LOG_SQ_INFO("opening device at: %u", sample_rate);
 
 	bool retry;
 	do {
 		// open device
 		if ((err = snd_pcm_open(&pcmp, alsa.device, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-			LOG_ERROR("playback open error: %s", snd_strerror(err));
+			LOG_SQ_ERROR("playback open error: %s", snd_strerror(err));
 			return err;
 		}
 
 		// init params
 		memset(hw_params, 0, snd_pcm_hw_params_sizeof());
 		if ((err = snd_pcm_hw_params_any(pcmp, hw_params)) < 0) {
-			LOG_ERROR("hwparam init error: %s", snd_strerror(err));
+			LOG_SQ_ERROR("hwparam init error: %s", snd_strerror(err));
 			return err;
 		}
 
@@ -357,7 +357,7 @@ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buf
 		retry = false;
 
 		if ((err = snd_pcm_hw_params_set_rate_resample(pcmp, hw_params, !hw)) < 0) {
-			LOG_ERROR("resampling setup failed: %s", snd_strerror(err));
+			LOG_SQ_ERROR("resampling setup failed: %s", snd_strerror(err));
 			return err;
 		}
 
@@ -365,7 +365,7 @@ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buf
 			if (hw) {
 				strcpy(alsa.device + 4, device);
 				memcpy(alsa.device, "plug", 4);
-				LOG_INFO("reopening device %s in plug mode as %s for resampling", device, alsa.device);
+				LOG_SQ_INFO("reopening device %s in plug mode as %s for resampling", device, alsa.device);
 				snd_pcm_close(pcmp);
 				retry = true;
 			}
@@ -376,7 +376,7 @@ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buf
 	// set access 
 	if (!alsa.mmap || snd_pcm_hw_params_set_access(pcmp, hw_params, SND_PCM_ACCESS_MMAP_INTERLEAVED) < 0) {
 		if ((err = snd_pcm_hw_params_set_access(pcmp, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
-			LOG_ERROR("access type not available: %s", snd_strerror(err));
+			LOG_SQ_ERROR("access type not available: %s", snd_strerror(err));
 			return err;
 		}
 		alsa.mmap = false;
@@ -386,17 +386,17 @@ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buf
 	snd_pcm_format_t *fmt = alsa.format ? &alsa.format : (snd_pcm_format_t *)fmts;
 	do {
 		if (snd_pcm_hw_params_set_format(pcmp, hw_params, *fmt) >= 0) {
-			LOG_INFO("opened device %s using format: %s sample rate: %u mmap: %u", alsa.device, snd_pcm_format_name(*fmt), sample_rate, alsa.mmap);
+			LOG_SQ_INFO("opened device %s using format: %s sample rate: %u mmap: %u", alsa.device, snd_pcm_format_name(*fmt), sample_rate, alsa.mmap);
 			alsa.format = *fmt;
 			break;
 		}
 		if (alsa.format) {
-			LOG_ERROR("unable to open audio device requested format: %s", snd_pcm_format_name(alsa.format));
+			LOG_SQ_ERROR("unable to open audio device requested format: %s", snd_pcm_format_name(alsa.format));
 			return -1;
 		}
 		++fmt; 
 		if (*fmt == SND_PCM_FORMAT_UNKNOWN) {
-			LOG_ERROR("unable to open audio device with any supported format");
+			LOG_SQ_ERROR("unable to open audio device with any supported format");
 			return -1;
 		}
 	} while (*fmt != SND_PCM_FORMAT_UNKNOWN);
@@ -417,7 +417,7 @@ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buf
 
 	// set channels
 	if ((err = snd_pcm_hw_params_set_channels (pcmp, hw_params, 2)) < 0) {
-		LOG_ERROR("channel count not available: %s", snd_strerror(err));
+		LOG_SQ_ERROR("channel count not available: %s", snd_strerror(err));
 		return err;
 	}
 
@@ -425,14 +425,14 @@ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buf
 	if (alsa_period < 50) {
 		unsigned count = alsa_period;
 		if ((err = snd_pcm_hw_params_set_periods_near(pcmp, hw_params, &count, 0)) < 0) {
-			LOG_ERROR("unable to set period count %s", snd_strerror(err));
+			LOG_SQ_ERROR("unable to set period count %s", snd_strerror(err));
 			return err;
 		}
 	} else {
 		snd_pcm_uframes_t size = alsa_period;
 		int dir = 0;
 		if ((err = snd_pcm_hw_params_set_period_size_near(pcmp, hw_params, &size, &dir)) < 0) {
-			LOG_ERROR("unable to set period size %s", snd_strerror(err));
+			LOG_SQ_ERROR("unable to set period size %s", snd_strerror(err));
 			return err;
 		}
 	}
@@ -442,30 +442,30 @@ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buf
 		unsigned time = alsa_buffer * 1000;
 		int dir = 0;
 		if ((err = snd_pcm_hw_params_set_buffer_time_near(pcmp, hw_params, &time, &dir)) < 0) {
-			LOG_ERROR("unable to set buffer time %s", snd_strerror(err));
+			LOG_SQ_ERROR("unable to set buffer time %s", snd_strerror(err));
 			return err;
 		}
 	} else {
 		snd_pcm_uframes_t size = alsa_buffer;
 		if ((err = snd_pcm_hw_params_set_buffer_size_near(pcmp, hw_params, &size)) < 0) {
-			LOG_ERROR("unable to set buffer size %s", snd_strerror(err));
+			LOG_SQ_ERROR("unable to set buffer size %s", snd_strerror(err));
 			return err;
 		}
 	}
 
 	// get period_size
 	if ((err = snd_pcm_hw_params_get_period_size(hw_params, &alsa.period_size, 0)) < 0) {
-		LOG_ERROR("unable to get period size: %s", snd_strerror(err));
+		LOG_SQ_ERROR("unable to get period size: %s", snd_strerror(err));
 		return err;
 	}
 
 	// get buffer_size
 	if ((err = snd_pcm_hw_params_get_buffer_size(hw_params, &alsa.buffer_size)) < 0) {
-		LOG_ERROR("unable to get buffer size: %s", snd_strerror(err));
+		LOG_SQ_ERROR("unable to get buffer size: %s", snd_strerror(err));
 		return err;
 	}
 
-	LOG_INFO("buffer: %u period: %u -> buffer size: %u period size: %u", alsa_buffer, alsa_period, alsa.buffer_size, alsa.period_size);
+	LOG_SQ_INFO("buffer: %u period: %u -> buffer size: %u period size: %u", alsa_buffer, alsa_period, alsa.buffer_size, alsa.period_size);
 
 	// ensure we have two buffer sizes of samples before starting output
 	output.start_frames = alsa.buffer_size * 2;
@@ -475,14 +475,14 @@ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buf
 	if (!alsa.mmap && !alsa.write_buf && alsa.format != NATIVE_FORMAT) {
 		alsa.write_buf = malloc(alsa.buffer_size * BYTES_PER_FRAME);
 		if (!alsa.write_buf) {
-			LOG_ERROR("unable to malloc write_buf");
+			LOG_SQ_ERROR("unable to malloc write_buf");
 			return -1;
 		}
 	}
 
 	// set params
 	if ((err = snd_pcm_hw_params(pcmp, hw_params)) < 0) {
-		LOG_ERROR("unable to set hw params: %s", snd_strerror(err));
+		LOG_SQ_ERROR("unable to set hw params: %s", snd_strerror(err));
 		return err;
 	}
 
@@ -514,7 +514,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 		snd_pcm_avail_update(pcmp);
 		
 		if ((err = snd_pcm_mmap_begin(pcmp, &areas, &offset, &alsa_frames)) < 0) {
-			LOG_WARN("error from mmap_begin: %s", snd_strerror(err));
+			LOG_SQ_WARN("error from mmap_begin: %s", snd_strerror(err));
 			return -1;
 		}
 		
@@ -561,7 +561,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 
 		snd_pcm_sframes_t w = snd_pcm_mmap_commit(pcmp, offset, out_frames);
 		if (w < 0 || w != out_frames) {
-			LOG_WARN("mmap_commit error");
+			LOG_SQ_WARN("mmap_commit error");
 			return -1;
 		}
 
@@ -572,7 +572,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 			//if (w != -EAGAIN && ((err = snd_pcm_recover(pcmp, w, 1)) < 0)) {
 			if (((err = snd_pcm_recover(pcmp, w, 1)) < 0)) {
 				static unsigned recover_count = 0;
-				LOG_WARN("recover failed: %s [%u]", snd_strerror(err), ++recover_count);
+				LOG_SQ_WARN("recover failed: %s [%u]", snd_strerror(err), ++recover_count);
 				if (recover_count >= 10) {				
 					recover_count = 0;
 					alsa_close();
@@ -582,7 +582,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 			return -1;
 		} else {
 			if (w != out_frames) {
-				LOG_WARN("writei only wrote %u of %u", w, out_frames);
+				LOG_SQ_WARN("writei only wrote %u of %u", w, out_frames);
 			}						
 			out_frames = w;
 		}
@@ -611,14 +611,14 @@ static void *output_thread(void *arg) {
 		// wait until device returns - to allow usb audio devices to be turned off
 		if (probe_device) {
 			while (!pcm_probe(output.device)) {
-				LOG_DEBUG("waiting for device %s to return", output.device);
+				LOG_SQ_DEBUG("waiting for device %s to return", output.device);
 				sleep(5);
 			}
 			probe_device = false;
 		}
 
 		if (!pcmp || alsa.rate != output.current_sample_rate) {
-			LOG_INFO("open output device: %s", output.device);
+			LOG_SQ_INFO("open output device: %s", output.device);
 			LOCK;
 
 			// FIXME - some alsa hardware requires opening twice for a new sample rate to work
@@ -652,18 +652,18 @@ static void *output_thread(void *arg) {
 		snd_pcm_state_t state = snd_pcm_state(pcmp);
 
 		if (state == SND_PCM_STATE_XRUN) {
-			LOG_INFO("XRUN");
+			LOG_SQ_INFO("XRUN");
 			if ((err = snd_pcm_recover(pcmp, -EPIPE, 1)) < 0) {
-				LOG_INFO("XRUN recover failed: %s", snd_strerror(err));
+				LOG_SQ_INFO("XRUN recover failed: %s", snd_strerror(err));
 			}
 			start = true;
 			continue;
 		} else if (state == SND_PCM_STATE_SUSPENDED) {
 			if ((err = snd_pcm_recover(pcmp, -ESTRPIPE, 1)) < 0) {
-				LOG_INFO("SUSPEND recover failed: %s", snd_strerror(err));
+				LOG_SQ_INFO("SUSPEND recover failed: %s", snd_strerror(err));
 			}
 		} else if (state == SND_PCM_STATE_DISCONNECTED) {
-			LOG_INFO("Device %s no longer available", output.device);
+			LOG_SQ_INFO("Device %s no longer available", output.device);
 			alsa_close();
 			pcmp = NULL;
 			probe_device = true;
@@ -675,13 +675,13 @@ static void *output_thread(void *arg) {
 		if (avail < 0) {
 			if ((err = snd_pcm_recover(pcmp, avail, 1)) < 0) {
 				if (err == -ENODEV) {
-					LOG_INFO("Device %s no longer available", output.device);
+					LOG_SQ_INFO("Device %s no longer available", output.device);
 					alsa_close();
 					pcmp = NULL;
 					probe_device = true;
 					continue;
 				}
-				LOG_WARN("recover failed: %s", snd_strerror(err));
+				LOG_SQ_WARN("recover failed: %s", snd_strerror(err));
 			}
 			start = true;
 			continue;
@@ -692,13 +692,13 @@ static void *output_thread(void *arg) {
 				if (alsa.mmap && ((err = snd_pcm_start(pcmp)) < 0)) {
 					if ((err = snd_pcm_recover(pcmp, err, 1)) < 0) {
 						if (err == -ENODEV) {
-							LOG_INFO("Device %s no longer available", output.device);
+							LOG_SQ_INFO("Device %s no longer available", output.device);
 							alsa_close();
 							pcmp = NULL;
 							probe_device = true;
 							continue;
 						}
-						LOG_INFO("start error: %s", snd_strerror(err));
+						LOG_SQ_INFO("start error: %s", snd_strerror(err));
 						usleep(10000);
 					}
 				} else {
@@ -707,7 +707,7 @@ static void *output_thread(void *arg) {
 			} else {
 				if ((err = snd_pcm_wait(pcmp, 1000)) < 0) {
 					if ((err = snd_pcm_recover(pcmp, err, 1)) < 0) {
-						LOG_INFO("pcm wait error: %s", snd_strerror(err));
+						LOG_SQ_INFO("pcm wait error: %s", snd_strerror(err));
 					}
 					start = true;
 				}
@@ -735,7 +735,7 @@ static void *output_thread(void *arg) {
 		// turn off if requested
 		if (output.state == OUTPUT_OFF) {
 			UNLOCK;
-			LOG_INFO("disabling output");
+			LOG_SQ_INFO("disabling output");
 			alsa_close();
 			pcmp = NULL;
 			output_off = true;
@@ -768,7 +768,7 @@ static void *output_thread(void *arg) {
 				usleep(100000);
 				continue;
 			} else {
-				LOG_DEBUG("snd_pcm_delay returns: %d", err);
+				LOG_SQ_DEBUG("snd_pcm_delay returns: %d", err);
 			}
 		} else {
 			output.device_frames = delay;
@@ -796,21 +796,21 @@ int mixer_init_alsa(const char *device, const char *mixer, int mixer_index) {
 	snd_mixer_selem_id_t *sid;
 
 	if ((err = snd_mixer_open(&alsa.mixer_handle, 0)) < 0) {
-		LOG_ERROR("open error: %s", snd_strerror(err));
+		LOG_SQ_ERROR("open error: %s", snd_strerror(err));
 		return -1;
 	}
 	if ((err = snd_mixer_attach(alsa.mixer_handle, device)) < 0) {
-		LOG_ERROR("attach error: %s", snd_strerror(err));
+		LOG_SQ_ERROR("attach error: %s", snd_strerror(err));
 		snd_mixer_close(alsa.mixer_handle);
 		return -1;
 	}
 	if ((err = snd_mixer_selem_register(alsa.mixer_handle, NULL, NULL)) < 0) {
-		LOG_ERROR("register error: %s", snd_strerror(err));
+		LOG_SQ_ERROR("register error: %s", snd_strerror(err));
 		snd_mixer_close(alsa.mixer_handle);
 		return -1;
 	}
 	if ((err = snd_mixer_load(alsa.mixer_handle)) < 0) {
-		LOG_ERROR("load error: %s", snd_strerror(err));
+		LOG_SQ_ERROR("load error: %s", snd_strerror(err));
 		snd_mixer_close(alsa.mixer_handle);
 		return -1;
 	}
@@ -820,7 +820,7 @@ int mixer_init_alsa(const char *device, const char *mixer, int mixer_index) {
 	snd_mixer_selem_id_set_name(sid, mixer);
 
 	if ((alsa.mixer_elem = snd_mixer_find_selem(alsa.mixer_handle, sid)) == NULL) {
-		LOG_ERROR("error find selem %s", alsa.mixer_handle);
+		LOG_SQ_ERROR("error find selem %s", alsa.mixer_handle);
 		snd_mixer_close(alsa.mixer_handle);
 		return -1;
 	}
@@ -836,7 +836,7 @@ int mixer_init_alsa(const char *device, const char *mixer, int mixer_index) {
 		// unable to get db range or range is less than 10dB - ignore and set using raw values
 		if ((err = snd_mixer_selem_get_playback_volume_range(alsa.mixer_elem, &alsa.mixer_min, &alsa.mixer_max)) < 0)
 		{
-			LOG_ERROR("Unable to get volume raw range");
+			LOG_SQ_ERROR("Unable to get volume raw range");
 			return -1;
 		}
 	}
@@ -870,7 +870,7 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 
 	loglevel = level;
 
-	LOG_INFO("init output");
+	LOG_SQ_INFO("init output");
 
 	memset(&output, 0, sizeof(output));
 
@@ -898,7 +898,7 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 		if (!strcmp(alsa_sample_fmt, "16")) alsa.format = SND_PCM_FORMAT_S16_LE;
 	}
 
-	LOG_INFO("requested alsa_buffer: %u alsa_period: %u format: %s mmap: %u", output.buffer, output.period, 
+	LOG_SQ_INFO("requested alsa_buffer: %u alsa_period: %u format: %s mmap: %u", output.buffer, output.period, 
 			 alsa_sample_fmt ? alsa_sample_fmt : "any", alsa.mmap);
 
 	snd_lib_error_set_handler((snd_lib_error_handler_t)alsa_error_handler);
@@ -909,7 +909,7 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	        if (mixer_init_alsa(alsa.mixer_ctl, alsa.volume_mixer_name, volume_mixer_index ?
 			atoi(volume_mixer_index) : 0) < 0)
 		{
-			LOG_ERROR("Initialization of mixer failed, reverting to software volume");
+			LOG_SQ_ERROR("Initialization of mixer failed, reverting to software volume");
 			alsa.mixer_handle = NULL;
 			alsa.volume_mixer_name = NULL;
 		}
@@ -923,9 +923,9 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	// RT linux - aim to avoid pagefaults by locking memory: 
 	// https://rt.wiki.kernel.org/index.php/Threaded_RT-application_with_memory_locking_and_stack_handling_example
 	if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1) {
-		LOG_INFO("unable to lock memory: %s", strerror(errno));
+		LOG_SQ_INFO("unable to lock memory: %s", strerror(errno));
 	} else {
-		LOG_INFO("memory locked");
+		LOG_SQ_INFO("memory locked");
 	}
 
 	mallopt(M_TRIM_THRESHOLD, -1);
@@ -946,14 +946,14 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	struct sched_param param;
 	param.sched_priority = rt_priority;
 	if (pthread_setschedparam(thread, SCHED_FIFO, &param) != 0) {
-		LOG_DEBUG("unable to set output sched fifo: %s", strerror(errno));
+		LOG_SQ_DEBUG("unable to set output sched fifo: %s", strerror(errno));
 	} else {
-		LOG_DEBUG("set output sched fifo rt: %u", param.sched_priority);
+		LOG_SQ_DEBUG("set output sched fifo rt: %u", param.sched_priority);
 	}
 }
 
 void output_close_alsa(void) {
-	LOG_INFO("close output");
+	LOG_SQ_INFO("close output");
 
 	LOCK;
 	running = false;

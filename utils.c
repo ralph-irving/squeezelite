@@ -416,7 +416,7 @@ void winsock_init(void) {
 	WORD wVersionRequested = MAKEWORD(2, 2);
 	int WSerr = WSAStartup(wVersionRequested, &wsaData);
 	if (WSerr != 0) {
-		LOG_ERROR("Bad winsock version");
+		LOG_SQ_ERROR("Bad winsock version");
 		exit(1);
 	}
 }

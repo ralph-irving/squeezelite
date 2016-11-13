@@ -97,7 +97,7 @@ static void *decode_thread() {
 
 				if (decode.state != DECODE_RUNNING) {
 
-					LOG_INFO("decode %s", decode.state == DECODE_COMPLETE ? "complete" : "error");
+					LOG_SQ_INFO("decode %s", decode.state == DECODE_COMPLETE ? "complete" : "error");
 
 					LOCK_O;
 					if (output.fade_mode) _checkfade(false);
@@ -127,7 +127,7 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 
 	loglevel = level;
 
-	LOG_INFO("init decode, include codecs: %s exclude codecs: %s", include_codecs ? include_codecs : "", exclude_codecs);
+	LOG_SQ_INFO("init decode, include codecs: %s exclude codecs: %s", include_codecs ? include_codecs : "", exclude_codecs);
 
 	// register codecs
 	// dsf,dff,alc,wma,wmap,wmal,aac,spt,ogg,ogf,flc,aif,pcm,mp3
@@ -175,7 +175,7 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 }
 
 void decode_close(void) {
-	LOG_INFO("close decode");
+	LOG_SQ_INFO("close decode");
 	LOCK_D;
 	if (codec) {
 		codec->close();
@@ -190,7 +190,7 @@ void decode_close(void) {
 }
 
 void decode_flush(void) {
-	LOG_INFO("decode flush");
+	LOG_SQ_INFO("decode flush");
 	LOCK_D;
 	decode.state = DECODE_STOPPED;
 	IF_PROCESS(
@@ -218,7 +218,7 @@ unsigned decode_newstream(unsigned sample_rate, unsigned supported_rates[]) {
 void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t endianness) {
 	int i;
 
-	LOG_INFO("codec open: '%c'", format);
+	LOG_SQ_INFO("codec open: '%c'", format);
 
 	LOCK_D;
 
@@ -235,7 +235,7 @@ void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, 
 		if (codecs[i] && codecs[i]->id == format) {
 
 			if (codec && codec != codecs[i]) {
-				LOG_INFO("closing codec: '%c'", codec->id);
+				LOG_SQ_INFO("closing codec: '%c'", codec->id);
 				codec->close();
 			}
 			
@@ -252,6 +252,6 @@ void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, 
 
 	UNLOCK_D;
 
-	LOG_ERROR("codec not found");
+	LOG_SQ_ERROR("codec not found");
 }
 

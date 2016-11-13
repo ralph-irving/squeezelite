@@ -143,12 +143,12 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 			mp4_desc_length(&ptr);
 			ptr += 13;
 			if (*ptr++ != 0x05) {
-				LOG_WARN("error parsing esds");
+				LOG_SQ_WARN("error parsing esds");
 				return -1;
 			}
 			config_len = mp4_desc_length(&ptr);
 			if (NEAAC(a, Init2, a->hAac, ptr, config_len, samplerate_p, channels_p) == 0) {
-				LOG_DEBUG("playable aac track: %u", trak);
+				LOG_SQ_DEBUG("playable aac track: %u", trak);
 				play = trak;
 			}
 		}
@@ -165,14 +165,14 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				a->sttssamples += count * size;
 				ptr += 8;
 			}
-			LOG_DEBUG("total number of samples contained in stts: " FMT_u64, a->sttssamples);
+			LOG_SQ_DEBUG("total number of samples contained in stts: " FMT_u64, a->sttssamples);
 		}
 
 		// stash sample to chunk info, assume it comes before stco
 		if (!strcmp(type, "stsc") && bytes > len && !a->chunkinfo) {
 			a->stsc = malloc(len - 12);
 			if (a->stsc == NULL) {
-				LOG_WARN("malloc fail");
+				LOG_SQ_WARN("malloc fail");
 				return -1;
 			}
 			memcpy(a->stsc, streambuf->readp + 12, len - 12);
@@ -187,7 +187,7 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 			ptr += 4;
 			a->chunkinfo = malloc(sizeof(struct chunk_table) * (entries + 1));
 			if (a->chunkinfo == NULL) {
-				LOG_WARN("malloc fail");
+				LOG_SQ_WARN("malloc fail");
 				return -1;
 			}
 			for (i = 0; i < entries; ++i) {
@@ -233,10 +233,10 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 			a->pos += 8;
 			bytes  -= 8;
 			if (play) {
-				LOG_DEBUG("type: mdat len: %u pos: %u", len, a->pos);
+				LOG_SQ_DEBUG("type: mdat len: %u pos: %u", len, a->pos);
 				if (a->chunkinfo && a->chunkinfo[0].offset > a->pos) {
 					u32_t skip = a->chunkinfo[0].offset - a->pos; 	
-					LOG_DEBUG("skipping: %u", skip);
+					LOG_SQ_DEBUG("skipping: %u", skip);
 					if (skip <= bytes) {
 						_buf_inc_readp(streambuf, skip);
 						a->pos += skip;
@@ -247,7 +247,7 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				a->sample = a->nextchunk = 1;
 				return 1;
 			} else {
-				LOG_DEBUG("type: mdat len: %u, no playable track found", len);
+				LOG_SQ_DEBUG("type: mdat len: %u, no playable track found", len);
 				return -1;
 			}
 		}
@@ -266,9 +266,9 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				// data is stored as hex strings: 0 start end samples
 				u32_t b, c; u64_t d;
 				if (sscanf((const char *)(ptr + 16), "%x %x %x " FMT_x64, &b, &b, &c, &d) == 4) {
-					LOG_DEBUG("iTunSMPB start: %u end: %u samples: " FMT_u64, b, c, d);
+					LOG_SQ_DEBUG("iTunSMPB start: %u end: %u samples: " FMT_u64, b, c, d);
 					if (a->sttssamples && a->sttssamples < b + c + d) {
-						LOG_DEBUG("reducing samples as stts count is less");
+						LOG_SQ_DEBUG("reducing samples as stts count is less");
 						d = a->sttssamples - (b + c);
 					}
 					a->skip = b;
@@ -292,13 +292,13 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 
 		// consume rest of box if it has been parsed (all in the buffer) or is not one we want to parse
 		if (bytes >= consume) {
-			LOG_DEBUG("type: %s len: %u consume: %u", type, len, consume);
+			LOG_SQ_DEBUG("type: %s len: %u consume: %u", type, len, consume);
 			_buf_inc_readp(streambuf, consume);
 			a->pos += consume;
 			bytes -= consume;
 		} else if ( !(!strcmp(type, "esds") || !strcmp(type, "stts") || !strcmp(type, "stsc") || 
 					 !strcmp(type, "stco") || !strcmp(type, "----")) ) {
-			LOG_DEBUG("type: %s len: %u consume: %u - partial consume: %u", type, len, consume, bytes);
+			LOG_SQ_DEBUG("type: %s len: %u consume: %u - partial consume: %u", type, len, consume, bytes);
 			_buf_inc_readp(streambuf, bytes);
 			a->pos += bytes;
 			a->consume = consume - bytes;
@@ -330,7 +330,7 @@ static decode_state faad_decode(void) {
 
 	if (a->consume) {
 		u32_t consume = min(a->consume, bytes_wrap);
-		LOG_DEBUG("consume: %u of %u", consume, a->consume);
+		LOG_SQ_DEBUG("consume: %u of %u", consume, a->consume);
 		_buf_inc_readp(streambuf, consume);
 		a->pos += consume;
 		a->consume -= consume;
@@ -370,12 +370,12 @@ static decode_state faad_decode(void) {
 
 		if (found == 1) {
 
-			LOG_INFO("samplerate: %u channels: %u", samplerate, channels);
+			LOG_SQ_INFO("samplerate: %u channels: %u", samplerate, channels);
 			bytes_total = _buf_used(streambuf);
 			bytes_wrap  = min(bytes_total, _buf_cont_read(streambuf));
 
 			LOCK_O;
-			LOG_INFO("setting track_start");
+			LOG_SQ_INFO("setting track_start");
 			output.next_sample_rate = decode_newstream(samplerate, output.supported_rates);
 			IF_DSD( output.next_dop = false; )
 			output.track_start = outputbuf->writep;
@@ -385,7 +385,7 @@ static decode_state faad_decode(void) {
 
 		} else if (found == -1) {
 
-			LOG_WARN("error reading stream header");
+			LOG_SQ_WARN("error reading stream header");
 			UNLOCK_S;
 			return DECODE_ERROR;
 
@@ -412,7 +412,7 @@ static decode_state faad_decode(void) {
 	}
 
 	if (info.error) {
-		LOG_WARN("error: %u %s", info.error, NEAAC(a, GetErrorMessage, info.error));
+		LOG_SQ_WARN("error: %u %s", info.error, NEAAC(a, GetErrorMessage, info.error));
 	}
 
 	endstream = false;
@@ -423,7 +423,7 @@ static decode_state faad_decode(void) {
 		if (a->chunkinfo[a->nextchunk].offset > a->pos) {
 			u32_t skip = a->chunkinfo[a->nextchunk].offset - a->pos;
 			if (skip != info.bytesconsumed) {
-				LOG_DEBUG("skipping to next chunk pos: %u consumed: %u != skip: %u", a->pos, info.bytesconsumed, skip);
+				LOG_SQ_DEBUG("skipping to next chunk pos: %u consumed: %u != skip: %u", a->pos, info.bytesconsumed, skip);
 			}
 			if (bytes_total >= skip) {
 				_buf_inc_readp(streambuf, skip);
@@ -433,7 +433,7 @@ static decode_state faad_decode(void) {
 			}
 			a->nextchunk++;
 		} else {
-			LOG_ERROR("error: need to skip backwards!");
+			LOG_SQ_ERROR("error: need to skip backwards!");
 			endstream = true;
 		}
 
@@ -451,7 +451,7 @@ static decode_state faad_decode(void) {
 	UNLOCK_S;
 
 	if (endstream) {
-		LOG_WARN("unable to decode further");
+		LOG_SQ_WARN("unable to decode further");
 		return DECODE_ERROR;
 	}
 
@@ -467,10 +467,10 @@ static decode_state faad_decode(void) {
 		if (a->empty) {
 			a->empty = false;
 			a->skip -= frames;
-			LOG_DEBUG("gapless: first frame empty, skipped %u frames at start", frames);
+			LOG_SQ_DEBUG("gapless: first frame empty, skipped %u frames at start", frames);
 		}
 		skip = min(frames, a->skip);
-		LOG_DEBUG("gapless: skipping %u frames at start", skip);
+		LOG_SQ_DEBUG("gapless: skipping %u frames at start", skip);
 		frames -= skip;
 		a->skip -= skip;
 		iptr += skip * info.channels;
@@ -478,7 +478,7 @@ static decode_state faad_decode(void) {
 
 	if (a->samples) {
 		if (a->samples < frames) {
-			LOG_DEBUG("gapless: trimming %u frames from end", frames - a->samples);
+			LOG_SQ_DEBUG("gapless: trimming %u frames from end", frames - a->samples);
 			frames = (frames_t)a->samples;
 		}
 		a->samples -= frames;
@@ -516,7 +516,7 @@ static decode_state faad_decode(void) {
 				*optr++ = *iptr++ << 8;
 			}
 		} else {
-			LOG_WARN("unsupported number of channels");
+			LOG_SQ_WARN("unsupported number of channels");
 		}
 
 		frames -= f;
@@ -526,7 +526,7 @@ static decode_state faad_decode(void) {
 		);
 		IF_PROCESS(
 			process.in_frames = f;
-			if (frames) LOG_ERROR("unhandled case");
+			if (frames) LOG_SQ_ERROR("unhandled case");
 		);
 	}
 
@@ -538,7 +538,7 @@ static decode_state faad_decode(void) {
 static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	NeAACDecConfigurationPtr conf;
 
-	LOG_INFO("opening %s stream", size == '2' ? "adts" : "mp4");
+	LOG_SQ_INFO("opening %s stream", size == '2' ? "adts" : "mp4");
 
 	a->type = size;
 	a->pos = a->consume = a->sample = a->nextchunk = 0;
@@ -567,7 +567,7 @@ static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	conf->downMatrix = 1;
 
 	if (!NEAAC(a, SetConfiguration, a->hAac, conf)) {
-		LOG_WARN("error setting config");
+		LOG_SQ_WARN("error setting config");
 	};
 }
 
@@ -590,7 +590,7 @@ static bool load_faad() {
 	char *err;
 
 	if (!handle) {
-		LOG_INFO("dlerror: %s", dlerror());
+		LOG_SQ_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 
@@ -604,11 +604,11 @@ static bool load_faad() {
 	a->NeAACDecGetErrorMessage = dlsym(handle, "NeAACDecGetErrorMessage");
 
 	if ((err = dlerror()) != NULL) {
-		LOG_INFO("dlerror: %s", err);		
+		LOG_SQ_INFO("dlerror: %s", err);		
 		return false;
 	}
 
-	LOG_INFO("loaded "LIBFAAD"");
+	LOG_SQ_INFO("loaded "LIBFAAD"");
 #endif
 
 	return true;
@@ -638,6 +638,6 @@ struct codec *register_faad(void) {
 		return NULL;
 	}
 
-	LOG_INFO("using faad to decode aac");
+	LOG_SQ_INFO("using faad to decode aac");
 	return &ret;
 }

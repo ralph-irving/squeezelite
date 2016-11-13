@@ -154,7 +154,7 @@ static int _parse_packlen(void) {
 		}
 		if (!memcmp(ptr, file_props_guid, 16) && len == 104) {
 			u32_t packlen = *(ptr+92) | *(ptr+93) << 8 | *(ptr+94) << 16 | *(ptr+95) << 24;
-			LOG_INFO("asf packet len: %u", packlen);
+			LOG_SQ_INFO("asf packet len: %u", packlen);
 			return packlen;
 		}
 		ptr    += len;
@@ -162,7 +162,7 @@ static int _parse_packlen(void) {
 		remain -= len;
 	}
 
-	LOG_WARN("could not parse packet length");
+	LOG_SQ_WARN("could not parse packet length");
 	return 0;
 }
 
@@ -214,7 +214,7 @@ static int _read_data(void *opaque, u8_t *buffer, int buf_size) {
 			bytes = min(bytes, buf_size);
 		} else {
 			// should not get here...
-			LOG_ERROR("chunk parser stalled bytes: %u %u", bytes, _buf_used(streambuf));
+			LOG_SQ_ERROR("chunk parser stalled bytes: %u %u", bytes, _buf_used(streambuf));
 			UNLOCK_S;
 			return 0;
 		}
@@ -228,7 +228,7 @@ static int _read_data(void *opaque, u8_t *buffer, int buf_size) {
 				// asf data packet - add padding
 				ff->mmsh_bytes_pad = ff->mmsh_packet_len - chunk_len + 8;
 			} else {
-				LOG_INFO("unknown chunk: %04x", chunk_type);
+				LOG_SQ_INFO("unknown chunk: %04x", chunk_type);
 				// other packet - no padding
 				ff->mmsh_bytes_pad = 0;
 			}
@@ -282,7 +282,7 @@ static decode_state ff_decode(void) {
 
 		ff->formatC = AVFORMAT(ff, alloc_context);
 		if (ff->formatC == NULL) {
-			LOG_ERROR("null context");
+			LOG_SQ_ERROR("null context");
 			return DECODE_ERROR;
 		}
 
@@ -291,21 +291,21 @@ static decode_state ff_decode(void) {
 
 		o = AVFORMAT(ff, open_input, &ff->formatC, "", ff->input_format, NULL);
 		if (o < 0) {
-			LOG_WARN("avformat_open_input: %d %s", o, av__err2str(o));
+			LOG_SQ_WARN("avformat_open_input: %d %s", o, av__err2str(o));
 			return DECODE_ERROR;
 		}
 
-		LOG_INFO("format: name:%s lname:%s", ff->formatC->iformat->name, ff->formatC->iformat->long_name);
+		LOG_SQ_INFO("format: name:%s lname:%s", ff->formatC->iformat->name, ff->formatC->iformat->long_name);
 	
 		o = AVFORMAT(ff, find_stream_info, ff->formatC, NULL);
 		if (o < 0) {
-			LOG_WARN("avformat_find_stream_info: %d %s", o, av__err2str(o));
+			LOG_SQ_WARN("avformat_find_stream_info: %d %s", o, av__err2str(o));
 			return DECODE_ERROR;
 		}
 		
 		if (ff->wma && ff->wma_playstream < ff->formatC->nb_streams) {
 			if (ff->formatC->streams[ff->wma_playstream]->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
-				LOG_INFO("using wma stream sent from server: %i", ff->wma_playstream);
+				LOG_SQ_INFO("using wma stream sent from server: %i", ff->wma_playstream);
 				audio_stream = ff->wma_playstream;
 			}
 		}
@@ -315,14 +315,14 @@ static decode_state ff_decode(void) {
 			for (i = 0; i < ff->formatC->nb_streams; ++i) {
 				if (ff->formatC->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
 					audio_stream = i;
-					LOG_INFO("found stream: %i", i);
+					LOG_SQ_INFO("found stream: %i", i);
 					break;
 				}
 			}
 		}
 
 		if (audio_stream == -1) {
-			LOG_WARN("no audio stream found");
+			LOG_SQ_WARN("no audio stream found");
 			return DECODE_ERROR;
 		}
 
@@ -342,7 +342,7 @@ static decode_state ff_decode(void) {
 
 		ff->avpkt = AV(ff, malloc, sizeof(AVPacket));
 		if (ff->avpkt == NULL) {
-			LOG_ERROR("can't allocate avpkt");
+			LOG_SQ_ERROR("can't allocate avpkt");
 			return DECODE_ERROR;
 		}
 
@@ -351,7 +351,7 @@ static decode_state ff_decode(void) {
 		ff->avpkt->size = 0;
 
 		LOCK_O;
-		LOG_INFO("setting track_start");
+		LOG_SQ_INFO("setting track_start");
 		output.next_sample_rate = decode_newstream(ff->codecC->sample_rate, output.supported_rates);
 		IF_DSD(	output.next_dop = false; )
 		output.track_start = outputbuf->writep;
@@ -365,13 +365,13 @@ static decode_state ff_decode(void) {
 	if ((r = AV(ff, read_frame, ff->formatC, ff->avpkt)) < 0) {
 		if (r == AVERROR_EOF) {
 			if (ff->end_of_stream) {
-				LOG_INFO("decode complete");
+				LOG_SQ_INFO("decode complete");
 				return DECODE_COMPLETE;
 			} else {
-				LOG_INFO("codec end of file");
+				LOG_SQ_INFO("codec end of file");
 			}
 		} else {
-			LOG_ERROR("av_read_frame error: %i %s", r, av__err2str(r));
+			LOG_SQ_ERROR("av_read_frame error: %i %s", r, av__err2str(r));
 		}
 		return DECODE_RUNNING;
 	}
@@ -388,7 +388,7 @@ static decode_state ff_decode(void) {
 
 		len = AVCODEC(ff, decode_audio4, ff->codecC, ff->frame, &got_frame, &pkt_c);
 		if (len < 0) {
-			LOG_ERROR("avcodec_decode_audio4 error: %i %s", len, av__err2str(len));
+			LOG_SQ_ERROR("avcodec_decode_audio4 error: %i %s", len, av__err2str(len));
 			return DECODE_RUNNING;
 		}
 
@@ -425,7 +425,7 @@ static decode_state ff_decode(void) {
 
 				IF_PROCESS(
 					if (process.in_frames + frames > process.max_in_frames) {
-						LOG_WARN("exceeded process buffer size - dropping frames");
+						LOG_SQ_WARN("exceeded process buffer size - dropping frames");
 						break;
 					}
 					f = frames;	   
@@ -466,7 +466,7 @@ static decode_state ff_decode(void) {
 							*optr++ = (s32_t)scaledr;
 						}
 					} else {
-						LOG_WARN("unsupported sample format: %u", ff->codecC->sample_fmt);
+						LOG_SQ_WARN("unsupported sample format: %u", ff->codecC->sample_fmt);
 					}
 				} else if (ff->codecC->channels == 1) {
 					if (ff->codecC->sample_fmt == AV_SAMPLE_FMT_S16) {
@@ -498,10 +498,10 @@ static decode_state ff_decode(void) {
 							*optr++ = (s32_t)scaled;
 						}
 					} else {
-						LOG_WARN("unsupported sample format: %u", ff->codecC->sample_fmt);
+						LOG_SQ_WARN("unsupported sample format: %u", ff->codecC->sample_fmt);
 					}
 				} else {
-					LOG_WARN("unsupported number of channels");
+					LOG_SQ_WARN("unsupported number of channels");
 				}
 				
 				frames -= f;
@@ -571,7 +571,7 @@ static void ff_open_wma(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 
 	ff->input_format = AV(ff, find_input_format, "asf");
 	if (ff->input_format == NULL) {
-		LOG_ERROR("asf format not supported by ffmpeg library");
+		LOG_SQ_ERROR("asf format not supported by ffmpeg library");
 	}
 
 	ff->wma = true;
@@ -579,7 +579,7 @@ static void ff_open_wma(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	ff->wma_playstream = rate - 1;
 	ff->wma_metadatastream = chan != '?' ? chan : 0;
 
-	LOG_INFO("open wma chunking: %u playstream: %u metadatastream: %u", ff->wma_mmsh, ff->wma_playstream, ff->wma_metadatastream);
+	LOG_SQ_INFO("open wma chunking: %u playstream: %u metadatastream: %u", ff->wma_mmsh, ff->wma_playstream, ff->wma_metadatastream);
 }
 
 static void ff_open_alac(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
@@ -587,13 +587,13 @@ static void ff_open_alac(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 
 	ff->input_format = AV(ff, find_input_format, "mp4");
 	if (ff->input_format == NULL) {
-		LOG_ERROR("mp4 format not supported by ffmpeg library");
+		LOG_SQ_ERROR("mp4 format not supported by ffmpeg library");
 	}
 
 	ff->wma = false;
 	ff->wma_mmsh = 0;
 
-	LOG_INFO("open alac");
+	LOG_SQ_INFO("open alac");
 }
 
 static void ff_close(void) {
@@ -616,21 +616,21 @@ static bool load_ff() {
 	sprintf(name, LIBAVCODEC, LIBAVCODEC_VERSION_MAJOR);
 	handle_codec = dlopen(name, RTLD_NOW);
 	if (!handle_codec) {
-		LOG_INFO("dlerror: %s", dlerror());
+		LOG_SQ_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 
 	sprintf(name, LIBAVFORMAT, LIBAVFORMAT_VERSION_MAJOR);
 	handle_format = dlopen(name, RTLD_NOW);
 	if (!handle_format) {
-		LOG_INFO("dlerror: %s", dlerror());
+		LOG_SQ_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 
 	sprintf(name, LIBAVUTIL, LIBAVUTIL_VERSION_MAJOR);
 	handle_util = dlopen(name, RTLD_NOW);
 	if (!handle_util) {
-		LOG_INFO("dlerror: %s", dlerror());
+		LOG_SQ_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 
@@ -653,11 +653,11 @@ static bool load_ff() {
 #endif
 
 	if ((err = dlerror()) != NULL) {
-		LOG_INFO("dlerror: %s", err);		
+		LOG_SQ_INFO("dlerror: %s", err);		
 		return false;
 	}
 	
-	LOG_INFO("loaded "LIBAVCODEC" (%u.%u.%u)", LIBAVCODEC_VERSION_MAJOR, ff->avcodec_version() >> 16, (ff->avcodec_version() >> 8) & 0xff, ff->avcodec_version() & 0xff);
+	LOG_SQ_INFO("loaded "LIBAVCODEC" (%u.%u.%u)", LIBAVCODEC_VERSION_MAJOR, ff->avcodec_version() >> 16, (ff->avcodec_version() >> 8) & 0xff, ff->avcodec_version() & 0xff);
 
 	ff->avformat_version = dlsym(handle_format, "avformat_version");
 	ff->avformat_alloc_context = dlsym(handle_format, "avformat_alloc_context");
@@ -670,11 +670,11 @@ static bool load_ff() {
 	ff->av_register_all = dlsym(handle_format, "av_register_all");
 
 	if ((err = dlerror()) != NULL) {
-		LOG_INFO("dlerror: %s", err);		
+		LOG_SQ_INFO("dlerror: %s", err);		
 		return false;
 	}
 
-	LOG_INFO("loaded "LIBAVFORMAT" (%u.%u.%u)", LIBAVFORMAT_VERSION_MAJOR, ff->avformat_version() >> 16, (ff->avformat_version() >> 8) & 0xff, ff->avformat_version() & 0xff);
+	LOG_SQ_INFO("loaded "LIBAVFORMAT" (%u.%u.%u)", LIBAVFORMAT_VERSION_MAJOR, ff->avformat_version() >> 16, (ff->avformat_version() >> 8) & 0xff, ff->avformat_version() & 0xff);
 
 	ff->avutil_version = dlsym(handle_util, "avutil_version");
 	ff->av_log_set_callback = dlsym(handle_util, "av_log_set_callback");
@@ -684,11 +684,11 @@ static bool load_ff() {
 	ff->av_freep = dlsym(handle_util, "av_freep");
 
 	if ((err = dlerror()) != NULL) {
-		LOG_INFO("dlerror: %s", err);		
+		LOG_SQ_INFO("dlerror: %s", err);		
 		return false;
 	}
 
-	LOG_INFO("loaded "LIBAVUTIL" (%u.%u.%u)", LIBAVUTIL_VERSION_MAJOR, ff->avutil_version() >> 16, (ff->avutil_version() >> 8) & 0xff, ff->avutil_version() & 0xff);
+	LOG_SQ_INFO("loaded "LIBAVUTIL" (%u.%u.%u)", LIBAVUTIL_VERSION_MAJOR, ff->avutil_version() >> 16, (ff->avutil_version() >> 8) & 0xff, ff->avutil_version() & 0xff);
 
 #endif
 
@@ -751,7 +751,7 @@ struct codec *register_ff(const char *codec) {
 			ff_decode,   // decode
 		};
 		
-		LOG_INFO("using ffmpeg to decode wma,wmap,wmal");
+		LOG_SQ_INFO("using ffmpeg to decode wma,wmap,wmal");
 		return &ret;
 	}
 
@@ -767,7 +767,7 @@ struct codec *register_ff(const char *codec) {
 			ff_decode,   // decode
 		};
 		
-		LOG_INFO("using ffmpeg to decode alc");		
+		LOG_SQ_INFO("using ffmpeg to decode alc");		
 		return &ret;
 	}
 

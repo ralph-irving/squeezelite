@@ -77,10 +77,10 @@ static void _check_header(void) {
 
 	if (bytes > 12) {
 		if (!memcmp(ptr, "RIFF", 4) && !memcmp(ptr+8, "WAVE", 4)) {
-			LOG_INFO("WAVE");
+			LOG_SQ_INFO("WAVE");
 			format = WAVE;
 		} else if (!memcmp(ptr, "FORM", 4) && (!memcmp(ptr+8, "AIFF", 4) || !memcmp(ptr+8, "AIFC", 4))) {
-			LOG_INFO("AIFF");
+			LOG_SQ_INFO("AIFF");
 			format = AIFF;
 		}
 	}
@@ -101,7 +101,7 @@ static void _check_header(void) {
 				len = *(ptr+4) << 24 | *(ptr+5) << 16 | *(ptr+6) << 8 | *(ptr+7);
 			}
 				
-			LOG_INFO("header: %s len: %d", id, len);
+			LOG_SQ_INFO("header: %s len: %d", id, len);
 
 			if (format == WAVE && !memcmp(ptr, "data", 4)) {
 				ptr += 8;
@@ -111,7 +111,7 @@ static void _check_header(void) {
 				// Only use length in header for files.
 				if (stream.state == STREAMING_FILE) {
 					audio_left = len;
-					LOG_INFO("audio size: %u", audio_left);
+					LOG_SQ_INFO("audio size: %u", audio_left);
 					limit = true;
 				}
 				return;
@@ -127,7 +127,7 @@ static void _check_header(void) {
 				// Only use length in header for files.
 				if (stream.state == STREAMING_FILE) {
 					audio_left = len - 8 - offset;
-					LOG_INFO("audio size: %u", audio_left);
+					LOG_SQ_INFO("audio size: %u", audio_left);
 					limit = true;
 				}
 				return;
@@ -139,7 +139,7 @@ static void _check_header(void) {
 				sample_rate = *(ptr+12) | *(ptr+13) << 8 | *(ptr+14) << 16 | *(ptr+15) << 24;
 				sample_size = (*(ptr+22) | *(ptr+23) << 8) / 8;
 				bigendian   = 0;
-				LOG_INFO("pcm size: %u rate: %u chan: %u bigendian: %u", sample_size, sample_rate, channels, bigendian);
+				LOG_SQ_INFO("pcm size: %u rate: %u chan: %u bigendian: %u", sample_size, sample_rate, channels, bigendian);
 			}
 
 			if (format == AIFF && !memcmp(ptr, "COMM", 4) && bytes >= 26) {
@@ -154,20 +154,20 @@ static void _check_header(void) {
 				sample_rate  = *(ptr+18) << 24 | *(ptr+19) << 16 | *(ptr+20) << 8 | *(ptr+21);
 				while (exponent < 0) { sample_rate >>= 1; ++exponent; }
 				while (exponent > 0) { sample_rate <<= 1; --exponent; }
-				LOG_INFO("pcm size: %u rate: %u chan: %u bigendian: %u", sample_size, sample_rate, channels, bigendian);
+				LOG_SQ_INFO("pcm size: %u rate: %u chan: %u bigendian: %u", sample_size, sample_rate, channels, bigendian);
 			}
 
 			if (bytes >= len + 8) {
 				ptr   += len + 8;
 				bytes -= (len + 8);
 			} else {
-				LOG_WARN("run out of data");
+				LOG_SQ_WARN("run out of data");
 				return;
 			}
 		}
 
 	} else {
-		LOG_WARN("unknown format - can't parse header");
+		LOG_SQ_WARN("unknown format - can't parse header");
 	}
 }
 
@@ -202,7 +202,7 @@ static decode_state pcm_decode(void) {
 	}
 
 	if (decode.new_stream) {
-		LOG_INFO("setting track_start");
+		LOG_SQ_INFO("setting track_start");
 		LOCK_O_not_direct;
 		output.next_sample_rate = decode_newstream(sample_rate, output.supported_rates);
 		output.track_start = outputbuf->writep;
@@ -239,7 +239,7 @@ static decode_state pcm_decode(void) {
 	frames = min(frames, MAX_DECODE_FRAMES);
 
 	if (limit && frames * bytes_per_frame > audio_left) {
-		LOG_INFO("reached end of audio");
+		LOG_SQ_INFO("reached end of audio");
 		frames = audio_left / bytes_per_frame;
 	}
 
@@ -344,7 +344,7 @@ static decode_state pcm_decode(void) {
 			}
 		}
 	} else {
-		LOG_ERROR("unsupported channels");
+		LOG_SQ_ERROR("unsupported channels");
 	}
 
 	LOG_SDEBUG("decoded %u frames", frames);
@@ -375,7 +375,7 @@ static void pcm_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	bigendian   = (endianness == '0');
 	limit       = false;
 
-	LOG_INFO("pcm size: %u rate: %u chan: %u bigendian: %u", sample_size, sample_rate, channels, bigendian);
+	LOG_SQ_INFO("pcm size: %u rate: %u chan: %u bigendian: %u", sample_size, sample_rate, channels, bigendian);
 	buf_adjust(streambuf, sample_size * channels);
 }
 
@@ -396,7 +396,7 @@ struct codec *register_pcm(void) {
 			pcm_decode,  // decode
 		};
 
-		LOG_INFO("using pcm to decode wav,aif,pcm");
+		LOG_SQ_INFO("using pcm to decode wav,aif,pcm");
 		return &ret;
 	}
 	else
@@ -411,7 +411,7 @@ struct codec *register_pcm(void) {
 			pcm_decode,  // decode
 		};
 
-		LOG_INFO("using pcm to decode aif,pcm");
+		LOG_SQ_INFO("using pcm to decode aif,pcm");
 		return &ret;
 	}
 

@@ -74,13 +74,13 @@ void resample_samples(struct processstate *process) {
 	soxr_error_t error =
 		SOXR(r, process, r->resampler, process->inbuf, process->in_frames, &idone, process->outbuf, process->max_out_frames, &odone);
 	if (error) {
-		LOG_INFO("soxr_process error: %s", soxr_strerror(error));
+		LOG_SQ_INFO("soxr_process error: %s", soxr_strerror(error));
 		return;
 	}
 	
 	if (idone != process->in_frames) {
 		// should not get here if buffers are big enough...
-		LOG_ERROR("should not get here - partial sox process: %u of %u processed %u of %u out",
+		LOG_SQ_ERROR("should not get here - partial sox process: %u of %u processed %u of %u out",
 				  (unsigned)idone, process->in_frames, (unsigned)odone, process->max_out_frames);
 	}
 	
@@ -101,7 +101,7 @@ bool resample_drain(struct processstate *process) {
 		
 	soxr_error_t error = SOXR(r, process, r->resampler, NULL, 0, NULL, process->outbuf, process->max_out_frames, &odone);
 	if (error) {
-		LOG_INFO("soxr_process error: %s", soxr_strerror(error));
+		LOG_SQ_INFO("soxr_process error: %s", soxr_strerror(error));
 		return true;
 	}
 	
@@ -110,13 +110,13 @@ bool resample_drain(struct processstate *process) {
 	
 	clip_cnt = *(SOXR(r, num_clips, r->resampler));
 	if (clip_cnt - r->old_clips) {
-		LOG_DEBUG("resampling clips: %u", (unsigned)(clip_cnt - r->old_clips));
+		LOG_SQ_DEBUG("resampling clips: %u", (unsigned)(clip_cnt - r->old_clips));
 		r->old_clips = clip_cnt;
 	}
 	
 	if (odone == 0) {
 
-		LOG_INFO("resample track complete - total track clips: %u", r->old_clips);
+		LOG_SQ_INFO("resample track complete - total track clips: %u", r->old_clips);
 
 		SOXR(r, delete, r->resampler);
 		r->resampler = NULL;
@@ -186,7 +186,7 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 		soxr_runtime_spec_t r_spec;
 #endif
 
-		LOG_INFO("resampling from %u -> %u", raw_sample_rate, outrate);
+		LOG_SQ_INFO("resampling from %u -> %u", raw_sample_rate, outrate);
 
 		io_spec = SOXR(r, io_spec, SOXR_INT32_I, SOXR_INT32_I);
 		io_spec.scale = r->scale;
@@ -209,7 +209,7 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 		r_spec = SOXR(r, runtime_spec, 0); // make use of libsoxr OpenMP support allowing parallel execution if multiple cores
 #endif		   
 
-		LOG_DEBUG("resampling with soxr_quality_spec_t[precision: %03.1f, passband_end: %03.6f, stopband_begin: %03.6f, "
+		LOG_SQ_DEBUG("resampling with soxr_quality_spec_t[precision: %03.1f, passband_end: %03.6f, stopband_begin: %03.6f, "
 				  "phase_response: %03.1f, flags: 0x%02x], soxr_io_spec_t[scale: %03.2f]", q_spec.precision,
 				  q_spec.passband_end, q_spec.stopband_begin, q_spec.phase_response, q_spec.flags, io_spec.scale);
 
@@ -220,7 +220,7 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 #endif
 
 		if (error) {
-			LOG_INFO("soxr_create error: %s", soxr_strerror(error));
+			LOG_SQ_INFO("soxr_create error: %s", soxr_strerror(error));
 			return false;
 		}
 
@@ -229,7 +229,7 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 
 	} else {
 
-		LOG_INFO("disable resampling - rates match");
+		LOG_SQ_INFO("disable resampling - rates match");
 		return false;
 	}
 }
@@ -247,7 +247,7 @@ static bool load_soxr(void) {
 	char *err;
 
 	if (!handle) {
-		LOG_INFO("dlerror: %s", dlerror());
+		LOG_SQ_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 
@@ -262,11 +262,11 @@ static bool load_soxr(void) {
 #endif
 
 	if ((err = dlerror()) != NULL) {
-		LOG_INFO("dlerror: %s", err);		
+		LOG_SQ_INFO("dlerror: %s", err);		
 		return false;
 	}
 
-	LOG_INFO("loaded "LIBSOXR);
+	LOG_SQ_INFO("loaded "LIBSOXR);
 #endif
 
 	return true;
@@ -279,7 +279,7 @@ bool resample_init(char *opt) {
 
 	r = malloc(sizeof(struct soxr));
 	if (!r) {
-		LOG_WARN("resampling disabled");
+		LOG_SQ_WARN("resampling disabled");
 		return false;
 	}
 
@@ -289,7 +289,7 @@ bool resample_init(char *opt) {
 	r->exception = false;
 
 	if (!load_soxr()) {
-		LOG_WARN("resampling disabled");
+		LOG_SQ_WARN("resampling disabled");
 		return false;
 	}
 
@@ -357,7 +357,7 @@ bool resample_init(char *opt) {
 		r->q_phase_response = atof(phase_response);
 	}
 
-	LOG_INFO("resampling %s recipe: 0x%02x, flags: 0x%02x, scale: %03.2f, precision: %03.1f, passband_end: %03.5f, stopband_begin: %03.5f, phase_response: %03.1f",
+	LOG_SQ_INFO("resampling %s recipe: 0x%02x, flags: 0x%02x, scale: %03.2f, precision: %03.1f, passband_end: %03.5f, stopband_begin: %03.5f, phase_response: %03.1f",
 			r->max_rate ? "async" : "sync",
 			r->q_recipe, r->q_flags, r->scale, r->q_precision, r->q_passband_end, r->q_stopband_begin, r->q_phase_response);
 

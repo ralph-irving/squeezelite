@@ -108,7 +108,7 @@ static unsigned _check_id3_tag(size_t bytes) {
 		// size is encoded as syncsafe integer, add 10 if footer present
 		if (*(ptr+6) < 0x80 && *(ptr+7) < 0x80 && *(ptr+8) < 0x80 && *(ptr+9) < 0x80) {
 			size = 10 + (*(ptr+6) << 21) + (*(ptr+7) << 14) + (*(ptr+8) << 7) + *(ptr+9) + ((*(ptr+5) & 0x10) ? 10 : 0);
-			LOG_DEBUG("id3.2 tag len: %u", size);
+			LOG_SQ_DEBUG("id3.2 tag len: %u", size);
 		}
 	}
 
@@ -157,7 +157,7 @@ static void _check_lame_header(size_t bytes) {
 		m->samples = frame_count * 1152 - enc_delay - enc_padding;
 		m->padding = enc_padding;
 		
-		LOG_INFO("gapless: skip: %u samples: " FMT_u64 " delay: %u padding: %u", m->skip, m->samples, enc_delay, enc_padding);
+		LOG_SQ_INFO("gapless: skip: %u samples: " FMT_u64 " delay: %u padding: %u", m->skip, m->samples, enc_delay, enc_padding);
 	}
 }
 
@@ -175,7 +175,7 @@ static decode_state mad_decode(void) {
 		}
 		if (m->consume) {
 			u32_t consume = min(m->consume, bytes);
-			LOG_DEBUG("consume: %u of %u", consume, m->consume);
+			LOG_SQ_DEBUG("consume: %u of %u", consume, m->consume);
 			_buf_inc_readp(streambuf, consume);
 			m->consume -= consume;
 			UNLOCK_S;
@@ -201,7 +201,7 @@ static decode_state mad_decode(void) {
 
 	if (stream.state <= DISCONNECT && _buf_used(streambuf) == 0) {
 		eos = true;
-		LOG_DEBUG("end of stream");
+		LOG_SQ_DEBUG("end of stream");
 		memset(m->readbuf + m->readbuf_len, 0, MAD_BUFFER_GUARD);
 		m->readbuf_len += MAD_BUFFER_GUARD;
 	}
@@ -223,12 +223,12 @@ static decode_state mad_decode(void) {
 			} else if (eos && (m->stream.error == MAD_ERROR_BUFLEN || m->stream.error == MAD_ERROR_LOSTSYNC)) {
 				ret = DECODE_COMPLETE;
 			} else if (!MAD_RECOVERABLE(m->stream.error)) {
-				LOG_INFO("mad_frame_decode error: %s - stopping decoder", MAD(m, stream_errorstr, &m->stream));
+				LOG_SQ_INFO("mad_frame_decode error: %s - stopping decoder", MAD(m, stream_errorstr, &m->stream));
 				ret = DECODE_COMPLETE;
 			} else {
 				if (m->stream.error != m->last_error) {
 					// suppress repeat error messages
-					LOG_DEBUG("mad_frame_decode error: %s", MAD(m, stream_errorstr, &m->stream));
+					LOG_SQ_DEBUG("mad_frame_decode error: %s", MAD(m, stream_errorstr, &m->stream));
 				}
 				ret = DECODE_RUNNING;
 			}
@@ -240,7 +240,7 @@ static decode_state mad_decode(void) {
 
 		if (decode.new_stream) {
 			LOCK_O;
-			LOG_INFO("setting track_start");
+			LOG_SQ_INFO("setting track_start");
 			output.next_sample_rate = decode_newstream(m->synth.pcm.samplerate, output.supported_rates);
 			IF_DSD(	output.next_dop = false; )
 			output.track_start = outputbuf->writep;
@@ -259,7 +259,7 @@ static decode_state mad_decode(void) {
 		);
 		
 		if (m->synth.pcm.length > max_frames) {
-			LOG_WARN("too many samples - dropping samples");
+			LOG_SQ_WARN("too many samples - dropping samples");
 			m->synth.pcm.length = max_frames;
 		}
 		
@@ -269,7 +269,7 @@ static decode_state mad_decode(void) {
 
 		if (m->skip) {
 			u32_t skip = min(m->skip, frames);
-			LOG_DEBUG("gapless: skipping %u frames at start", skip);
+			LOG_SQ_DEBUG("gapless: skipping %u frames at start", skip);
 			frames -= skip;
 			m->skip -= skip;
 			iptrl += skip;
@@ -278,14 +278,14 @@ static decode_state mad_decode(void) {
 
 		if (m->samples) {
 			if (m->samples < frames) {
-				LOG_DEBUG("gapless: trimming %u frames from end", frames - m->samples);
+				LOG_SQ_DEBUG("gapless: trimming %u frames from end", frames - m->samples);
 				frames = (size_t)m->samples;
 			}
 			m->samples -= frames;
 			if (m->samples > 0 && eos && !(m->stream.next_frame[0] == 0xff && (m->stream.next_frame[1] & 0xf0) == 0xf0)) {
 				// this is the last frame to be decoded, but more samples expected so we must have skipped, remove padding
 				// note this only works if the padding is less than one frame of 1152 bytes otherswise some gap will remain
-				LOG_DEBUG("gapless: early end - trimming padding from end");
+				LOG_SQ_DEBUG("gapless: early end - trimming padding from end");
 				if (frames >= m->padding) {
 					frames -= m->padding;
 				} else {
@@ -362,7 +362,7 @@ static bool load_mad() {
 	char *err;
 
 	if (!handle) {
-		LOG_INFO("dlerror: %s", dlerror());
+		LOG_SQ_INFO("dlerror: %s", dlerror());
 		return false;
 	}
 	
@@ -377,11 +377,11 @@ static bool load_mad() {
 	m->mad_stream_errorstr = dlsym(handle, "mad_stream_errorstr");
 
 	if ((err = dlerror()) != NULL) {
-		LOG_INFO("dlerror: %s", err);		
+		LOG_SQ_INFO("dlerror: %s", err);		
 		return false;
 	}
 
-	LOG_INFO("loaded "LIBMAD);
+	LOG_SQ_INFO("loaded "LIBMAD);
 #endif
 
 	return true;
@@ -410,6 +410,6 @@ struct codec *register_mad(void) {
 		return NULL;
 	}
 
-	LOG_INFO("using mad to decode mp3");
+	LOG_SQ_INFO("using mad to decode mp3");
 	return &ret;
 }
