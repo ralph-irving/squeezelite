@@ -2,7 +2,7 @@
  *  Squeezelite - lightweight headless squeezebox emulator
  *
  *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
- *      Ralph Irving 2015-2016, ralph_irving@hotmail.com
+ *      Ralph Irving 2015-2017, ralph_irving@hotmail.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
-#define VERSION "v1.8.6-825"
+#define VERSION "v1.8.6-827"
 
 #if !defined(MODEL_NAME)
 #define MODEL_NAME SqueezeLite
