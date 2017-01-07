@@ -135,3 +135,54 @@ Features
 - support for basic IR input using LIRC on Linux
 - support for volume adjustment or unmuting of alsa mixer
 - support for inverting output polarity via LMS setting (requires recent 7.9 server)
+
+Version 1.8.1 1/22/16
+==================
+
+Features
+- add alsa control mixer device patch from Daphile project
+
+Version 1.8.2 2/16/16
+==================
+
+Features
+- add rpi GPIO pin support (-G) for amp power relay
+- add script launch on LMS power commands (-S)
+
+Version 1.8.3 2/20/16
+==================
+
+Features
+- support to check header on wave and prefer wave over aiff (-W) patches from Marco Curti.
+  Requires the C-3PO LMS Plugin https://github .com/marcoc1712/C-3PO
+
+Version 1.8.4 3/21/16
+==================
+
+Features
+- support ffmpeg 3.0 compile.
+- refactor GPIO (-G) subsystem to use wiringPi library
+- add (-Z) option to override the maximum sample rate reported in slimprotocol HELO 
+
+Version 1.8.5 8/27/16
+==================
+
+Features
+- Fix slimprotocol STMr (unpause) and STMs (track start) milliseconds played status reporting
+- Fix ffmpeg 3+ compiler warnings based on library version
+- Fix gpio (-G) and (-S) options when used with close output device (-C)
+- Fix libsoxr incorrectly setting the audio length header field for long streams with high sample rates.
+- Fix handover to Squeezenetwork failing as 0.0.0.1 not properly identified as reference to mysqueezebox.com
+
+Version 1.8.6 12/05/16
+==================
+
+Features
+- add the (-X) option for linear volume control using the code already present as the fallback
+- add the (-O) option to set the mixer device independently of the pcm device
+- add Daphile codec priority patch to report codecs to LMS in order listed with (-c) to allow codec priority refinement
+- include the default server as set in the command line arguments in the discovery and allow recovery after an initial fail to lookup the address
+- support (-S) script on power command for all platforms, not just rpi
+- slimprotocol now remembers the previous server and if the new server handoff fails, revert to the previous server
+- fix crossfade broken after squelching a compiler warning
+- fix setting ALSA hardware volume to not continuously open and close the mixer
