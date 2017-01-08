@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Additions (c) Paul Hermann, 2015-2016 under the same license terms
+ * Additions (c) Paul Hermann, 2015-2017 under the same license terms
  *   -Control of Raspberry pi GPIO for amplifier power
  *   -Launch script on power status change from LMS
  */
@@ -26,7 +26,7 @@
 
 #include <signal.h>
 
-#define TITLE "Squeezelite " VERSION ", Copyright 2012-2015 Adrian Smith, 2015-2016 Ralph Irving."
+#define TITLE "Squeezelite " VERSION ", Copyright 2012-2015 Adrian Smith, 2015-2017 Ralph Irving."
 
 #define CODECS_BASE "flac,pcm,mp3,ogg,aac"
 #if FFMPEG
@@ -211,7 +211,7 @@ static void license(void) {
 		   "Option to allow server side upsampling for PCM streams (-W) from\n"
 		   "squeezelite-R2 (c) Marco Curti 2015, marcoc1712@gmail.com.\n\n"
 #if GPIO
-		   "Additions (c) Paul Hermann, 2015, 2016 under the same license terms\n"
+		   "Additions (c) Paul Hermann, 2015, 2017 under the same license terms\n"
 		   "  -Control of Raspberry pi GPIO for amplifier power\n"
 			"  -Launch a script on power status change\n\n"
 #endif
