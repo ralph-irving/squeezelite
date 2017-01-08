@@ -2,8 +2,7 @@
 #
 PKGNAME=SUNWsqueezelite
 startdir=$HOME/source/squeezelite
-SVNVER=`cd $startdir; (svnversion | gsed -e 's/[MS]//g')`
-VERSION=1.8.4.${SVNVER}
+VERSION=`grep VERSION $startdir/squeezelite.h  | awk -F\" '{print $2}' | gsed -e 's/v//g' | gsed -e 's/-/\./g'`
 SAVEDIR=`pwd`
 HOSTNAME=`uname -n`
 

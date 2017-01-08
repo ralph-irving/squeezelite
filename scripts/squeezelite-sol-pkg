@@ -2,8 +2,7 @@
 #
 PKGNAME=SUNWsqueezelite
 startdir=$HOME/source/squeezelite
-SVNVER=`cd $startdir; (svnversion | gsed -e 's/[MS]//g')`
-VERSION=1.8.4.${SVNVER}
+VERSION=`grep VERSION $startdir/squeezelite.h  | awk -F\" '{print $2}' | gsed -e 's/v//g' | gsed -e 's/-/\./g'`
 SAVEDIR=`pwd`
 HOSTNAME=`uname -n`
 
@@ -41,18 +40,9 @@ setrpath -f pkg/squeezelite/lib/libvorbis.so.0 "/opt/squeezelite/lib"
 cp -p lib/libvorbisfile.so.3 pkg/squeezelite/lib
 setrpath -f pkg/squeezelite/lib/libvorbisfile.so.3 "/opt/squeezelite/lib"
 
-cp -p lib/libavcodec.so.55 pkg/squeezelite/lib
-setrpath -f pkg/squeezelite/lib/libavcodec.so.55 "/opt/squeezelite/lib"
-
-cp -p lib/libavformat.so.55 pkg/squeezelite/lib
-setrpath -f pkg/squeezelite/lib/libavformat.so.55 "/opt/squeezelite/lib"
-
-cp -p lib/libavutil.so.52 pkg/squeezelite/lib
-setrpath -f pkg/squeezelite/lib/libavutil.so.52 "/opt/squeezelite/lib"
-
 cp -p squeezelite-sun pkg/squeezelite/bin/squeezelite
-cp -p $startdir/../squeezelite-1.3/squeezelite-sun pkg/squeezelite/bin/squeezelite-1.3
 cp -p scripts/squeezelite.sh pkg/squeezelite/bin
+
 gsed -i 's:^export LD_LIBRARY_PATH=\$INSTALL_DIR\/lib:#export LD_LIBRARY_PATH=\$INSTALL_DIR\/lib:' pkg/squeezelite/bin/squeezelite.sh
 
 cd $startdir/pkg

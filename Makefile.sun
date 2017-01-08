@@ -1,7 +1,7 @@
 # Solaris SPARC portaudio v18 api
 CC = gcc
 CPP = cpp
-CFLAGS  ?= -fPIC -Wall -O3 -DRESAMPLE -DFFMPEG -I`pwd`/include -s
+CFLAGS  ?= -fPIC -Wall -O3 -DRESAMPLE -I`pwd`/include -s
 LDFLAGS ?= -lpthread -lsocket -lnsl -ldl -lrt -lm -L`pwd`/lib -lportaudio -R/opt/squeezelite/lib -s
 EXECUTABLE ?= squeezelite-sun
 
