@@ -1,6 +1,7 @@
 Squeezelite - lightweight headless squeezebox emulator
 
 (c) Adrian Smith 2012-2015, triode1@btinternet.com
+    Ralph Irving 2015-2017, ralph_irving@hotmail.com
 
 Released under GPLv3 license:
 
