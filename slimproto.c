@@ -678,8 +678,8 @@ static void slimproto_run() {
 			UNLOCK_S;
 
 			LOCK_D;
-			if ((status.stream_state == STREAMING_HTTP || status.stream_state == STREAMING_FILE) && !sentSTMl
-				&& decode.state == DECODE_READY) {
+			if ((status.stream_state == STREAMING_HTTP || status.stream_state == STREAMING_FILE
+				|| stream.disconnect == DISCONNECT_OK) && !sentSTMl && decode.state == DECODE_READY) {
 				if (autostart == 0) {
 					decode.state = DECODE_RUNNING;
 					_sendSTMl = true;
