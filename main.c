@@ -203,18 +203,23 @@ static void license(void) {
 		   "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n"
 		   "GNU General Public License for more details.\n\n"
 		   "You should have received a copy of the GNU General Public License\n"
-		   "along with this program.  If not, see <http://www.gnu.org/licenses/>.\n\n"
+		   "along with this program.  If not, see <http://www.gnu.org/licenses/>.\n"
 #if DSD		   
-		   "Contains dsd2pcm library Copyright 2009, 2011 Sebastian Gesemann which\n"
-		   "is subject to its own license.\n\n"
+		   "\nContains dsd2pcm library Copyright 2009, 2011 Sebastian Gesemann which\n"
+		   "is subject to its own license.\n"
 #endif
-		   "Option to allow server side upsampling for PCM streams (-W) from\n"
-		   "squeezelite-R2 (c) Marco Curti 2015, marcoc1712@gmail.com.\n\n"
+		   "\nOption to allow server side upsampling for PCM streams (-W) from\n"
+		   "squeezelite-R2 (c) Marco Curti 2015, marcoc1712@gmail.com.\n"
 #if GPIO
-		   "Additions (c) Paul Hermann, 2015, 2017 under the same license terms\n"
-		   "  -Control of Raspberry pi GPIO for amplifier power\n"
-			"  -Launch a script on power status change\n\n"
+		   "\nAdditions (c) Paul Hermann, 2015, 2017 under the same license terms\n"
+		   "- Launch a script on power status change\n"
+		   "- Control of Raspberry pi GPIO for amplifier power\n"
 #endif
+#if RPI
+		   "\nContains wiringpi GPIO Interface library Copyright (c) 2012-2017\n"
+		   "Gordon Henderson, which is subject to its own license.\n"
+#endif
+		   "\n"
 		   );
 }
 
