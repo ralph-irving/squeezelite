@@ -50,7 +50,7 @@ extern struct codec *codec;
 
 // transfer all processed frames to the output buf
 static void _write_samples(void) {
-	size_t frames = process.out_frames;
+	frames_t frames = process.out_frames;
 	u32_t *iptr   = (u32_t *)process.outbuf;
 	unsigned cnt  = 10;
 
