@@ -827,6 +827,10 @@ in_addr_t discover_server(char *default_server) {
 			recvfrom(disc_sock, readbuf, 10, 0, (struct sockaddr *)&s, &slen);
 			LOG_INFO("got response from: %s:%d", inet_ntoa(s.sin_addr), ntohs(s.sin_port));
 		}
+		
+		if(default_server) {
+			server_addr(default_server, &s.sin_addr.s_addr, &port);
+		}
 
 		if (default_server) {
 			server_addr(default_server, &s.sin_addr.s_addr, &port);
