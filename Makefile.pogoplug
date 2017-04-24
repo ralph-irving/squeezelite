@@ -1,0 +1,9 @@
+# PogoPlug Arch Linux build
+# Prerequisite: pacman -S gcc make faad2 ffmpeg flac libvorbis libmad mpg123
+CFLAGS  = -s -Wall -fPIC -O3 -march=armv5te $(OPTS)
+LDFLAGS = -s -lasound -lpthread -ldl -lrt -lm
+
+EXECUTABLE ?= squeezelite-pogoplug
+
+include Makefile
+
