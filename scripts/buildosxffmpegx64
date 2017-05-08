@@ -1,21 +1,59 @@
 #!/bin/bash
-sudo port deactivate ffmpeg
-
-export CFLAGS="-s -O3 -isysroot /Developer/SDKs/MacOSX10.6.sdk -arch x86_64"
+export CFLAGS="-s -O3 -isysroot /Developer/SDKs/MacOSX10.7.sdk -arch x86_64"
 export CPPFLAGS="${CFLAGS}"
 export CXXFLAGS="${CFLAGS}"
-export LDFLAGS="-Wl,-syslibroot,/Developer/SDKs/MacOSX10.6.sdk -arch x86_64 -mmacosx-version-min=10.6"
-
-make clean
+export LDFLAGS="-Wl,-syslibroot,/Developer/SDKs/MacOSX10.7.sdk -arch x86_64 -mmacosx-version-min=10.7"
 
 ./configure \
     --prefix=/opt/squeezelite \
     --disable-debug \
+    --disable-avdevice \
+    --disable-avfilter \
+    --disable-swscale \
+    --disable-swresample \
+    --disable-ffmpeg \
+    --disable-ffplay \
+    --disable-ffserver \
+    --disable-ffprobe \
+    --disable-network \
+    --disable-muxers \
+    --disable-demuxers \
+    --disable-hwaccels \
+    --enable-rdft \
+    --enable-demuxer=asf \
+    --enable-demuxer=mov \
+    --disable-bsfs \
+    --disable-filters \
+    --disable-parsers \
+    --disable-protocols \
+    --disable-indevs \
+    --disable-outdevs \
+    --disable-encoders \
+    --disable-decoders \
+    --enable-decoder=alac \
+    --enable-decoder=mjpeg \
+    --enable-decoder=mjpegb \
+    --enable-decoder=wmalossless \
+    --enable-decoder=wmapro \
+    --enable-decoder=wmav1 \
+    --enable-decoder=wmav2 \
+    --enable-decoder=wmavoice \
+    --enable-runtime-cpudetect \
+    --disable-shared \
     --enable-static \
-    --disable-avresample \
+    --disable-iconv \
+    --disable-postproc \
+    --disable-sdl \
+    --disable-doc \
+    --disable-podpages \
+    --enable-gpl \
+    --enable-version3 \
+    --disable-x11grab \
+    --disable-xlib \
+    --disable-zlib \
+    --disable-bzlib \
     --disable-dxva2 \
     --disable-fontconfig \
-    --enable-gpl \
     --disable-libass \
     --disable-libbluray \
     --disable-libfreetype \
@@ -40,30 +78,17 @@ make clean
     --disable-libxcb-shm \
     --disable-libxcb-xfixes \
     --disable-libxcb-shape \
-    --disable-sdl \
-    --disable-doc \
-    --enable-pic \
-    --disable-iconv \
-    --disable-postproc \
-    --enable-runtime-cpudetect \
-    --enable-shared \
-    --enable-swresample \
     --disable-vdpau \
-    --enable-version3 \
-    --disable-x11grab \
-    --disable-xlib \
-    --disable-zlib \
-    --disable-bzlib \
     --extra-ldflags=-Wl,-rpath,/opt/squeezelite/lib
 
-make || return 1
-
-sudo port activate ffmpeg @1.0.1_1+gpl2+nonfree
-
-if [ -d pkg ]; then
-	rm -rf pkg
+if [ ! -d pkg ]; then
+        mkdir pkg
+else
+        rm -rf pkg
+        mkdir pkg
 fi
 
-make install-headers DESTDIR=`pwd`/pkg
-make install-libs DESTDIR=`pwd`/pkg
+make || return 1
+make DESTDIR=`pwd`/pkg install-headers
+make DESTDIR=`pwd`/pkg install-libs
 
