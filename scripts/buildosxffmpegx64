@@ -26,6 +26,9 @@ export LDFLAGS="-Wl,-syslibroot,/Developer/SDKs/MacOSX10.7.sdk -arch x86_64 -mma
     --disable-filters \
     --disable-parsers \
     --disable-protocols \
+    --enable-protocol=file \
+    --enable-protocol=pipe \
+    --enable-protocol=cache \
     --disable-indevs \
     --disable-outdevs \
     --disable-encoders \
