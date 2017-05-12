@@ -167,7 +167,7 @@ static int _parse_packlen(void) {
 }
 
 static int _read_data(void *opaque, u8_t *buffer, int buf_size) {
-	size_t bytes;
+	unsigned int bytes;
 
 	LOCK_S;
 
@@ -311,7 +311,7 @@ static decode_state ff_decode(void) {
 		}
 
 		if (audio_stream == -1) {
-			int i;
+			unsigned int i;
 			for (i = 0; i < ff->formatC->nb_streams; ++i) {
 				if (ff->formatC->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
 					audio_stream = i;
