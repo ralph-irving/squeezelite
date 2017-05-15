@@ -110,7 +110,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				AdditionalIncludeDirectories="include"
-				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;RESAMPLE;FFMPEG;DSD"
+				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;RESAMPLE;FFMPEG;DSD;FLAC__NO_DLL;LINKALL"
 				RuntimeLibrary="2"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
@@ -128,11 +128,12 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="ws2_32.lib lib\portaudio.lib"
-				OutputFile="$(OutDir)\$(ProjectName)-win.exe"
+				AdditionalOptions="/NODEFAULTLIB:LIBCMT"
+				AdditionalDependencies="ws2_32.lib lib\portaudio.lib lib\libvorbisfile.lib lib\libvorbis.lib lib\libogg.lib lib\libmad.lib lib\libFLAC.lib lib\libfaad.lib lib\libmpg123.lib lib\libsoxr.lib lib\libavformat.a lib\libavcodec.a lib\libavutil.a"
+				OutputFile="$(OutDir)\$(ProjectName).exe"
 				LinkIncremental="1"
 				ModuleDefinitionFile=""
-				GenerateDebugInformation="true"
+				GenerateDebugInformation="false"
 				SubSystem="1"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
