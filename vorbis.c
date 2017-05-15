@@ -77,7 +77,9 @@ extern struct processstate process;
 #if LINKALL
 #define OV(h, fn, ...) (ov_ ## fn)(__VA_ARGS__)
 #define TREMOR(h)      0
+#if !WIN
 extern int ov_read_tremor(); // needed to enable compilation, not linked
+#endif
 #else
 #define OV(h, fn, ...) (h)->ov_##fn(__VA_ARGS__)
 #define TREMOR(h)      (h)->ov_read_tremor
@@ -187,8 +189,10 @@ static decode_state vorbis_decode(void) {
 #else
 		n = OV(v, read, v->vf, (char *)write_buf, bytes, 1, 2, 1, &s);
 #endif
+#if !WIN
 	} else {
 		n = OV(v, read_tremor, v->vf, (char *)write_buf, bytes, &s);
+#endif
 	}
 
 	if (n > 0) {
