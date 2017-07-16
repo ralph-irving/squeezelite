@@ -148,10 +148,9 @@ static void usage(const char *argv0) {
 		   " ALSA"
 #endif
 #if PORTAUDIO
-#if PA18API
-		   " PORTAUDIO18"
-#else
 		   " PORTAUDIO"
+#if PA18API
+		   "18"
 #endif
 #endif
 #if EVENTFD
