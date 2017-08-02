@@ -221,6 +221,11 @@ static void license(void) {
 		   "\nContains wiringpi GPIO Interface library Copyright (c) 2012-2017\n"
 		   "Gordon Henderson, which is subject to its own license.\n"
 #endif
+#if FFMPEG
+		   "\nThis software uses libraries from the FFmpeg project under\n"
+		   "the LGPLv2.1 and its source can be downloaded from\n"
+		   "<https://sourceforge.net/projects/lmsclients/files/source/>\n"
+#endif
 		   "\n"
 		   );
 }
