@@ -618,6 +618,17 @@ static void *output_thread(void *arg) {
 		}
 
 		if (!pcmp || alsa.rate != output.current_sample_rate) {
+#if GPIO
+			// Wake up amp
+			if (gpio_active) { 
+				ampstate = 1;
+				relay(1);
+			}
+			if (power_script != NULL) {
+				ampstate = 1;
+				relay_script(1);
+			}
+#endif
 			LOG_INFO("open output device: %s", output.device);
 			LOCK;
 
@@ -634,17 +645,6 @@ static void *output_thread(void *arg) {
 				continue;
 			}
 			output.error_opening = false;
-#if GPIO
-			// Wake up amp
-			if (gpio_active){ 
-				ampstate = 1;
-	         relay(1);
-			}
-			if (power_script != NULL){
-				ampstate = 1;
-	         relay_script(1);
-			}
-#endif
 			start = true;
 			UNLOCK;
 		}
