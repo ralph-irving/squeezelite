@@ -106,12 +106,13 @@ static void _check_header(void) {
 			if (format == WAVE && !memcmp(ptr, "data", 4)) {
 				ptr += 8;
 				_buf_inc_readp(streambuf, ptr - streambuf->readp);
-				
-				// Reading from an upsampled stream, length could be wrong.
-				// Only use length in header for files.
-				if (stream.state == STREAMING_FILE) {
-					audio_left = len;
-					LOG_INFO("audio size: %u", audio_left);
+				audio_left = len;
+
+				if ((audio_left == 0xFFFFFFFF) || (audio_left == 0x7FFFEFFC)) {
+					LOG_INFO("wav audio size unknown: %u", audio_left);
+					limit = false;
+				} else {
+					LOG_INFO("wav audio size: %u", audio_left);
 					limit = true;
 				}
 				return;
@@ -127,7 +128,7 @@ static void _check_header(void) {
 				// Only use length in header for files.
 				if (stream.state == STREAMING_FILE) {
 					audio_left = len - 8 - offset;
-					LOG_INFO("audio size: %u", audio_left);
+					LOG_INFO("aif audio size: %u", audio_left);
 					limit = true;
 				}
 				return;
