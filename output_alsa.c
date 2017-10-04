@@ -705,6 +705,7 @@ static void *output_thread(void *arg) {
 					start = false;
 				}
 			} else {
+				usleep(10000);
 				if ((err = snd_pcm_wait(pcmp, 1000)) <= 0) {
 					if ( err == 0 ) {
 						LOG_INFO("pcm wait timeout");
@@ -712,9 +713,7 @@ static void *output_thread(void *arg) {
 					if ((err = snd_pcm_recover(pcmp, err, 1)) < 0) {
 						LOG_INFO("pcm wait error: %s", snd_strerror(err));
 					}
-				} else {
 					start = true;
-					usleep(10000);
 				}
 			}
 			continue;
