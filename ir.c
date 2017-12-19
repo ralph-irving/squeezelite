@@ -21,11 +21,19 @@
 
 // ir thread - linux only
 
-#include "squeezelite.h"
-
 #if IR
 
 #include <lirc/lirc_client.h>
+
+/* Avoid name conflicts from syslog.h inclusion in lirc client header */
+#ifdef LOG_DEBUG
+#undef LOG_DEBUG
+#endif
+#ifdef LOG_INFO
+#undef LOG_INFO
+#endif
+
+#include "squeezelite.h"
 
 #define LIRC_CLIENT_ID "squeezelite"
 
