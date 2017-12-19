@@ -152,7 +152,7 @@ frames_t _output_frames(frames_t avail) {
 				IF_DSD(
 				   output.dop = output.next_dop;
 				)
-				if (!output.fade == FADE_ACTIVE || !output.fade_mode == FADE_CROSSFADE) {
+				if (output.fade == FADE_INACTIVE || output.fade_mode != FADE_CROSSFADE) {
 					output.current_replay_gain = output.next_replay_gain;
 				}
 				output.track_start = NULL;
