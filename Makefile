@@ -1,6 +1,6 @@
 # Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
-CFLAGS  ?= -Wall -fPIC -O2 $(OPTS)
-LDFLAGS ?= -lasound -lpthread -lm -lrt
+CFLAGS  ?= -Wall -fPIC -O2
+LDADD   ?= -lasound -lpthread -lm -lrt
 EXECUTABLE ?= squeezelite
 
 # passing one or more of these in $(OPTS) enables optional feature inclusion
@@ -36,41 +36,41 @@ DEPS             = squeezelite.h slimproto.h
 UNAME            = $(shell uname -s)
 
 # add optional sources
-ifneq (,$(findstring $(OPT_DSD), $(CFLAGS)))
+ifneq (,$(findstring $(OPT_DSD), $(OPTS)))
 	SOURCES += $(SOURCES_DSD)
 endif
-ifneq (,$(findstring $(OPT_FF), $(CFLAGS)))
+ifneq (,$(findstring $(OPT_FF), $(OPTS)))
 	SOURCES += $(SOURCES_FF)
 endif
-ifneq (,$(findstring $(OPT_RESAMPLE), $(CFLAGS)))
+ifneq (,$(findstring $(OPT_RESAMPLE), $(OPTS)))
 	SOURCES += $(SOURCES_RESAMPLE)
 endif
-ifneq (,$(findstring $(OPT_VIS), $(CFLAGS)))
+ifneq (,$(findstring $(OPT_VIS), $(OPTS)))
 	SOURCES += $(SOURCES_VIS)
 endif
-ifneq (,$(findstring $(OPT_IR), $(CFLAGS)))
+ifneq (,$(findstring $(OPT_IR), $(OPTS)))
 	SOURCES += $(SOURCES_IR)
 endif
-ifneq (,$(findstring $(OPT_GPIO), $(CFLAGS)))
+ifneq (,$(findstring $(OPT_GPIO), $(OPTS)))
 	SOURCES += $(SOURCES_GPIO)
 endif
 
 # add optional link options
-ifneq (,$(findstring $(OPT_LINKALL), $(CFLAGS)))
-	LDFLAGS += $(LINKALL)
-ifneq (,$(findstring $(OPT_FF), $(CFLAGS)))
-	LDFLAGS += $(LINKALL_FF)
+ifneq (,$(findstring $(OPT_LINKALL), $(OPTS)))
+	LDADD += $(LINKALL)
+ifneq (,$(findstring $(OPT_FF), $(OPTS)))
+	LDADD += $(LINKALL_FF)
 endif
-ifneq (,$(findstring $(OPT_RESAMPLE), $(CFLAGS)))
-	LDFLAGS += $(LINKALL_RESAMPLE)
+ifneq (,$(findstring $(OPT_RESAMPLE), $(OPTS)))
+	LDADD += $(LINKALL_RESAMPLE)
 endif
-ifneq (,$(findstring $(OPT_IR), $(CFLAGS)))
-	LDFLAGS += $(LINKALL_IR)
+ifneq (,$(findstring $(OPT_IR), $(OPTS)))
+	LDADD += $(LINKALL_IR)
 endif
 else
 # if not LINKALL and linux add LINK_LINUX
 ifeq ($(UNAME), Linux)
-	LDFLAGS += $(LINK_LINUX)
+	LDADD += $(LINK_LINUX)
 endif
 endif
 
@@ -79,12 +79,12 @@ OBJECTS = $(SOURCES:.c=.o)
 all: $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
-	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
+	$(CC) $(OBJECTS) $(LDFLAGS) $(LDADD) -o $@
 
 $(OBJECTS): $(DEPS)
 
 .c.o:
-	$(CC) $(CFLAGS) $(CPPFLAGS) $< -c -o $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(OPTS) $< -c -o $@
 
 clean:
 	rm -f $(OBJECTS) $(EXECUTABLE)
