@@ -11,6 +11,7 @@ OPT_RESAMPLE= -DRESAMPLE
 OPT_VIS     = -DVISEXPORT
 OPT_IR      = -DIR
 OPT_GPIO    = -DGPIO
+OPT_RPI     = -DRPI
 
 SOURCES = \
 	main.c slimproto.c buffer.c stream.c utils.c \
@@ -25,6 +26,7 @@ SOURCES_IR       = ir.c
 SOURCES_GPIO     = gpio.c
 
 LINK_LINUX       = -ldl
+LINK_RPI         = -lwiringPi
 
 LINKALL          = -lFLAC -lmad -lvorbisfile -lfaad -lmpg123
 LINKALL_FF       = -lavcodec -lavformat -lavutil
@@ -54,6 +56,13 @@ endif
 ifneq (,$(findstring $(OPT_GPIO), $(OPTS)))
 	SOURCES += $(SOURCES_GPIO)
 endif
+# ensure GPIO is enabled with RPI
+ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
+ifeq (,$(findstring $(SOURCES_GPIO), $(SOURCES)))
+	CFLAGS += $(OPT_GPIO)
+	SOURCES += $(SOURCES_GPIO)
+endif
+endif
 
 # add optional link options
 ifneq (,$(findstring $(OPT_LINKALL), $(OPTS)))
@@ -67,10 +76,16 @@ endif
 ifneq (,$(findstring $(OPT_IR), $(OPTS)))
 	LDADD += $(LINKALL_IR)
 endif
+ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
+	LDADD += $(LINK_RPI)
+endif
 else
 # if not LINKALL and linux add LINK_LINUX
 ifeq ($(UNAME), Linux)
 	LDADD += $(LINK_LINUX)
+endif
+ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
+	LDADD += $(LINK_RPI)
 endif
 endif
 
