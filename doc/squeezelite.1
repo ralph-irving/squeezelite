@@ -1,0 +1,319 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.\" (C) Copyright 2013-4 Chris Boot <bootc@debian.org>
+.\"
+.\" First parameter, NAME, should be all caps
+.\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
+.\" other parameters are allowed: see man(7), man(1)
+.TH SQUEEZELITE 1 "2016-01-30" "Debian Project"
+.\" Please adjust this date whenever revising the manpage.
+.\"
+.\" Some roff macros, for reference:
+.\" .nh        disable hyphenation
+.\" .hy        enable hyphenation
+.\" .ad l      left justify
+.\" .ad b      justify to both left and right margins
+.\" .nf        disable filling
+.\" .fi        enable filling
+.\" .br        insert line break
+.\" .sp <n>    insert n+1 empty lines
+.\" for manpage-specific macros, see man(7)
+.SH NAME
+squeezelite \- Lightweight headless Squeezebox emulator
+.SH SYNOPSIS
+.B squeezelite
+.RI [ options ]
+.SH DESCRIPTION
+.B Squeezelite
+is a small headless Logitech Squeezebox emulator. It is aimed at supporting high
+quality audio including USB DAC based output at multiple sample rates.
+.PP
+The player is controlled using, and media is streamed from, a Logitech Media
+Server instance running somewhere on the local network.
+.SH OPTIONS
+This program supports the following options:
+.TP
+.B \-?
+Show a summary of the available command-line options.
+.TP
+.B \-s <server>[:<port>]
+Connect to the specified Logitech Media Server, otherwise uses automatic
+discovery to find server on the local network. This option should only be needed
+if automatic discovery does not work, or the server is not on the local network
+segment (e.g. behind a router).
+.TP
+.B \-o <output device>
+Specify the audio output device; the default value is
+.IR default .
+Use the
+.B \-l
+option to list available output devices.
+.I -
+can be used to output raw samples to standard output.
+.TP
+.B \-l
+List available audio output devices to stdout and exit. These device names can
+be passed to the
+.B \-o
+option in order to select a particular device or configuration to use for audio
+playback.
+.TP
+.B \-a <params>
+Specify parameters used when opening an audio output device.
+For ALSA, the format
+.B <b>:<p>:<f>:<m>
+is used where
+.B <b>
+is the buffer time in milliseconds (values less than 500) or size in bytes (default
+.IR 40 ms);
+.B <p>
+is the period count (values less than 50) or size in bytes (default
+.IR 4 " periods);"
+.B <f>
+is the sample format (possible values:
+.IR 16 ", " 24 ", " 24_3 " or " 32 );
+.B <m>
+is whether to use mmap (possible values:
+.IR 0 " or " 1 ).
+For PortAudio, the value is simply the target latency in milliseconds. When the
+output is sent to standard output, the value can be
+.IR 16 ", " 24 " or " 32 ,
+which denotes the sample size in bits.
+.TP
+.B \-b <stream>:<output>
+Specify internal stream and output buffer sizes in kilobytes.
+.TP
+.B \-c <codec1>,...
+Restrict codecs to those specified, otherwise load all available codecs. Use
+.B squeezelite -h
+to obtain the list of codecs built into \fBsqueezelite\fR.
+.TP
+.B \-C <timeout>
+Close the output device after
+.B <timeout>
+seconds of the player being idle; the default is to always keep the device open
+as long as the payer is "on".
+.TP
+.B \-d <category>=<level>
+Set logging level. Categories are:
+.IR all ", " slimproto ", " stream ", " decode ", " output " or " ir .
+Levels can be:
+.IR info ", " debug " or " sdebug .
+The option can be repeated to set different log levels for different categories.
+.TP
+.B \-e <codec1>,...
+Explicitly exclude native support of one or more codecs. See also
+.BR \-c ,
+above.
+.TP
+.B \-f <logfile>
+Send logging output to a log file instead of standard output or standard error.
+.TP
+.B \-i [<filename>]
+Enable LIRC remote control support. If the optional
+.B <filename>
+is not provided,
+.I ~/.lircrc
+is used instead.
+.TP
+.B \-m <mac addr>
+Override the player's MAC address. The format must be colon-delimited
+hexadecimal, for example: ab:cd:ef:12:34:56. This is usually automatically
+detected, and should not need to be provided in most circumstances.
+.TP
+.B \-M <modelname>
+Override the player's hardware model name. The default value is
+.IR SqueezeLite .
+.TP
+.B \-n <name>
+Set the player name. This name is used by the Logitech Media Server to refer to
+the player by name. This option is mututally exclusive with
+.BR \-N .
+.TP
+.B \-N <filename>
+Allow the server to set the player's name. The player name is stored in the file
+pointed to by
+.B <filename>
+so that it can persist between restarts. This option is mututally exclusive with
+.BR \-n .
+.TP
+.B \-p <priority>
+Set real time priority of output thread (1-99; default
+.IR 45 ).
+Not applicable when using PortAudio.
+.TP
+.B \-P <filename>
+Write the process ID (PID) number to the given
+.BR <filename> .
+This may be useful when running \fBsqueezelite\fR as a daemon.
+.TP
+.B \-r <rates>[:<delay>]
+Specify sample rates supported by the output device; this is required if the
+output device is switched off when \fBsqueezelite\fR is started. The format is
+either a single maximum sample rate, a range of sample rates in the format
+.IR <min> - <max> ,
+or a comma-separated list of available rates. Delay is an optional time to wait
+when switching sample rates between tracks, in milliseconds.
+.TP
+.B \-u|-R [params]
+Enable upsampling of played audio. The argument is optional; see
+.B RESAMPLING
+(below) for more information. The options
+.BR -u " and " -R
+are synonymous.
+.TP
+.B \-D [delay]
+Output device supports DSD over PCM (DoP). DSD streams will be converted to DoP
+before output. If this option is not supplied, DSD streams will be converted to
+PCM and resampled, so they can be played on a PCM DAC. Delay is an optional time
+to wait when switching between PCM and DoP between tracks, in milliseconds.
+.TP
+.B \-v
+Enable visualiser support. This creates a shared memory segment that contains
+some of the audio being played, so that an external visualiser can read and
+process this to create visualisations.
+.TP
+.B \-L
+List available volume controls for the output device. Only applicable when
+using ALSA output.
+.TP
+.B \-U <control>
+Unmute the given ALSA
+.B <control>
+at daemon startup and set it to full volume. Use software volume adjustment for
+playback. This option is mutually exclusive with the \fB\-V\fR option. Only
+applicable when using ALSA output.
+.TP
+.B \-V <control>
+Use the given ALSA
+.B <control>
+for volume adjustment during playback. This prevents the use of software volume
+control within \fBsqueezelite\fR. This option is mutually exclusive with the
+\fB\-V\fR option. If neither \fB\-U\fR nor \fB\-V\fR options are provided,
+no ALSA controls are adjusted while running \fBsqueezelite\fR and software
+volume control is used instead. Only applicable when using ALSA output.
+.TP
+.B \-z
+Cause \fBsqueezelite\fR to run as a daemon. That is, it detaches itself from the
+terminal and runs in the background.
+.TP
+.B \-t
+Display version and license information.
+.SH RESAMPLING
+Audio can be resampled or upsampled before being sent to the output device. This
+can be enabled simply by passing the \fB\-u\fR option to \fBsqueezelite\fR, but
+further configuration can be given as an argument to the option.
+.PP
+Resampling is performed using the SoX Resampler library; the documentation for
+that library and the SoX \fIrate\fR effect many be helpful when configuring
+upsampling for \fBsqueezelite\fR.
+.PP
+The format of the argument is
+.B <recipe>:<flags>:<attenuation>:<precision>:<passband_end>:<stopband_start>:<phase_response>
+.SS recipe
+This part of the argument string is made up of a number of single-character
+flags: \fB[v|h|m|l|q][L|I|M][s][E|X]\fR. The default value is \fBhL\fR.
+.TP
+.IR v ", " h ", " m ", " l " or " q
+are mutually exclusive and correspond to very high, high, medium, low or quick
+quality.
+.TP
+.IR L ", " I " or " M
+correspond to linear, intermediate or minimum phase.
+.TP
+.IR s
+changes resampling bandwidth from the default 95% (based on the 3dB point) to
+99%.
+.TP
+.IR E
+exception - avoids resampling if the output device supports the playback sample
+rate natively.
+.TP
+.IR X
+resamples to the maximum sample rate for the output device ("asynchronous"
+resampling).
+.TP
+.B Examples
+.B \-u vLs
+would use very high quality setting, linear phase filter and steep cut-off.
+.br
+.B \-u hM
+would specify high quality, with the minimum phase filter.
+.br
+.B \-u hMX
+would specify high quality, with the minimum phase filter and async upsampling
+to max device rate.
+.SS flags
+The second optional argument to \fB\-u\fR allows the user to specify the
+following arguments (taken from the \fIsoxr.h\fR header file), in hex:
+.sp
+#define SOXR_ROLLOFF_SMALL     0u  /* <= 0.01 dB */
+.br
+#define SOXR_ROLLOFF_MEDIUM    1u  /* <= 0.35 dB */
+.br
+#define SOXR_ROLLOFF_NONE      2u  /* For Chebyshev bandwidth. */
+.sp
+#define SOXR_MAINTAIN_3DB_PT   4u  /* Reserved for internal use. */
+.br
+#define SOXR_HI_PREC_CLOCK     8u  /* Increase 'irrational' ratio accuracy. */
+.br
+#define SOXR_DOUBLE_PRECISION 16u  /* Use D.P. calcs even if precision <= 20. */
+.br
+#define SOXR_VR               32u  /* Experimental, variable-rate resampling. */
+.TP
+.B Examples
+.B \-u :2
+would specify \fBSOXR_ROLLOFF_NONE\fR.
+.sp
+\fBNB:\fR In the example above the first option, \fB<quality>\fR, has not been
+specified so would default to \fBhL\fR. Therefore, specifying \fB\-u :2\fR is
+equivalent to having specified \fB\-u hL:2\fR.
+.SS attenuation
+Internally, data is passed to the SoX resample process as 32 bit integers and
+output from the SoX resample process as 32 bit integers. Why does this matter?
+There is the possibility that integer samples, once resampled may be clipped
+(i.e. exceed the maximum value). By default, if you do not specify an
+\fBattenuation\fR value, it will default to \-1db. A value of \fI0\fR on the
+command line, i.e. \fB-u ::0\fR will disable the default \-1db attenuation being
+applied.
+.sp
+\fBNB:\fR Clipped samples will be logged. Keep an eye on the log file.
+.TP
+.B Examples
+.B \-u ::6
+specifies to apply \-6db (ie. halve the volume) prior to the resampling process.
+.SS precision
+The internal 'bit' precision used in the re-sampling calculations (ie. quality).
+.sp
+\fBNB:\fR HQ = 20, VHQ = 28.
+.TP
+.B Examples
+.B \-u :::28
+specifies 28-bit precision.
+.SS passband_end
+A percentage value between 0 and 100, where 100 is the Nyquist frequency. The
+default if not explicitly set is \fI91.3\fR.
+.TP
+.B Examples
+.B \-u ::::98
+specifies passband ends at 98 percent of the Nyquist frequency.
+.SS stopband_start
+A percentage value between 0 and 100, where 100 is the Nyquist frequency. The
+default if not explicitly set is \fI100\fR.
+.TP
+.B Examples
+.B \-u :::::100
+specifies that the stopband starts at the Nyquist frequency.
+.SS phase_response
+A value between 0-100, where \fI0\fR is equivalent to the recipe \fIM\fR flag
+for minimum phase, \fI25\fR is equivalent to the recipe \fII\fR flag for
+intermediate phase and \fI50\fR is equivalent to the recipe \fIL\fR flag for
+linear phase.
+.TP
+.B Examples
+.B \-u ::::::50
+specifies linear phase.
+.SH SEE ALSO
+https://code.google.com/p/squeezelite/
+.br
+.BR sox (1)
+\- for further information about resampling
