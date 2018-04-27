@@ -4,7 +4,7 @@
 .\" First parameter, NAME, should be all caps
 .\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
 .\" other parameters are allowed: see man(7), man(1)
-.TH SQUEEZELITE 1 "2016-01-30" "Debian Project"
+.TH SQUEEZELITE 1 "2018-04-25" "Debian Project"
 .\" Please adjust this date whenever revising the manpage.
 .\"
 .\" Some roff macros, for reference:
@@ -108,6 +108,10 @@ above.
 .B \-f <logfile>
 Send logging output to a log file instead of standard output or standard error.
 .TP
+.B \-G <Rpi GPIO#>:<H/L>
+Specify the BCM GPIO# to use for Amp Power Relay and if the output
+should be Active High or Low. This cannot be used with the \fB-S\fR option.
+.TP
 .B \-i [<filename>]
 Enable LIRC remote control support. If the optional
 .B <filename>
@@ -136,6 +140,10 @@ pointed to by
 so that it can persist between restarts. This option is mututally exclusive with
 .BR \-n .
 .TP
+.B \-O <mixer device>
+Specify mixer device, defaults to \fB<output device>\fR.
+\.
+.TP
 .B \-p <priority>
 Set real time priority of output thread (1-99; default
 .IR 45 ).
@@ -154,6 +162,10 @@ either a single maximum sample rate, a range of sample rates in the format
 or a comma-separated list of available rates. Delay is an optional time to wait
 when switching sample rates between tracks, in milliseconds.
 .TP
+.B \-S <power script>
+Absolute path to script to launch on power commands from LMS. This
+cannot be used with the \fB-G\fR option.
+.TP
 .B \-u|-R [params]
 Enable upsampling of played audio. The argument is optional; see
 .B RESAMPLING
@@ -171,6 +183,9 @@ to wait when switching between PCM and DoP between tracks, in milliseconds.
 Enable visualiser support. This creates a shared memory segment that contains
 some of the audio being played, so that an external visualiser can read and
 process this to create visualisations.
+.TP
+.B \-W
+Read wave and aiff format from header, ignoring server parameters.
 .TP
 .B \-L
 List available volume controls for the output device. Only applicable when
@@ -192,9 +207,16 @@ control within \fBsqueezelite\fR. This option is mutually exclusive with the
 no ALSA controls are adjusted while running \fBsqueezelite\fR and software
 volume control is used instead. Only applicable when using ALSA output.
 .TP
+.B \-X
+Use linear volume adjustments instead of in terms of dB (only for
+hardware volume control).
+.TP
 .B \-z
 Cause \fBsqueezelite\fR to run as a daemon. That is, it detaches itself from the
 terminal and runs in the background.
+.TP
+.B \-Z <rate>
+Report rate to server in helo as the maximum sample rate we can support.
 .TP
 .B \-t
 Display version and license information.
@@ -313,7 +335,10 @@ linear phase.
 .B \-u ::::::50
 specifies linear phase.
 .SH SEE ALSO
-https://code.google.com/p/squeezelite/
-.br
-.BR sox (1)
-\- for further information about resampling
+.TP
+http://wiki.slimdevices.com/index.php/Squeezelite
+.TP
+http://wiki.slimdevices.com/index.php/Logitech_Media_Server
+.TP
+sox(1)
+for further information about resampling.
