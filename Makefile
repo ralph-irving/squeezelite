@@ -12,7 +12,7 @@ OPT_VIS     = -DVISEXPORT
 OPT_IR      = -DIR
 OPT_GPIO    = -DGPIO
 OPT_RPI     = -DRPI
-OPT_FAAD    = -DFAAD
+OPT_NO_FAAD = -DNO_FAAD
 
 SOURCES = \
 	main.c slimproto.c buffer.c stream.c utils.c \
@@ -66,7 +66,7 @@ ifeq (,$(findstring $(SOURCES_GPIO), $(SOURCES)))
 	SOURCES += $(SOURCES_GPIO)
 endif
 endif
-ifneq (,$(findstring $(OPT_FAAD), $(OPTS)))
+ifeq (,$(findstring $(OPT_NO_FAAD), $(OPTS)))
 	SOURCES += $(SOURCES_FAAD)
 endif
 
@@ -85,7 +85,7 @@ endif
 ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
 	LDADD += $(LINK_RPI)
 endif
-ifneq (,$(findstring $(OPT_FAAD), $(OPTS)))
+ifeq (,$(findstring $(OPT_NO_FAAD), $(OPTS)))
 	LDADD += $(LINKALL_FAAD)
 endif
 else
