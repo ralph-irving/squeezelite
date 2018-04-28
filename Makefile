@@ -12,11 +12,12 @@ OPT_VIS     = -DVISEXPORT
 OPT_IR      = -DIR
 OPT_GPIO    = -DGPIO
 OPT_RPI     = -DRPI
+OPT_NO_FAAD = -DNO_FAAD
 
 SOURCES = \
 	main.c slimproto.c buffer.c stream.c utils.c \
 	output.c output_alsa.c output_pa.c output_stdout.c output_pack.c decode.c \
-	flac.c pcm.c mad.c vorbis.c faad.c mpg.c
+	flac.c pcm.c mad.c vorbis.c mpg.c
 
 SOURCES_DSD      = dsd.c dop.c dsd2pcm/dsd2pcm.c
 SOURCES_FF       = ffmpeg.c
@@ -24,14 +25,16 @@ SOURCES_RESAMPLE = process.c resample.c
 SOURCES_VIS      = output_vis.c
 SOURCES_IR       = ir.c
 SOURCES_GPIO     = gpio.c
+SOURCES_FAAD     = faad.c
 
 LINK_LINUX       = -ldl
 LINK_RPI         = -lwiringPi
 
-LINKALL          = -lFLAC -lmad -lvorbisfile -lfaad -lmpg123
+LINKALL          = -lFLAC -lmad -lvorbisfile -lmpg123
 LINKALL_FF       = -lavcodec -lavformat -lavutil
 LINKALL_RESAMPLE = -lsoxr
 LINKALL_IR       = -llirc_client
+LINKALL_FAAD     = -lfaad
 
 DEPS             = squeezelite.h slimproto.h
 
@@ -63,6 +66,9 @@ ifeq (,$(findstring $(SOURCES_GPIO), $(SOURCES)))
 	SOURCES += $(SOURCES_GPIO)
 endif
 endif
+ifeq (,$(findstring $(OPT_NO_FAAD), $(OPTS)))
+	SOURCES += $(SOURCES_FAAD)
+endif
 
 # add optional link options
 ifneq (,$(findstring $(OPT_LINKALL), $(OPTS)))
@@ -78,6 +84,9 @@ ifneq (,$(findstring $(OPT_IR), $(OPTS)))
 endif
 ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
 	LDADD += $(LINK_RPI)
+endif
+ifeq (,$(findstring $(OPT_NO_FAAD), $(OPTS)))
+	LDADD += $(LINKALL_FAAD)
 endif
 else
 # if not LINKALL and linux add LINK_LINUX
