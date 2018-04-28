@@ -731,6 +731,8 @@ static decode_state dsd_decode(void) {
 	decode_state ret;
 	char *fmtstr;
 
+	fmtstr = "None";
+
 	LOCK_S;
 
 	if ((stream.state <= DISCONNECT && !_buf_used(streambuf)) || (!decode.new_stream && d->sample_bytes == 0)) {
