@@ -189,6 +189,9 @@ static void usage(const char *argv0) {
 #if GPIO
 		   " GPIO"
 #endif
+#if RPI
+		   " RPI"
+#endif
 #if DSD
 		   " DSD"
 #endif
