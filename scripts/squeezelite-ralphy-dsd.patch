@@ -1,284 +1,95 @@
-Index: output_pa.c
+Index: dop.c
 ===================================================================
---- output_pa.c	(revision 1076)
-+++ output_pa.c	(working copy)
-@@ -72,7 +72,7 @@
+--- dop.c	(revision 1086)
++++ dop.c	(working copy)
+@@ -30,22 +30,22 @@
+ #define LOCK_O   mutex_lock(outputbuf->mutex)
+ #define UNLOCK_O mutex_unlock(outputbuf->mutex)
  
- extern u8_t *silencebuf;
- #if DSD
--extern u8_t *silencebuf_dop;
-+extern u8_t *silencebuf_dsd;
- #endif
+-// check for 32 dop marker frames to see if this is dop in flac
+-// dop is always encoded in 24 bit samples with marker 0x0005xxxx or 0x00FAxxxx
+-bool is_flac_dop(u32_t *lptr, u32_t *rptr, frames_t frames) {
++// check for 32 dop marker frames to see if this is a dop stream
++// dop is always encoded in 24 bit samples with markers 0x05 or 0xFA in MSB
++bool is_stream_dop(u8_t *lptr, u8_t *rptr, int step, frames_t frames) {
+ 	int matched = 0;
+ 	u32_t next = 0;
  
- void list_devices(void) {
-@@ -383,9 +383,10 @@
+ 	while (frames--) {
+-		if (((*lptr & 0x00FF0000) == 0x00050000 && (*rptr & 0x00FF0000) == 0x00050000) ||
+-			((*lptr & 0x00FF0000) == 0x00FA0000 && (*rptr & 0x00FF0000) == 0x00FA0000)) {
+-			if (*lptr >> 24 == next) {
++		if ((*lptr == 0x05 && *rptr == 0x05) ||
++			(*lptr == 0xFA && *rptr == 0xFA)) {
++			if (*lptr == next) {
+ 				matched++;
+-				next = ( 0x05 + 0xFA ) - next;
+ 			} else {
+-				next = *lptr >> 24;
++				next = *lptr;
+ 				matched = 1;
+ 			}
++			next = ( 0x05 + 0xFA ) - next;
+ 		} else {
+ 			return false;
+ 		}
+@@ -53,7 +53,7 @@
+ 			return true;
  		}
  
- 		IF_DSD(
--			if (output.dop) {
-+			if (output.outfmt == DOP) {
- 				update_dop((u32_t *) outputbuf->readp, out_frames, output.invert);
--			}
-+			} else if (output.outfmt != PCM && output.invert)
-+				dsd_invert((u32_t *) outputbuf->readp, out_frames);
- 		)
- 
- 		memcpy(optr, outputbuf->readp, out_frames * BYTES_PER_FRAME);
-@@ -395,8 +396,8 @@
- 		u8_t *buf = silencebuf;
- 
- 		IF_DSD(
--			if (output.dop) {
--				buf = silencebuf_dop;
-+			if (output.outfmt != DOP) {
-+				buf = silencebuf_dsd;
- 				update_dop((u32_t *) buf, out_frames, false); // don't invert silence
- 			}
- 		)
-Index: mpg.c
-===================================================================
---- mpg.c	(revision 1076)
-+++ mpg.c	(working copy)
-@@ -125,7 +125,7 @@
- 			LOG_INFO("setting track_start");
- 			LOCK_O_not_direct;
- 			output.next_sample_rate = decode_newstream(rate, output.supported_rates);
--			IF_DSD( output.next_dop = false; )
-+			IF_DSD( output.next_fmt = PCM; )
- 			output.track_start = outputbuf->writep;
- 			if (output.fade_mode) _checkfade(true);
- 			decode.new_stream = false;
-Index: output_alsa.c
-===================================================================
---- output_alsa.c	(revision 1076)
-+++ output_alsa.c	(working copy)
-@@ -50,6 +50,10 @@
- 	char *ctl;
- 	char *mixer_ctl;
- 	snd_pcm_format_t format;
-+#if DSD
-+	dsd_format outfmt;
-+	snd_pcm_format_t pcmfmt;
-+#endif
- 	snd_pcm_uframes_t buffer_size;
- 	snd_pcm_uframes_t period_size;
- 	unsigned rate;
-@@ -68,7 +72,7 @@
- 
- extern u8_t *silencebuf;
- #if DSD
--extern u8_t *silencebuf_dop;
-+extern u8_t *silencebuf_dsd;
- #endif
- 
- static log_level loglevel;
-@@ -317,7 +321,11 @@
- 	return true;
+-		++lptr; ++rptr;
++		lptr+=step; rptr+=step;
+ 	}
+ 	return false;
+ }
+@@ -65,9 +65,9 @@
+ 	if (!invert) {
+ 		while (frames--) {
+ 			u32_t scaled_marker = marker << 24;
+-			*ptr = (*ptr & 0x00FFFFFF) | scaled_marker;
++			*ptr = (*ptr & 0x00FFFF00) | scaled_marker;
+ 			++ptr;
+-			*ptr = (*ptr & 0x00FFFFFF) | scaled_marker;
++			*ptr = (*ptr & 0x00FFFF00) | scaled_marker;
+ 			++ptr;
+ 			marker = ( 0x05 + 0xFA ) - marker;
+ 		}
+@@ -74,9 +74,9 @@
+ 	} else {
+ 		while (frames--) {
+ 			u32_t scaled_marker = marker << 24;
+-			*ptr = ((~(*ptr)) & 0x00FFFFFF) | scaled_marker;
++			*ptr = ((~(*ptr)) & 0x00FFFF00) | scaled_marker;
+ 			++ptr;
+-			*ptr = ((~(*ptr)) & 0x00FFFFFF) | scaled_marker;
++			*ptr = ((~(*ptr)) & 0x00FFFF00) | scaled_marker;
+ 			++ptr;
+ 			marker = ( 0x05 + 0xFA ) - marker;
+ 		}
+@@ -83,20 +83,4 @@
+ 	}
  }
  
-+#if DSD
-+static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buffer, unsigned alsa_period, dsd_format outfmt) {
-+#else
- static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buffer, unsigned alsa_period) {
-+#endif
- 	int err;
- 	snd_pcm_hw_params_t *hw_params;
- 	snd_pcm_hw_params_alloca(&hw_params);
-@@ -327,6 +335,9 @@
- 
- 	// reset params
- 	alsa.rate = 0;
-+#if DSD
-+	alsa.outfmt = PCM;
-+#endif
- 	alsa.period_size = 0;
- 	strcpy(alsa.device, device);
- 
-@@ -383,6 +394,26 @@
- 	}
- 
- 	// set the sample format
-+#if DSD
-+	switch (outfmt) {
-+	case DSD_U8:
-+		alsa.format = SND_PCM_FORMAT_DSD_U8; break;
-+	case DSD_U16_LE:
-+		alsa.format = SND_PCM_FORMAT_DSD_U16_LE; break;
-+	case DSD_U16_BE:
-+		alsa.format = SND_PCM_FORMAT_DSD_U16_BE; break;
-+	case DSD_U32_LE:
-+		alsa.format = SND_PCM_FORMAT_DSD_U32_LE; break;
-+	case DSD_U32_BE:
-+		alsa.format = SND_PCM_FORMAT_DSD_U32_BE; break;
-+	case DOP_S24_LE:
-+		alsa.format = SND_PCM_FORMAT_S24_LE; break;
-+	case DOP_S24_3LE:
-+		alsa.format = SND_PCM_FORMAT_S24_3LE; break;
-+	default:
-+		alsa.format = alsa.pcmfmt;
-+	}
-+#endif
- 	snd_pcm_format_t *fmt = alsa.format ? &alsa.format : (snd_pcm_format_t *)fmts;
- 	do {
- 		if (snd_pcm_hw_params_set_format(pcmp, hw_params, *fmt) >= 0) {
-@@ -411,6 +442,18 @@
- 		output.format = S24_3LE; break;
- 	case SND_PCM_FORMAT_S16_LE: 
- 		output.format = S16_LE; break;
-+#if DSD
-+	case SND_PCM_FORMAT_DSD_U32_LE:
-+		output.format = U32_LE; break;
-+	case SND_PCM_FORMAT_DSD_U32_BE:
-+		output.format = U32_BE; break;
-+	case SND_PCM_FORMAT_DSD_U16_LE:
-+		output.format = U16_LE; break;
-+	case SND_PCM_FORMAT_DSD_U16_BE:
-+		output.format = U16_BE; break;
-+	case SND_PCM_FORMAT_DSD_U8:
-+		output.format = U8; break;
-+#endif
- 	default: 
- 		break;
- 	}
-@@ -495,7 +538,10 @@
- 
- 	// this indicates we have opened the device ok
- 	alsa.rate = sample_rate;
+-// fill silence buffer with 10101100 which represents dop silence
+-// leave marker zero it will be updated at output, leave lsb zero
+-void dop_silence_frames(u32_t *ptr, frames_t frames) {
+-	while (frames--) {
+-		*ptr++ = 0x00ACAC00;
+-		*ptr++ = 0x00ACAC00;
+-	}
+-}
 -
-+#if DSD
-+	alsa.outfmt = outfmt;
-+#endif
-+	
- 	return 0;
- }
- 
-@@ -531,11 +577,14 @@
- 	inputptr = (s32_t *) (silence ? silencebuf : outputbuf->readp);
- 
- 	IF_DSD(
--		if (output.dop) {
-+		if (output.outfmt != PCM) {
- 			if (silence) {
--				inputptr = (s32_t *) silencebuf_dop;
-+				inputptr = (s32_t *) silencebuf_dsd;
- 			}
--			update_dop((u32_t *) inputptr, out_frames, output.invert && !silence);
-+			if (output.outfmt == DOP || output.outfmt == DOP_S24_LE || output.outfmt == DOP_S24_3LE)
-+				update_dop((u32_t *) inputptr, out_frames, output.invert && !silence);
-+			else if (output.invert && !silence)
-+				dsd_invert((u32_t *) inputptr, out_frames);
- 		}
- 	)
- 
-@@ -616,8 +665,12 @@
- 			}
- 			probe_device = false;
- 		}
-+#if DSD
-+		if (!pcmp || alsa.rate != output.current_sample_rate || alsa.outfmt != output.outfmt ) {
-+#else
- 
- 		if (!pcmp || alsa.rate != output.current_sample_rate) {
-+#endif
- #if GPIO
- 			// Wake up amp
- 			if (gpio_active) { 
-@@ -635,10 +688,17 @@
- 			// FIXME - some alsa hardware requires opening twice for a new sample rate to work
- 			// this is a workaround which should be removed
- 			if (alsa.reopen) {
-+#if DSD
-+				alsa_open(output.device, output.current_sample_rate, output.buffer, output.period, output.outfmt);
-+#else
- 				alsa_open(output.device, output.current_sample_rate, output.buffer, output.period);
-+#endif
- 			}
+-void dop_init(bool enable, unsigned delay) {
+-	LOCK_O;
+-	output.has_dop = enable;
+-	output.dop_delay = delay;
+-	UNLOCK_O;
+-}
 -
-+#if DSD
-+			if (!!alsa_open(output.device, output.current_sample_rate, output.buffer, output.period, output.outfmt)) {
-+#else
- 			if (!!alsa_open(output.device, output.current_sample_rate, output.buffer, output.period)) {
-+#endif
- 				output.error_opening = true;
- 				UNLOCK;
- 				sleep(5);
-@@ -880,7 +940,11 @@
- 
- 	alsa.mmap = alsa_mmap;
- 	alsa.write_buf = NULL;
-+#if DSD
-+	alsa.pcmfmt = 0;
-+#else
- 	alsa.format = 0;
-+#endif
- 	alsa.reopen = alsa_reopen;
- 	alsa.mixer_handle = NULL;
- 	alsa.ctl = ctl4device(device);
-@@ -896,10 +960,17 @@
- 	output.rate_delay = rate_delay;
- 
- 	if (alsa_sample_fmt) {
-+#if DSD
-+		if (!strcmp(alsa_sample_fmt, "32"))	alsa.pcmfmt = SND_PCM_FORMAT_S32_LE;
-+		if (!strcmp(alsa_sample_fmt, "24")) alsa.pcmfmt = SND_PCM_FORMAT_S24_LE;
-+		if (!strcmp(alsa_sample_fmt, "24_3")) alsa.pcmfmt = SND_PCM_FORMAT_S24_3LE;
-+		if (!strcmp(alsa_sample_fmt, "16")) alsa.pcmfmt = SND_PCM_FORMAT_S16_LE;
-+#else
- 		if (!strcmp(alsa_sample_fmt, "32"))	alsa.format = SND_PCM_FORMAT_S32_LE;
- 		if (!strcmp(alsa_sample_fmt, "24")) alsa.format = SND_PCM_FORMAT_S24_LE;
- 		if (!strcmp(alsa_sample_fmt, "24_3")) alsa.format = SND_PCM_FORMAT_S24_3LE;
- 		if (!strcmp(alsa_sample_fmt, "16")) alsa.format = SND_PCM_FORMAT_S16_LE;
-+#endif
- 	}
- 
- 	LOG_INFO("requested alsa_buffer: %u alsa_period: %u format: %s mmap: %u", output.buffer, output.period, 
-Index: mad.c
-===================================================================
---- mad.c	(revision 1076)
-+++ mad.c	(working copy)
-@@ -242,7 +242,7 @@
- 			LOCK_O;
- 			LOG_INFO("setting track_start");
- 			output.next_sample_rate = decode_newstream(m->synth.pcm.samplerate, output.supported_rates);
--			IF_DSD(	output.next_dop = false; )
-+			IF_DSD(	output.next_fmt = PCM; )
- 			output.track_start = outputbuf->writep;
- 			if (output.fade_mode) _checkfade(true);
- 			decode.new_stream = false;
-Index: output_stdout.c
-===================================================================
---- output_stdout.c	(revision 1076)
-+++ output_stdout.c	(working copy)
-@@ -37,7 +37,7 @@
- 
- extern u8_t *silencebuf;
- #if DSD
--extern u8_t *silencebuf_dop;
-+extern u8_t *silencebuf_dsd;
- #endif
- 
- // buffer to hold output data so we can block on writing outside of output lock, allocated on init
-@@ -64,11 +64,14 @@
- 	}
- 
- 	IF_DSD(
--		   if (output.dop) {
-+		   if (output.outfmt != PCM) {
- 			   if (silence) {
--				   obuf = silencebuf_dop;
-+				   obuf = silencebuf_dsd;
- 			   }
--			   update_dop((u32_t *)obuf, out_frames, output.invert && !silence);
-+			   if (output.outfmt == DOP)
-+				   update_dop((u32_t *)obuf, out_frames, output.invert && !silence);
-+			   else if (output.invert && !silence)
-+				   dsd_invert((u32_t *)obuf, out_frames);
- 		   }
- 	)
- 
+ #endif // DSD
 Index: dsd.c
 ===================================================================
---- dsd.c	(revision 1076)
+--- dsd.c	(revision 1086)
 +++ dsd.c	(working copy)
 @@ -59,11 +59,11 @@
  
@@ -770,135 +581,80 @@ Index: dsd.c
 +}
 +
  #endif // DSD
-Index: pcm.c
+Index: faad.c
 ===================================================================
---- pcm.c	(revision 1076)
-+++ pcm.c	(working copy)
-@@ -205,11 +205,29 @@
- 	if (decode.new_stream) {
+--- faad.c	(revision 1086)
++++ faad.c	(working copy)
+@@ -377,7 +377,7 @@
+ 			LOCK_O;
+ 			LOG_INFO("setting track_start");
+ 			output.next_sample_rate = decode_newstream(samplerate, output.supported_rates);
+-			IF_DSD( output.next_dop = false; )
++			IF_DSD( output.next_fmt = PCM; )
+ 			output.track_start = outputbuf->writep;
+ 			if (output.fade_mode) _checkfade(true);
+ 			decode.new_stream = false;
+Index: ffmpeg.c
+===================================================================
+--- ffmpeg.c	(revision 1086)
++++ ffmpeg.c	(working copy)
+@@ -353,7 +353,7 @@
+ 		LOCK_O;
  		LOG_INFO("setting track_start");
- 		LOCK_O_not_direct;
-+		output.track_start = outputbuf->writep;
-+		decode.new_stream = false;
-+#if DSD
-+		if (sample_size == 3 &&
-+			is_stream_dop(((u8_t *)streambuf->readp) + (bigendian?0:2),
-+						  ((u8_t *)streambuf->readp) + (bigendian?0:2) + sample_size,
-+						  sample_size * channels, bytes / (sample_size * channels))) {
-+			LOG_INFO("file contains DOP");
+ 		output.next_sample_rate = decode_newstream(ff->codecC->sample_rate, output.supported_rates);
+-		IF_DSD(	output.next_dop = false; )
++		IF_DSD(	output.next_fmt = PCM; )
+ 		output.track_start = outputbuf->writep;
+ 		if (output.fade_mode) _checkfade(true);
+ 		decode.new_stream = false;
+Index: flac.c
+===================================================================
+--- flac.c	(revision 1086)
++++ flac.c	(working copy)
+@@ -118,14 +118,22 @@
+ 		decode.new_stream = false;
+ 
+ #if DSD
+-		if (output.has_dop && bits_per_sample == 24 && is_flac_dop((u32_t *)lptr, (u32_t *)rptr, frames)) {
++#if SL_LITTLE_ENDIAN
++#define MARKER_OFFSET 2
++#else
++#define MARKER_OFFSET 1
++#endif		
++		if (bits_per_sample == 24 && is_stream_dop(((u8_t *)lptr) + MARKER_OFFSET, ((u8_t *)rptr) + MARKER_OFFSET, 4, frames)) {
+ 			LOG_INFO("file contains DOP");
+-			output.next_dop = true;
 +			if (output.dsdfmt == DOP_S24_LE || output.dsdfmt == DOP_S24_3LE)
 +				output.next_fmt = output.dsdfmt;
 +			else
 +				output.next_fmt = DOP;
-+			output.next_sample_rate = sample_rate;
-+			output.fade = FADE_INACTIVE;
-+		} else {
-+			output.next_sample_rate = decode_newstream(sample_rate, output.supported_rates);
-+			output.next_fmt = PCM;
-+			if (output.fade_mode) _checkfade(true);
-+		}
-+#else
- 		output.next_sample_rate = decode_newstream(sample_rate, output.supported_rates);
--		output.track_start = outputbuf->writep;
--		IF_DSD( output.next_dop = false; )
- 		if (output.fade_mode) _checkfade(true);
--		decode.new_stream = false;
-+#endif
- 		UNLOCK_O_not_direct;
- 		IF_PROCESS(
- 			out = process.max_in_frames;
-Index: dop.c
-===================================================================
---- dop.c	(revision 1076)
-+++ dop.c	(working copy)
-@@ -30,22 +30,22 @@
- #define LOCK_O   mutex_lock(outputbuf->mutex)
- #define UNLOCK_O mutex_unlock(outputbuf->mutex)
- 
--// check for 32 dop marker frames to see if this is dop in flac
--// dop is always encoded in 24 bit samples with marker 0x0005xxxx or 0x00FAxxxx
--bool is_flac_dop(u32_t *lptr, u32_t *rptr, frames_t frames) {
-+// check for 32 dop marker frames to see if this is a dop stream
-+// dop is always encoded in 24 bit samples with markers 0x05 or 0xFA in MSB
-+bool is_stream_dop(u8_t *lptr, u8_t *rptr, int step, frames_t frames) {
- 	int matched = 0;
- 	u32_t next = 0;
- 
- 	while (frames--) {
--		if (((*lptr & 0x00FF0000) == 0x00050000 && (*rptr & 0x00FF0000) == 0x00050000) ||
--			((*lptr & 0x00FF0000) == 0x00FA0000 && (*rptr & 0x00FF0000) == 0x00FA0000)) {
--			if (*lptr >> 24 == next) {
-+		if ((*lptr == 0x05 && *rptr == 0x05) ||
-+			(*lptr == 0xFA && *rptr == 0xFA)) {
-+			if (*lptr == next) {
- 				matched++;
--				next = ( 0x05 + 0xFA ) - next;
- 			} else {
--				next = *lptr >> 24;
-+				next = *lptr;
- 				matched = 1;
- 			}
-+			next = ( 0x05 + 0xFA ) - next;
+ 			output.next_sample_rate = frame->header.sample_rate;
+ 			output.fade = FADE_INACTIVE;
  		} else {
- 			return false;
+ 			output.next_sample_rate = decode_newstream(frame->header.sample_rate, output.supported_rates);
+-			output.next_dop = false;
++			output.next_fmt = PCM;
+ 			if (output.fade_mode) _checkfade(true);
  		}
-@@ -53,7 +53,7 @@
- 			return true;
- 		}
- 
--		++lptr; ++rptr;
-+		lptr+=step; rptr+=step;
- 	}
- 	return false;
- }
-@@ -65,38 +65,22 @@
- 	if (!invert) {
- 		while (frames--) {
- 			u32_t scaled_marker = marker << 24;
--			*ptr = (*ptr & 0x00FFFFFF) | scaled_marker;
-+			*ptr = (*ptr & 0x00FFFF00) | scaled_marker;
- 			++ptr;
--			*ptr = (*ptr & 0x00FFFFFF) | scaled_marker;
-+			*ptr = (*ptr & 0x00FFFF00) | scaled_marker;
- 			++ptr;
- 			marker = ( 0x05 + 0xFA ) - marker;
- 		}
- 	} else {
- 		while (frames--) {
- 			u32_t scaled_marker = marker << 24;
--			*ptr = ((~(*ptr)) & 0x00FFFFFF) | scaled_marker;
-+			*ptr = ((~(*ptr)) & 0x00FFFF00) | scaled_marker;
- 			++ptr;
--			*ptr = ((~(*ptr)) & 0x00FFFFFF) | scaled_marker;
-+			*ptr = ((~(*ptr)) & 0x00FFFF00) | scaled_marker;
- 			++ptr;
- 			marker = ( 0x05 + 0xFA ) - marker;
- 		}
- 	}
- }
- 
--// fill silence buffer with 10101100 which represents dop silence
--// leave marker zero it will be updated at output, leave lsb zero
--void dop_silence_frames(u32_t *ptr, frames_t frames) {
--	while (frames--) {
--		*ptr++ = 0x00ACAC00;
--		*ptr++ = 0x00ACAC00;
--	}
--}
--
--void dop_init(bool enable, unsigned delay) {
--	LOCK_O;
--	output.has_dop = enable;
--	output.dop_delay = delay;
--	UNLOCK_O;
--}
--
- #endif // DSD
+ #else
+Index: mad.c
+===================================================================
+--- mad.c	(revision 1086)
++++ mad.c	(working copy)
+@@ -242,7 +242,7 @@
+ 			LOCK_O;
+ 			LOG_INFO("setting track_start");
+ 			output.next_sample_rate = decode_newstream(m->synth.pcm.samplerate, output.supported_rates);
+-			IF_DSD(	output.next_dop = false; )
++			IF_DSD(	output.next_fmt = PCM; )
+ 			output.track_start = outputbuf->writep;
+ 			if (output.fade_mode) _checkfade(true);
+ 			decode.new_stream = false;
 Index: main.c
 ===================================================================
---- main.c	(revision 1076)
+--- main.c	(revision 1086)
 +++ main.c	(working copy)
-@@ -105,8 +105,13 @@
+@@ -110,8 +110,13 @@
  		   "  \t\t\t phase_response = 0-100 (0 = minimum / 50 = linear / 100 = maximum)\n"
  #endif
  #if DSD
@@ -913,7 +669,7 @@ Index: main.c
  #if VISEXPORT
  		   "  -v \t\t\tVisualiser support\n"
  #endif
-@@ -209,6 +214,8 @@
+@@ -220,6 +225,8 @@
  #if DSD		   
  		   "\nContains dsd2pcm library Copyright 2009, 2011 Sebastian Gesemann which\n"
  		   "is subject to its own license.\n"
@@ -922,7 +678,7 @@ Index: main.c
  #endif
  		   "\nOption to allow server side upsampling for PCM streams (-W) from\n"
  		   "squeezelite-R2 (c) Marco Curti 2015, marcoc1712@gmail.com.\n"
-@@ -268,8 +275,8 @@
+@@ -279,8 +286,8 @@
  	bool linear_volume = false;
  #endif
  #if DSD
@@ -933,7 +689,7 @@ Index: main.c
  #endif
  #if VISEXPORT
  	bool visexport = false;
-@@ -514,9 +521,21 @@
+@@ -525,9 +532,21 @@
  #endif
  #if DSD
  		case 'D':
@@ -957,7 +713,7 @@ Index: main.c
  			}
  			break;
  #endif
-@@ -714,7 +733,7 @@
+@@ -725,7 +744,7 @@
  	}
  
  #if DSD
@@ -966,22 +722,311 @@ Index: main.c
  #endif
  
  #if VISEXPORT
-Index: faad.c
+Index: mpg.c
 ===================================================================
---- faad.c	(revision 1076)
-+++ faad.c	(working copy)
-@@ -377,7 +377,7 @@
- 			LOCK_O;
+--- mpg.c	(revision 1086)
++++ mpg.c	(working copy)
+@@ -125,7 +125,7 @@
  			LOG_INFO("setting track_start");
- 			output.next_sample_rate = decode_newstream(samplerate, output.supported_rates);
+ 			LOCK_O_not_direct;
+ 			output.next_sample_rate = decode_newstream(rate, output.supported_rates);
 -			IF_DSD( output.next_dop = false; )
 +			IF_DSD( output.next_fmt = PCM; )
  			output.track_start = outputbuf->writep;
  			if (output.fade_mode) _checkfade(true);
  			decode.new_stream = false;
+Index: output.c
+===================================================================
+--- output.c	(revision 1086)
++++ output.c	(working copy)
+@@ -33,7 +33,7 @@
+ 
+ u8_t *silencebuf;
+ #if DSD
+-u8_t *silencebuf_dop;
++u8_t *silencebuf_dsd;
+ #endif
+ 
+ #define LOCK   mutex_lock(outputbuf->mutex)
+@@ -127,8 +127,8 @@
+ 					delay = output.rate_delay;
+ 				}
+ 				IF_DSD(
+-				   if (output.dop != output.next_dop) {
+-					   delay = output.dop_delay;
++				   if (output.outfmt != output.next_fmt) {
++					   delay = output.dsd_delay;
+ 				   }
+ 				)
+ 				frames -= size;
+@@ -150,7 +150,7 @@
+ 				output.track_start_time = gettime_ms();
+ 				output.current_sample_rate = output.next_sample_rate;
+ 				IF_DSD(
+-				   output.dop = output.next_dop;
++				   output.outfmt = output.next_fmt;
+ 				)
+ 				if (output.fade == FADE_INACTIVE || output.fade_mode != FADE_CROSSFADE) {
+ 					output.current_replay_gain = output.next_replay_gain;
+@@ -164,7 +164,7 @@
+ 		}
+ 
+ 		IF_DSD(
+-			if (output.dop) {
++			if (output.outfmt != PCM) {
+ 				gainL = gainR = FIXED_ONE;
+ 			}
+ 		)
+@@ -360,12 +360,12 @@
+ 	memset(silencebuf, 0, MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
+ 
+ 	IF_DSD(
+-		silencebuf_dop = malloc(MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
+-		if (!silencebuf_dop) {
+-			LOG_ERROR("unable to malloc silence dop buffer");
++		silencebuf_dsd = malloc(MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
++		if (!silencebuf_dsd) {
++			LOG_ERROR("unable to malloc silence dsd buffer");
+ 			exit(0);
+ 		}
+-		dop_silence_frames((u32_t *)silencebuf_dop, MAX_SILENCE_FRAMES);
++		dsd_silence_frames((u32_t *)silencebuf_dsd, MAX_SILENCE_FRAMES);
+ 	)
+ 
+ 	LOG_DEBUG("idle timeout: %u", idle);
+@@ -416,7 +416,7 @@
+ 	buf_destroy(outputbuf);
+ 	free(silencebuf);
+ 	IF_DSD(
+-		free(silencebuf_dop);
++		free(silencebuf_dsd);
+ 	)
+ }
+ 
+Index: output_alsa.c
+===================================================================
+--- output_alsa.c	(revision 1086)
++++ output_alsa.c	(working copy)
+@@ -50,6 +50,10 @@
+ 	char *ctl;
+ 	char *mixer_ctl;
+ 	snd_pcm_format_t format;
++#if DSD
++	dsd_format outfmt;
++	snd_pcm_format_t pcmfmt;
++#endif
+ 	snd_pcm_uframes_t buffer_size;
+ 	snd_pcm_uframes_t period_size;
+ 	unsigned rate;
+@@ -68,7 +72,7 @@
+ 
+ extern u8_t *silencebuf;
+ #if DSD
+-extern u8_t *silencebuf_dop;
++extern u8_t *silencebuf_dsd;
+ #endif
+ 
+ static log_level loglevel;
+@@ -317,7 +321,11 @@
+ 	return true;
+ }
+ 
++#if DSD
++static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buffer, unsigned alsa_period, dsd_format outfmt) {
++#else
+ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buffer, unsigned alsa_period) {
++#endif
+ 	int err;
+ 	snd_pcm_hw_params_t *hw_params;
+ 	snd_pcm_hw_params_alloca(&hw_params);
+@@ -327,6 +335,9 @@
+ 
+ 	// reset params
+ 	alsa.rate = 0;
++#if DSD
++	alsa.outfmt = PCM;
++#endif
+ 	alsa.period_size = 0;
+ 	strcpy(alsa.device, device);
+ 
+@@ -383,6 +394,26 @@
+ 	}
+ 
+ 	// set the sample format
++#if DSD
++	switch (outfmt) {
++	case DSD_U8:
++		alsa.format = SND_PCM_FORMAT_DSD_U8; break;
++	case DSD_U16_LE:
++		alsa.format = SND_PCM_FORMAT_DSD_U16_LE; break;
++	case DSD_U16_BE:
++		alsa.format = SND_PCM_FORMAT_DSD_U16_BE; break;
++	case DSD_U32_LE:
++		alsa.format = SND_PCM_FORMAT_DSD_U32_LE; break;
++	case DSD_U32_BE:
++		alsa.format = SND_PCM_FORMAT_DSD_U32_BE; break;
++	case DOP_S24_LE:
++		alsa.format = SND_PCM_FORMAT_S24_LE; break;
++	case DOP_S24_3LE:
++		alsa.format = SND_PCM_FORMAT_S24_3LE; break;
++	default:
++		alsa.format = alsa.pcmfmt;
++	}
++#endif
+ 	snd_pcm_format_t *fmt = alsa.format ? &alsa.format : (snd_pcm_format_t *)fmts;
+ 	do {
+ 		if (snd_pcm_hw_params_set_format(pcmp, hw_params, *fmt) >= 0) {
+@@ -411,6 +442,18 @@
+ 		output.format = S24_3LE; break;
+ 	case SND_PCM_FORMAT_S16_LE: 
+ 		output.format = S16_LE; break;
++#if DSD
++	case SND_PCM_FORMAT_DSD_U32_LE:
++		output.format = U32_LE; break;
++	case SND_PCM_FORMAT_DSD_U32_BE:
++		output.format = U32_BE; break;
++	case SND_PCM_FORMAT_DSD_U16_LE:
++		output.format = U16_LE; break;
++	case SND_PCM_FORMAT_DSD_U16_BE:
++		output.format = U16_BE; break;
++	case SND_PCM_FORMAT_DSD_U8:
++		output.format = U8; break;
++#endif
+ 	default: 
+ 		break;
+ 	}
+@@ -495,7 +538,10 @@
+ 
+ 	// this indicates we have opened the device ok
+ 	alsa.rate = sample_rate;
+-
++#if DSD
++	alsa.outfmt = outfmt;
++#endif
++	
+ 	return 0;
+ }
+ 
+@@ -531,11 +577,14 @@
+ 	inputptr = (s32_t *) (silence ? silencebuf : outputbuf->readp);
+ 
+ 	IF_DSD(
+-		if (output.dop) {
++		if (output.outfmt != PCM) {
+ 			if (silence) {
+-				inputptr = (s32_t *) silencebuf_dop;
++				inputptr = (s32_t *) silencebuf_dsd;
+ 			}
+-			update_dop((u32_t *) inputptr, out_frames, output.invert && !silence);
++			if (output.outfmt == DOP || output.outfmt == DOP_S24_LE || output.outfmt == DOP_S24_3LE)
++				update_dop((u32_t *) inputptr, out_frames, output.invert && !silence);
++			else if (output.invert && !silence)
++				dsd_invert((u32_t *) inputptr, out_frames);
+ 		}
+ 	)
+ 
+@@ -616,8 +665,12 @@
+ 			}
+ 			probe_device = false;
+ 		}
++#if DSD
++		if (!pcmp || alsa.rate != output.current_sample_rate || alsa.outfmt != output.outfmt ) {
++#else
+ 
+ 		if (!pcmp || alsa.rate != output.current_sample_rate) {
++#endif
+ #if GPIO
+ 			// Wake up amp
+ 			if (gpio_active) { 
+@@ -635,10 +688,17 @@
+ 			// FIXME - some alsa hardware requires opening twice for a new sample rate to work
+ 			// this is a workaround which should be removed
+ 			if (alsa.reopen) {
++#if DSD
++				alsa_open(output.device, output.current_sample_rate, output.buffer, output.period, output.outfmt);
++#else
+ 				alsa_open(output.device, output.current_sample_rate, output.buffer, output.period);
++#endif
+ 			}
+-
++#if DSD
++			if (!!alsa_open(output.device, output.current_sample_rate, output.buffer, output.period, output.outfmt)) {
++#else
+ 			if (!!alsa_open(output.device, output.current_sample_rate, output.buffer, output.period)) {
++#endif
+ 				output.error_opening = true;
+ 				UNLOCK;
+ 				sleep(5);
+@@ -880,7 +940,11 @@
+ 
+ 	alsa.mmap = alsa_mmap;
+ 	alsa.write_buf = NULL;
++#if DSD
++	alsa.pcmfmt = 0;
++#else
+ 	alsa.format = 0;
++#endif
+ 	alsa.reopen = alsa_reopen;
+ 	alsa.mixer_handle = NULL;
+ 	alsa.ctl = ctl4device(device);
+@@ -896,10 +960,17 @@
+ 	output.rate_delay = rate_delay;
+ 
+ 	if (alsa_sample_fmt) {
++#if DSD
++		if (!strcmp(alsa_sample_fmt, "32"))	alsa.pcmfmt = SND_PCM_FORMAT_S32_LE;
++		if (!strcmp(alsa_sample_fmt, "24")) alsa.pcmfmt = SND_PCM_FORMAT_S24_LE;
++		if (!strcmp(alsa_sample_fmt, "24_3")) alsa.pcmfmt = SND_PCM_FORMAT_S24_3LE;
++		if (!strcmp(alsa_sample_fmt, "16")) alsa.pcmfmt = SND_PCM_FORMAT_S16_LE;
++#else
+ 		if (!strcmp(alsa_sample_fmt, "32"))	alsa.format = SND_PCM_FORMAT_S32_LE;
+ 		if (!strcmp(alsa_sample_fmt, "24")) alsa.format = SND_PCM_FORMAT_S24_LE;
+ 		if (!strcmp(alsa_sample_fmt, "24_3")) alsa.format = SND_PCM_FORMAT_S24_3LE;
+ 		if (!strcmp(alsa_sample_fmt, "16")) alsa.format = SND_PCM_FORMAT_S16_LE;
++#endif
+ 	}
+ 
+ 	LOG_INFO("requested alsa_buffer: %u alsa_period: %u format: %s mmap: %u", output.buffer, output.period, 
+Index: output_pa.c
+===================================================================
+--- output_pa.c	(revision 1086)
++++ output_pa.c	(working copy)
+@@ -72,7 +72,7 @@
+ 
+ extern u8_t *silencebuf;
+ #if DSD
+-extern u8_t *silencebuf_dop;
++extern u8_t *silencebuf_dsd;
+ #endif
+ 
+ void list_devices(void) {
+@@ -383,9 +383,10 @@
+ 		}
+ 
+ 		IF_DSD(
+-			if (output.dop) {
++			if (output.outfmt == DOP) {
+ 				update_dop((u32_t *) outputbuf->readp, out_frames, output.invert);
+-			}
++			} else if (output.outfmt != PCM && output.invert)
++				dsd_invert((u32_t *) outputbuf->readp, out_frames);
+ 		)
+ 
+ 		memcpy(optr, outputbuf->readp, out_frames * BYTES_PER_FRAME);
+@@ -395,8 +396,8 @@
+ 		u8_t *buf = silencebuf;
+ 
+ 		IF_DSD(
+-			if (output.dop) {
+-				buf = silencebuf_dop;
++			if (output.outfmt != DOP) {
++				buf = silencebuf_dsd;
+ 				update_dop((u32_t *) buf, out_frames, false); // don't invert silence
+ 			}
+ 		)
 Index: output_pack.c
 ===================================================================
---- output_pack.c	(revision 1076)
+--- output_pack.c	(revision 1086)
 +++ output_pack.c	(working copy)
 @@ -45,6 +45,100 @@
  
@@ -1084,77 +1129,1225 @@ Index: output_pack.c
  	case S16_LE:
  		{
  			u32_t *optr = (u32_t *)(void *)outputptr;
-Index: output.c
+Index: output_stdout.c
 ===================================================================
---- output.c	(revision 1076)
-+++ output.c	(working copy)
-@@ -33,7 +33,7 @@
+--- output_stdout.c	(revision 1086)
++++ output_stdout.c	(working copy)
+@@ -37,7 +37,7 @@
  
- u8_t *silencebuf;
+ extern u8_t *silencebuf;
  #if DSD
--u8_t *silencebuf_dop;
-+u8_t *silencebuf_dsd;
+-extern u8_t *silencebuf_dop;
++extern u8_t *silencebuf_dsd;
  #endif
  
- #define LOCK   mutex_lock(outputbuf->mutex)
-@@ -127,8 +127,8 @@
- 					delay = output.rate_delay;
- 				}
- 				IF_DSD(
--				   if (output.dop != output.next_dop) {
--					   delay = output.dop_delay;
-+				   if (output.outfmt != output.next_fmt) {
-+					   delay = output.dsd_delay;
- 				   }
- 				)
- 				frames -= size;
-@@ -150,7 +150,7 @@
- 				output.track_start_time = gettime_ms();
- 				output.current_sample_rate = output.next_sample_rate;
- 				IF_DSD(
--				   output.dop = output.next_dop;
-+				   output.outfmt = output.next_fmt;
- 				)
- 				if (output.fade == FADE_INACTIVE || output.fade_mode != FADE_CROSSFADE) {
- 					output.current_replay_gain = output.next_replay_gain;
-@@ -164,7 +164,7 @@
- 		}
- 
- 		IF_DSD(
--			if (output.dop) {
-+			if (output.outfmt != PCM) {
- 				gainL = gainR = FIXED_ONE;
- 			}
- 		)
-@@ -360,12 +360,12 @@
- 	memset(silencebuf, 0, MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
+ // buffer to hold output data so we can block on writing outside of output lock, allocated on init
+@@ -64,11 +64,14 @@
+ 	}
  
  	IF_DSD(
--		silencebuf_dop = malloc(MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
--		if (!silencebuf_dop) {
--			LOG_ERROR("unable to malloc silence dop buffer");
-+		silencebuf_dsd = malloc(MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
-+		if (!silencebuf_dsd) {
-+			LOG_ERROR("unable to malloc silence dsd buffer");
- 			exit(0);
- 		}
--		dop_silence_frames((u32_t *)silencebuf_dop, MAX_SILENCE_FRAMES);
-+		dsd_silence_frames((u32_t *)silencebuf_dsd, MAX_SILENCE_FRAMES);
+-		   if (output.dop) {
++		   if (output.outfmt != PCM) {
+ 			   if (silence) {
+-				   obuf = silencebuf_dop;
++				   obuf = silencebuf_dsd;
+ 			   }
+-			   update_dop((u32_t *)obuf, out_frames, output.invert && !silence);
++			   if (output.outfmt == DOP)
++				   update_dop((u32_t *)obuf, out_frames, output.invert && !silence);
++			   else if (output.invert && !silence)
++				   dsd_invert((u32_t *)obuf, out_frames);
+ 		   }
  	)
  
- 	LOG_DEBUG("idle timeout: %u", idle);
-@@ -416,7 +416,7 @@
- 	buf_destroy(outputbuf);
- 	free(silencebuf);
- 	IF_DSD(
--		free(silencebuf_dop);
-+		free(silencebuf_dsd);
- 	)
- }
- 
+Index: pcm.c
+===================================================================
+--- pcm.c	(revision 1086)
++++ pcm.c	(working copy)
+@@ -205,11 +205,29 @@
+ 	if (decode.new_stream) {
+ 		LOG_INFO("setting track_start");
+ 		LOCK_O_not_direct;
++		output.track_start = outputbuf->writep;
++		decode.new_stream = false;
++#if DSD
++		if (sample_size == 3 &&
++			is_stream_dop(((u8_t *)streambuf->readp) + (bigendian?0:2),
++						  ((u8_t *)streambuf->readp) + (bigendian?0:2) + sample_size,
++						  sample_size * channels, bytes / (sample_size * channels))) {
++			LOG_INFO("file contains DOP");
++			if (output.dsdfmt == DOP_S24_LE || output.dsdfmt == DOP_S24_3LE)
++				output.next_fmt = output.dsdfmt;
++			else
++				output.next_fmt = DOP;
++			output.next_sample_rate = sample_rate;
++			output.fade = FADE_INACTIVE;
++		} else {
++			output.next_sample_rate = decode_newstream(sample_rate, output.supported_rates);
++			output.next_fmt = PCM;
++			if (output.fade_mode) _checkfade(true);
++		}
++#else
+ 		output.next_sample_rate = decode_newstream(sample_rate, output.supported_rates);
+-		output.track_start = outputbuf->writep;
+-		IF_DSD( output.next_dop = false; )
+ 		if (output.fade_mode) _checkfade(true);
+-		decode.new_stream = false;
++#endif
+ 		UNLOCK_O_not_direct;
+ 		IF_PROCESS(
+ 			out = process.max_in_frames;
+Index: scripts/squeezelite-ralphy-dsd.patch
+===================================================================
+--- scripts/squeezelite-ralphy-dsd.patch	(revision 1086)
++++ scripts/squeezelite-ralphy-dsd.patch	(working copy)
+@@ -1,284 +1,95 @@
+-Index: output_pa.c
++Index: dop.c
+ ===================================================================
+---- output_pa.c	(revision 1076)
+-+++ output_pa.c	(working copy)
+-@@ -72,7 +72,7 @@
++--- dop.c	(revision 1086)
+++++ dop.c	(working copy)
++@@ -30,22 +30,22 @@
++ #define LOCK_O   mutex_lock(outputbuf->mutex)
++ #define UNLOCK_O mutex_unlock(outputbuf->mutex)
+  
+- extern u8_t *silencebuf;
+- #if DSD
+--extern u8_t *silencebuf_dop;
+-+extern u8_t *silencebuf_dsd;
+- #endif
++-// check for 32 dop marker frames to see if this is dop in flac
++-// dop is always encoded in 24 bit samples with marker 0x0005xxxx or 0x00FAxxxx
++-bool is_flac_dop(u32_t *lptr, u32_t *rptr, frames_t frames) {
+++// check for 32 dop marker frames to see if this is a dop stream
+++// dop is always encoded in 24 bit samples with markers 0x05 or 0xFA in MSB
+++bool is_stream_dop(u8_t *lptr, u8_t *rptr, int step, frames_t frames) {
++ 	int matched = 0;
++ 	u32_t next = 0;
+  
+- void list_devices(void) {
+-@@ -383,9 +383,10 @@
++ 	while (frames--) {
++-		if (((*lptr & 0x00FF0000) == 0x00050000 && (*rptr & 0x00FF0000) == 0x00050000) ||
++-			((*lptr & 0x00FF0000) == 0x00FA0000 && (*rptr & 0x00FF0000) == 0x00FA0000)) {
++-			if (*lptr >> 24 == next) {
+++		if ((*lptr == 0x05 && *rptr == 0x05) ||
+++			(*lptr == 0xFA && *rptr == 0xFA)) {
+++			if (*lptr == next) {
++ 				matched++;
++-				next = ( 0x05 + 0xFA ) - next;
++ 			} else {
++-				next = *lptr >> 24;
+++				next = *lptr;
++ 				matched = 1;
++ 			}
+++			next = ( 0x05 + 0xFA ) - next;
++ 		} else {
++ 			return false;
+  		}
++@@ -53,7 +53,7 @@
++ 			return true;
++ 		}
+  
+- 		IF_DSD(
+--			if (output.dop) {
+-+			if (output.outfmt == DOP) {
+- 				update_dop((u32_t *) outputbuf->readp, out_frames, output.invert);
+--			}
+-+			} else if (output.outfmt != PCM && output.invert)
+-+				dsd_invert((u32_t *) outputbuf->readp, out_frames);
+- 		)
+- 
+- 		memcpy(optr, outputbuf->readp, out_frames * BYTES_PER_FRAME);
+-@@ -395,8 +396,8 @@
+- 		u8_t *buf = silencebuf;
+- 
+- 		IF_DSD(
+--			if (output.dop) {
+--				buf = silencebuf_dop;
+-+			if (output.outfmt != DOP) {
+-+				buf = silencebuf_dsd;
+- 				update_dop((u32_t *) buf, out_frames, false); // don't invert silence
+- 			}
+- 		)
+-Index: mpg.c
+-===================================================================
+---- mpg.c	(revision 1076)
+-+++ mpg.c	(working copy)
+-@@ -125,7 +125,7 @@
+- 			LOG_INFO("setting track_start");
+- 			LOCK_O_not_direct;
+- 			output.next_sample_rate = decode_newstream(rate, output.supported_rates);
+--			IF_DSD( output.next_dop = false; )
+-+			IF_DSD( output.next_fmt = PCM; )
+- 			output.track_start = outputbuf->writep;
+- 			if (output.fade_mode) _checkfade(true);
+- 			decode.new_stream = false;
+-Index: output_alsa.c
+-===================================================================
+---- output_alsa.c	(revision 1076)
+-+++ output_alsa.c	(working copy)
+-@@ -50,6 +50,10 @@
+- 	char *ctl;
+- 	char *mixer_ctl;
+- 	snd_pcm_format_t format;
+-+#if DSD
+-+	dsd_format outfmt;
+-+	snd_pcm_format_t pcmfmt;
+-+#endif
+- 	snd_pcm_uframes_t buffer_size;
+- 	snd_pcm_uframes_t period_size;
+- 	unsigned rate;
+-@@ -68,7 +72,7 @@
+- 
+- extern u8_t *silencebuf;
+- #if DSD
+--extern u8_t *silencebuf_dop;
+-+extern u8_t *silencebuf_dsd;
+- #endif
+- 
+- static log_level loglevel;
+-@@ -317,7 +321,11 @@
+- 	return true;
+- }
+- 
+-+#if DSD
+-+static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buffer, unsigned alsa_period, dsd_format outfmt) {
+-+#else
+- static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buffer, unsigned alsa_period) {
+-+#endif
+- 	int err;
+- 	snd_pcm_hw_params_t *hw_params;
+- 	snd_pcm_hw_params_alloca(&hw_params);
+-@@ -327,6 +335,9 @@
+- 
+- 	// reset params
+- 	alsa.rate = 0;
+-+#if DSD
+-+	alsa.outfmt = PCM;
+-+#endif
+- 	alsa.period_size = 0;
+- 	strcpy(alsa.device, device);
+- 
+-@@ -383,6 +394,26 @@
++-		++lptr; ++rptr;
+++		lptr+=step; rptr+=step;
+  	}
+- 
+- 	// set the sample format
+-+#if DSD
+-+	switch (outfmt) {
+-+	case DSD_U8:
+-+		alsa.format = SND_PCM_FORMAT_DSD_U8; break;
+-+	case DSD_U16_LE:
+-+		alsa.format = SND_PCM_FORMAT_DSD_U16_LE; break;
+-+	case DSD_U16_BE:
+-+		alsa.format = SND_PCM_FORMAT_DSD_U16_BE; break;
+-+	case DSD_U32_LE:
+-+		alsa.format = SND_PCM_FORMAT_DSD_U32_LE; break;
+-+	case DSD_U32_BE:
+-+		alsa.format = SND_PCM_FORMAT_DSD_U32_BE; break;
+-+	case DOP_S24_LE:
+-+		alsa.format = SND_PCM_FORMAT_S24_LE; break;
+-+	case DOP_S24_3LE:
+-+		alsa.format = SND_PCM_FORMAT_S24_3LE; break;
+-+	default:
+-+		alsa.format = alsa.pcmfmt;
+-+	}
+-+#endif
+- 	snd_pcm_format_t *fmt = alsa.format ? &alsa.format : (snd_pcm_format_t *)fmts;
+- 	do {
+- 		if (snd_pcm_hw_params_set_format(pcmp, hw_params, *fmt) >= 0) {
+-@@ -411,6 +442,18 @@
+- 		output.format = S24_3LE; break;
+- 	case SND_PCM_FORMAT_S16_LE: 
+- 		output.format = S16_LE; break;
+-+#if DSD
+-+	case SND_PCM_FORMAT_DSD_U32_LE:
+-+		output.format = U32_LE; break;
+-+	case SND_PCM_FORMAT_DSD_U32_BE:
+-+		output.format = U32_BE; break;
+-+	case SND_PCM_FORMAT_DSD_U16_LE:
+-+		output.format = U16_LE; break;
+-+	case SND_PCM_FORMAT_DSD_U16_BE:
+-+		output.format = U16_BE; break;
+-+	case SND_PCM_FORMAT_DSD_U8:
+-+		output.format = U8; break;
+-+#endif
+- 	default: 
+- 		break;
+- 	}
+-@@ -495,7 +538,10 @@
+- 
+- 	// this indicates we have opened the device ok
+- 	alsa.rate = sample_rate;
+--
+-+#if DSD
+-+	alsa.outfmt = outfmt;
+-+#endif
+-+	
+- 	return 0;
++ 	return false;
+  }
+- 
+-@@ -531,11 +577,14 @@
+- 	inputptr = (s32_t *) (silence ? silencebuf : outputbuf->readp);
+- 
+- 	IF_DSD(
+--		if (output.dop) {
+-+		if (output.outfmt != PCM) {
+- 			if (silence) {
+--				inputptr = (s32_t *) silencebuf_dop;
+-+				inputptr = (s32_t *) silencebuf_dsd;
+- 			}
+--			update_dop((u32_t *) inputptr, out_frames, output.invert && !silence);
+-+			if (output.outfmt == DOP || output.outfmt == DOP_S24_LE || output.outfmt == DOP_S24_3LE)
+-+				update_dop((u32_t *) inputptr, out_frames, output.invert && !silence);
+-+			else if (output.invert && !silence)
+-+				dsd_invert((u32_t *) inputptr, out_frames);
++@@ -65,9 +65,9 @@
++ 	if (!invert) {
++ 		while (frames--) {
++ 			u32_t scaled_marker = marker << 24;
++-			*ptr = (*ptr & 0x00FFFFFF) | scaled_marker;
+++			*ptr = (*ptr & 0x00FFFF00) | scaled_marker;
++ 			++ptr;
++-			*ptr = (*ptr & 0x00FFFFFF) | scaled_marker;
+++			*ptr = (*ptr & 0x00FFFF00) | scaled_marker;
++ 			++ptr;
++ 			marker = ( 0x05 + 0xFA ) - marker;
+  		}
+- 	)
+- 
+-@@ -616,8 +665,12 @@
+- 			}
+- 			probe_device = false;
++@@ -74,9 +74,9 @@
++ 	} else {
++ 		while (frames--) {
++ 			u32_t scaled_marker = marker << 24;
++-			*ptr = ((~(*ptr)) & 0x00FFFFFF) | scaled_marker;
+++			*ptr = ((~(*ptr)) & 0x00FFFF00) | scaled_marker;
++ 			++ptr;
++-			*ptr = ((~(*ptr)) & 0x00FFFFFF) | scaled_marker;
+++			*ptr = ((~(*ptr)) & 0x00FFFF00) | scaled_marker;
++ 			++ptr;
++ 			marker = ( 0x05 + 0xFA ) - marker;
+  		}
+-+#if DSD
+-+		if (!pcmp || alsa.rate != output.current_sample_rate || alsa.outfmt != output.outfmt ) {
+-+#else
++@@ -83,20 +83,4 @@
++ 	}
++ }
+  
+- 		if (!pcmp || alsa.rate != output.current_sample_rate) {
+-+#endif
+- #if GPIO
+- 			// Wake up amp
+- 			if (gpio_active) { 
+-@@ -635,10 +688,17 @@
+- 			// FIXME - some alsa hardware requires opening twice for a new sample rate to work
+- 			// this is a workaround which should be removed
+- 			if (alsa.reopen) {
+-+#if DSD
+-+				alsa_open(output.device, output.current_sample_rate, output.buffer, output.period, output.outfmt);
+-+#else
+- 				alsa_open(output.device, output.current_sample_rate, output.buffer, output.period);
+-+#endif
+- 			}
++-// fill silence buffer with 10101100 which represents dop silence
++-// leave marker zero it will be updated at output, leave lsb zero
++-void dop_silence_frames(u32_t *ptr, frames_t frames) {
++-	while (frames--) {
++-		*ptr++ = 0x00ACAC00;
++-		*ptr++ = 0x00ACAC00;
++-	}
++-}
+ -
+-+#if DSD
+-+			if (!!alsa_open(output.device, output.current_sample_rate, output.buffer, output.period, output.outfmt)) {
+-+#else
+- 			if (!!alsa_open(output.device, output.current_sample_rate, output.buffer, output.period)) {
+-+#endif
+- 				output.error_opening = true;
+- 				UNLOCK;
+- 				sleep(5);
+-@@ -880,7 +940,11 @@
+- 
+- 	alsa.mmap = alsa_mmap;
+- 	alsa.write_buf = NULL;
+-+#if DSD
+-+	alsa.pcmfmt = 0;
+-+#else
+- 	alsa.format = 0;
+-+#endif
+- 	alsa.reopen = alsa_reopen;
+- 	alsa.mixer_handle = NULL;
+- 	alsa.ctl = ctl4device(device);
+-@@ -896,10 +960,17 @@
+- 	output.rate_delay = rate_delay;
+- 
+- 	if (alsa_sample_fmt) {
+-+#if DSD
+-+		if (!strcmp(alsa_sample_fmt, "32"))	alsa.pcmfmt = SND_PCM_FORMAT_S32_LE;
+-+		if (!strcmp(alsa_sample_fmt, "24")) alsa.pcmfmt = SND_PCM_FORMAT_S24_LE;
+-+		if (!strcmp(alsa_sample_fmt, "24_3")) alsa.pcmfmt = SND_PCM_FORMAT_S24_3LE;
+-+		if (!strcmp(alsa_sample_fmt, "16")) alsa.pcmfmt = SND_PCM_FORMAT_S16_LE;
+-+#else
+- 		if (!strcmp(alsa_sample_fmt, "32"))	alsa.format = SND_PCM_FORMAT_S32_LE;
+- 		if (!strcmp(alsa_sample_fmt, "24")) alsa.format = SND_PCM_FORMAT_S24_LE;
+- 		if (!strcmp(alsa_sample_fmt, "24_3")) alsa.format = SND_PCM_FORMAT_S24_3LE;
+- 		if (!strcmp(alsa_sample_fmt, "16")) alsa.format = SND_PCM_FORMAT_S16_LE;
+-+#endif
+- 	}
+- 
+- 	LOG_INFO("requested alsa_buffer: %u alsa_period: %u format: %s mmap: %u", output.buffer, output.period, 
+-Index: mad.c
+-===================================================================
+---- mad.c	(revision 1076)
+-+++ mad.c	(working copy)
+-@@ -242,7 +242,7 @@
+- 			LOCK_O;
+- 			LOG_INFO("setting track_start");
+- 			output.next_sample_rate = decode_newstream(m->synth.pcm.samplerate, output.supported_rates);
+--			IF_DSD(	output.next_dop = false; )
+-+			IF_DSD(	output.next_fmt = PCM; )
+- 			output.track_start = outputbuf->writep;
+- 			if (output.fade_mode) _checkfade(true);
+- 			decode.new_stream = false;
+-Index: output_stdout.c
+-===================================================================
+---- output_stdout.c	(revision 1076)
+-+++ output_stdout.c	(working copy)
+-@@ -37,7 +37,7 @@
+- 
+- extern u8_t *silencebuf;
+- #if DSD
+--extern u8_t *silencebuf_dop;
+-+extern u8_t *silencebuf_dsd;
+- #endif
+- 
+- // buffer to hold output data so we can block on writing outside of output lock, allocated on init
+-@@ -64,11 +64,14 @@
+- 	}
+- 
+- 	IF_DSD(
+--		   if (output.dop) {
+-+		   if (output.outfmt != PCM) {
+- 			   if (silence) {
+--				   obuf = silencebuf_dop;
+-+				   obuf = silencebuf_dsd;
+- 			   }
+--			   update_dop((u32_t *)obuf, out_frames, output.invert && !silence);
+-+			   if (output.outfmt == DOP)
+-+				   update_dop((u32_t *)obuf, out_frames, output.invert && !silence);
+-+			   else if (output.invert && !silence)
+-+				   dsd_invert((u32_t *)obuf, out_frames);
+- 		   }
+- 	)
+- 
++-void dop_init(bool enable, unsigned delay) {
++-	LOCK_O;
++-	output.has_dop = enable;
++-	output.dop_delay = delay;
++-	UNLOCK_O;
++-}
++-
++ #endif // DSD
+ Index: dsd.c
+ ===================================================================
+---- dsd.c	(revision 1076)
++--- dsd.c	(revision 1086)
+ +++ dsd.c	(working copy)
+ @@ -59,11 +59,11 @@
+  
+@@ -770,135 +581,80 @@
+ +}
+ +
+  #endif // DSD
+-Index: pcm.c
++Index: faad.c
+ ===================================================================
+---- pcm.c	(revision 1076)
+-+++ pcm.c	(working copy)
+-@@ -205,11 +205,29 @@
+- 	if (decode.new_stream) {
++--- faad.c	(revision 1086)
+++++ faad.c	(working copy)
++@@ -377,7 +377,7 @@
++ 			LOCK_O;
++ 			LOG_INFO("setting track_start");
++ 			output.next_sample_rate = decode_newstream(samplerate, output.supported_rates);
++-			IF_DSD( output.next_dop = false; )
+++			IF_DSD( output.next_fmt = PCM; )
++ 			output.track_start = outputbuf->writep;
++ 			if (output.fade_mode) _checkfade(true);
++ 			decode.new_stream = false;
++Index: ffmpeg.c
++===================================================================
++--- ffmpeg.c	(revision 1086)
+++++ ffmpeg.c	(working copy)
++@@ -353,7 +353,7 @@
++ 		LOCK_O;
+  		LOG_INFO("setting track_start");
+- 		LOCK_O_not_direct;
+-+		output.track_start = outputbuf->writep;
+-+		decode.new_stream = false;
+-+#if DSD
+-+		if (sample_size == 3 &&
+-+			is_stream_dop(((u8_t *)streambuf->readp) + (bigendian?0:2),
+-+						  ((u8_t *)streambuf->readp) + (bigendian?0:2) + sample_size,
+-+						  sample_size * channels, bytes / (sample_size * channels))) {
+-+			LOG_INFO("file contains DOP");
++ 		output.next_sample_rate = decode_newstream(ff->codecC->sample_rate, output.supported_rates);
++-		IF_DSD(	output.next_dop = false; )
+++		IF_DSD(	output.next_fmt = PCM; )
++ 		output.track_start = outputbuf->writep;
++ 		if (output.fade_mode) _checkfade(true);
++ 		decode.new_stream = false;
++Index: flac.c
++===================================================================
++--- flac.c	(revision 1086)
+++++ flac.c	(working copy)
++@@ -118,14 +118,22 @@
++ 		decode.new_stream = false;
++ 
++ #if DSD
++-		if (output.has_dop && bits_per_sample == 24 && is_flac_dop((u32_t *)lptr, (u32_t *)rptr, frames)) {
+++#if SL_LITTLE_ENDIAN
+++#define MARKER_OFFSET 2
+++#else
+++#define MARKER_OFFSET 1
+++#endif		
+++		if (bits_per_sample == 24 && is_stream_dop(((u8_t *)lptr) + MARKER_OFFSET, ((u8_t *)rptr) + MARKER_OFFSET, 4, frames)) {
++ 			LOG_INFO("file contains DOP");
++-			output.next_dop = true;
+ +			if (output.dsdfmt == DOP_S24_LE || output.dsdfmt == DOP_S24_3LE)
+ +				output.next_fmt = output.dsdfmt;
+ +			else
+ +				output.next_fmt = DOP;
+-+			output.next_sample_rate = sample_rate;
+-+			output.fade = FADE_INACTIVE;
+-+		} else {
+-+			output.next_sample_rate = decode_newstream(sample_rate, output.supported_rates);
++ 			output.next_sample_rate = frame->header.sample_rate;
++ 			output.fade = FADE_INACTIVE;
++ 		} else {
++ 			output.next_sample_rate = decode_newstream(frame->header.sample_rate, output.supported_rates);
++-			output.next_dop = false;
+ +			output.next_fmt = PCM;
+-+			if (output.fade_mode) _checkfade(true);
+-+		}
+-+#else
+- 		output.next_sample_rate = decode_newstream(sample_rate, output.supported_rates);
+--		output.track_start = outputbuf->writep;
+--		IF_DSD( output.next_dop = false; )
+- 		if (output.fade_mode) _checkfade(true);
+--		decode.new_stream = false;
+-+#endif
+- 		UNLOCK_O_not_direct;
+- 		IF_PROCESS(
+- 			out = process.max_in_frames;
+-Index: dop.c
++ 			if (output.fade_mode) _checkfade(true);
++ 		}
++ #else
++Index: mad.c
+ ===================================================================
+---- dop.c	(revision 1076)
+-+++ dop.c	(working copy)
+-@@ -30,22 +30,22 @@
+- #define LOCK_O   mutex_lock(outputbuf->mutex)
+- #define UNLOCK_O mutex_unlock(outputbuf->mutex)
+- 
+--// check for 32 dop marker frames to see if this is dop in flac
+--// dop is always encoded in 24 bit samples with marker 0x0005xxxx or 0x00FAxxxx
+--bool is_flac_dop(u32_t *lptr, u32_t *rptr, frames_t frames) {
+-+// check for 32 dop marker frames to see if this is a dop stream
+-+// dop is always encoded in 24 bit samples with markers 0x05 or 0xFA in MSB
+-+bool is_stream_dop(u8_t *lptr, u8_t *rptr, int step, frames_t frames) {
+- 	int matched = 0;
+- 	u32_t next = 0;
+- 
+- 	while (frames--) {
+--		if (((*lptr & 0x00FF0000) == 0x00050000 && (*rptr & 0x00FF0000) == 0x00050000) ||
+--			((*lptr & 0x00FF0000) == 0x00FA0000 && (*rptr & 0x00FF0000) == 0x00FA0000)) {
+--			if (*lptr >> 24 == next) {
+-+		if ((*lptr == 0x05 && *rptr == 0x05) ||
+-+			(*lptr == 0xFA && *rptr == 0xFA)) {
+-+			if (*lptr == next) {
+- 				matched++;
+--				next = ( 0x05 + 0xFA ) - next;
+- 			} else {
+--				next = *lptr >> 24;
+-+				next = *lptr;
+- 				matched = 1;
+- 			}
+-+			next = ( 0x05 + 0xFA ) - next;
+- 		} else {
+- 			return false;
+- 		}
+-@@ -53,7 +53,7 @@
+- 			return true;
+- 		}
+- 
+--		++lptr; ++rptr;
+-+		lptr+=step; rptr+=step;
+- 	}
+- 	return false;
+- }
+-@@ -65,38 +65,22 @@
+- 	if (!invert) {
+- 		while (frames--) {
+- 			u32_t scaled_marker = marker << 24;
+--			*ptr = (*ptr & 0x00FFFFFF) | scaled_marker;
+-+			*ptr = (*ptr & 0x00FFFF00) | scaled_marker;
+- 			++ptr;
+--			*ptr = (*ptr & 0x00FFFFFF) | scaled_marker;
+-+			*ptr = (*ptr & 0x00FFFF00) | scaled_marker;
+- 			++ptr;
+- 			marker = ( 0x05 + 0xFA ) - marker;
+- 		}
+- 	} else {
+- 		while (frames--) {
+- 			u32_t scaled_marker = marker << 24;
+--			*ptr = ((~(*ptr)) & 0x00FFFFFF) | scaled_marker;
+-+			*ptr = ((~(*ptr)) & 0x00FFFF00) | scaled_marker;
+- 			++ptr;
+--			*ptr = ((~(*ptr)) & 0x00FFFFFF) | scaled_marker;
+-+			*ptr = ((~(*ptr)) & 0x00FFFF00) | scaled_marker;
+- 			++ptr;
+- 			marker = ( 0x05 + 0xFA ) - marker;
+- 		}
+- 	}
+- }
+- 
+--// fill silence buffer with 10101100 which represents dop silence
+--// leave marker zero it will be updated at output, leave lsb zero
+--void dop_silence_frames(u32_t *ptr, frames_t frames) {
+--	while (frames--) {
+--		*ptr++ = 0x00ACAC00;
+--		*ptr++ = 0x00ACAC00;
+--	}
+--}
+--
+--void dop_init(bool enable, unsigned delay) {
+--	LOCK_O;
+--	output.has_dop = enable;
+--	output.dop_delay = delay;
+--	UNLOCK_O;
+--}
+--
+- #endif // DSD
++--- mad.c	(revision 1086)
+++++ mad.c	(working copy)
++@@ -242,7 +242,7 @@
++ 			LOCK_O;
++ 			LOG_INFO("setting track_start");
++ 			output.next_sample_rate = decode_newstream(m->synth.pcm.samplerate, output.supported_rates);
++-			IF_DSD(	output.next_dop = false; )
+++			IF_DSD(	output.next_fmt = PCM; )
++ 			output.track_start = outputbuf->writep;
++ 			if (output.fade_mode) _checkfade(true);
++ 			decode.new_stream = false;
+ Index: main.c
+ ===================================================================
+---- main.c	(revision 1076)
++--- main.c	(revision 1086)
+ +++ main.c	(working copy)
+-@@ -105,8 +105,13 @@
++@@ -110,8 +110,13 @@
+  		   "  \t\t\t phase_response = 0-100 (0 = minimum / 50 = linear / 100 = maximum)\n"
+  #endif
+  #if DSD
+@@ -913,7 +669,7 @@
+  #if VISEXPORT
+  		   "  -v \t\t\tVisualiser support\n"
+  #endif
+-@@ -209,6 +214,8 @@
++@@ -220,6 +225,8 @@
+  #if DSD		   
+  		   "\nContains dsd2pcm library Copyright 2009, 2011 Sebastian Gesemann which\n"
+  		   "is subject to its own license.\n"
+@@ -922,7 +678,7 @@
+  #endif
+  		   "\nOption to allow server side upsampling for PCM streams (-W) from\n"
+  		   "squeezelite-R2 (c) Marco Curti 2015, marcoc1712@gmail.com.\n"
+-@@ -268,8 +275,8 @@
++@@ -279,8 +286,8 @@
+  	bool linear_volume = false;
+  #endif
+  #if DSD
+@@ -933,7 +689,7 @@
+  #endif
+  #if VISEXPORT
+  	bool visexport = false;
+-@@ -514,9 +521,21 @@
++@@ -525,9 +532,21 @@
+  #endif
+  #if DSD
+  		case 'D':
+@@ -957,7 +713,7 @@
+  			}
+  			break;
+  #endif
+-@@ -714,7 +733,7 @@
++@@ -725,7 +744,7 @@
+  	}
+  
+  #if DSD
+@@ -966,22 +722,311 @@
+  #endif
+  
+  #if VISEXPORT
+-Index: faad.c
++Index: mpg.c
+ ===================================================================
+---- faad.c	(revision 1076)
+-+++ faad.c	(working copy)
+-@@ -377,7 +377,7 @@
+- 			LOCK_O;
++--- mpg.c	(revision 1086)
+++++ mpg.c	(working copy)
++@@ -125,7 +125,7 @@
+  			LOG_INFO("setting track_start");
+- 			output.next_sample_rate = decode_newstream(samplerate, output.supported_rates);
++ 			LOCK_O_not_direct;
++ 			output.next_sample_rate = decode_newstream(rate, output.supported_rates);
+ -			IF_DSD( output.next_dop = false; )
+ +			IF_DSD( output.next_fmt = PCM; )
+  			output.track_start = outputbuf->writep;
+  			if (output.fade_mode) _checkfade(true);
+  			decode.new_stream = false;
++Index: output.c
++===================================================================
++--- output.c	(revision 1086)
+++++ output.c	(working copy)
++@@ -33,7 +33,7 @@
++ 
++ u8_t *silencebuf;
++ #if DSD
++-u8_t *silencebuf_dop;
+++u8_t *silencebuf_dsd;
++ #endif
++ 
++ #define LOCK   mutex_lock(outputbuf->mutex)
++@@ -127,8 +127,8 @@
++ 					delay = output.rate_delay;
++ 				}
++ 				IF_DSD(
++-				   if (output.dop != output.next_dop) {
++-					   delay = output.dop_delay;
+++				   if (output.outfmt != output.next_fmt) {
+++					   delay = output.dsd_delay;
++ 				   }
++ 				)
++ 				frames -= size;
++@@ -150,7 +150,7 @@
++ 				output.track_start_time = gettime_ms();
++ 				output.current_sample_rate = output.next_sample_rate;
++ 				IF_DSD(
++-				   output.dop = output.next_dop;
+++				   output.outfmt = output.next_fmt;
++ 				)
++ 				if (output.fade == FADE_INACTIVE || output.fade_mode != FADE_CROSSFADE) {
++ 					output.current_replay_gain = output.next_replay_gain;
++@@ -164,7 +164,7 @@
++ 		}
++ 
++ 		IF_DSD(
++-			if (output.dop) {
+++			if (output.outfmt != PCM) {
++ 				gainL = gainR = FIXED_ONE;
++ 			}
++ 		)
++@@ -360,12 +360,12 @@
++ 	memset(silencebuf, 0, MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
++ 
++ 	IF_DSD(
++-		silencebuf_dop = malloc(MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
++-		if (!silencebuf_dop) {
++-			LOG_ERROR("unable to malloc silence dop buffer");
+++		silencebuf_dsd = malloc(MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
+++		if (!silencebuf_dsd) {
+++			LOG_ERROR("unable to malloc silence dsd buffer");
++ 			exit(0);
++ 		}
++-		dop_silence_frames((u32_t *)silencebuf_dop, MAX_SILENCE_FRAMES);
+++		dsd_silence_frames((u32_t *)silencebuf_dsd, MAX_SILENCE_FRAMES);
++ 	)
++ 
++ 	LOG_DEBUG("idle timeout: %u", idle);
++@@ -416,7 +416,7 @@
++ 	buf_destroy(outputbuf);
++ 	free(silencebuf);
++ 	IF_DSD(
++-		free(silencebuf_dop);
+++		free(silencebuf_dsd);
++ 	)
++ }
++ 
++Index: output_alsa.c
++===================================================================
++--- output_alsa.c	(revision 1086)
+++++ output_alsa.c	(working copy)
++@@ -50,6 +50,10 @@
++ 	char *ctl;
++ 	char *mixer_ctl;
++ 	snd_pcm_format_t format;
+++#if DSD
+++	dsd_format outfmt;
+++	snd_pcm_format_t pcmfmt;
+++#endif
++ 	snd_pcm_uframes_t buffer_size;
++ 	snd_pcm_uframes_t period_size;
++ 	unsigned rate;
++@@ -68,7 +72,7 @@
++ 
++ extern u8_t *silencebuf;
++ #if DSD
++-extern u8_t *silencebuf_dop;
+++extern u8_t *silencebuf_dsd;
++ #endif
++ 
++ static log_level loglevel;
++@@ -317,7 +321,11 @@
++ 	return true;
++ }
++ 
+++#if DSD
+++static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buffer, unsigned alsa_period, dsd_format outfmt) {
+++#else
++ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buffer, unsigned alsa_period) {
+++#endif
++ 	int err;
++ 	snd_pcm_hw_params_t *hw_params;
++ 	snd_pcm_hw_params_alloca(&hw_params);
++@@ -327,6 +335,9 @@
++ 
++ 	// reset params
++ 	alsa.rate = 0;
+++#if DSD
+++	alsa.outfmt = PCM;
+++#endif
++ 	alsa.period_size = 0;
++ 	strcpy(alsa.device, device);
++ 
++@@ -383,6 +394,26 @@
++ 	}
++ 
++ 	// set the sample format
+++#if DSD
+++	switch (outfmt) {
+++	case DSD_U8:
+++		alsa.format = SND_PCM_FORMAT_DSD_U8; break;
+++	case DSD_U16_LE:
+++		alsa.format = SND_PCM_FORMAT_DSD_U16_LE; break;
+++	case DSD_U16_BE:
+++		alsa.format = SND_PCM_FORMAT_DSD_U16_BE; break;
+++	case DSD_U32_LE:
+++		alsa.format = SND_PCM_FORMAT_DSD_U32_LE; break;
+++	case DSD_U32_BE:
+++		alsa.format = SND_PCM_FORMAT_DSD_U32_BE; break;
+++	case DOP_S24_LE:
+++		alsa.format = SND_PCM_FORMAT_S24_LE; break;
+++	case DOP_S24_3LE:
+++		alsa.format = SND_PCM_FORMAT_S24_3LE; break;
+++	default:
+++		alsa.format = alsa.pcmfmt;
+++	}
+++#endif
++ 	snd_pcm_format_t *fmt = alsa.format ? &alsa.format : (snd_pcm_format_t *)fmts;
++ 	do {
++ 		if (snd_pcm_hw_params_set_format(pcmp, hw_params, *fmt) >= 0) {
++@@ -411,6 +442,18 @@
++ 		output.format = S24_3LE; break;
++ 	case SND_PCM_FORMAT_S16_LE: 
++ 		output.format = S16_LE; break;
+++#if DSD
+++	case SND_PCM_FORMAT_DSD_U32_LE:
+++		output.format = U32_LE; break;
+++	case SND_PCM_FORMAT_DSD_U32_BE:
+++		output.format = U32_BE; break;
+++	case SND_PCM_FORMAT_DSD_U16_LE:
+++		output.format = U16_LE; break;
+++	case SND_PCM_FORMAT_DSD_U16_BE:
+++		output.format = U16_BE; break;
+++	case SND_PCM_FORMAT_DSD_U8:
+++		output.format = U8; break;
+++#endif
++ 	default: 
++ 		break;
++ 	}
++@@ -495,7 +538,10 @@
++ 
++ 	// this indicates we have opened the device ok
++ 	alsa.rate = sample_rate;
++-
+++#if DSD
+++	alsa.outfmt = outfmt;
+++#endif
+++	
++ 	return 0;
++ }
++ 
++@@ -531,11 +577,14 @@
++ 	inputptr = (s32_t *) (silence ? silencebuf : outputbuf->readp);
++ 
++ 	IF_DSD(
++-		if (output.dop) {
+++		if (output.outfmt != PCM) {
++ 			if (silence) {
++-				inputptr = (s32_t *) silencebuf_dop;
+++				inputptr = (s32_t *) silencebuf_dsd;
++ 			}
++-			update_dop((u32_t *) inputptr, out_frames, output.invert && !silence);
+++			if (output.outfmt == DOP || output.outfmt == DOP_S24_LE || output.outfmt == DOP_S24_3LE)
+++				update_dop((u32_t *) inputptr, out_frames, output.invert && !silence);
+++			else if (output.invert && !silence)
+++				dsd_invert((u32_t *) inputptr, out_frames);
++ 		}
++ 	)
++ 
++@@ -616,8 +665,12 @@
++ 			}
++ 			probe_device = false;
++ 		}
+++#if DSD
+++		if (!pcmp || alsa.rate != output.current_sample_rate || alsa.outfmt != output.outfmt ) {
+++#else
++ 
++ 		if (!pcmp || alsa.rate != output.current_sample_rate) {
+++#endif
++ #if GPIO
++ 			// Wake up amp
++ 			if (gpio_active) { 
++@@ -635,10 +688,17 @@
++ 			// FIXME - some alsa hardware requires opening twice for a new sample rate to work
++ 			// this is a workaround which should be removed
++ 			if (alsa.reopen) {
+++#if DSD
+++				alsa_open(output.device, output.current_sample_rate, output.buffer, output.period, output.outfmt);
+++#else
++ 				alsa_open(output.device, output.current_sample_rate, output.buffer, output.period);
+++#endif
++ 			}
++-
+++#if DSD
+++			if (!!alsa_open(output.device, output.current_sample_rate, output.buffer, output.period, output.outfmt)) {
+++#else
++ 			if (!!alsa_open(output.device, output.current_sample_rate, output.buffer, output.period)) {
+++#endif
++ 				output.error_opening = true;
++ 				UNLOCK;
++ 				sleep(5);
++@@ -880,7 +940,11 @@
++ 
++ 	alsa.mmap = alsa_mmap;
++ 	alsa.write_buf = NULL;
+++#if DSD
+++	alsa.pcmfmt = 0;
+++#else
++ 	alsa.format = 0;
+++#endif
++ 	alsa.reopen = alsa_reopen;
++ 	alsa.mixer_handle = NULL;
++ 	alsa.ctl = ctl4device(device);
++@@ -896,10 +960,17 @@
++ 	output.rate_delay = rate_delay;
++ 
++ 	if (alsa_sample_fmt) {
+++#if DSD
+++		if (!strcmp(alsa_sample_fmt, "32"))	alsa.pcmfmt = SND_PCM_FORMAT_S32_LE;
+++		if (!strcmp(alsa_sample_fmt, "24")) alsa.pcmfmt = SND_PCM_FORMAT_S24_LE;
+++		if (!strcmp(alsa_sample_fmt, "24_3")) alsa.pcmfmt = SND_PCM_FORMAT_S24_3LE;
+++		if (!strcmp(alsa_sample_fmt, "16")) alsa.pcmfmt = SND_PCM_FORMAT_S16_LE;
+++#else
++ 		if (!strcmp(alsa_sample_fmt, "32"))	alsa.format = SND_PCM_FORMAT_S32_LE;
++ 		if (!strcmp(alsa_sample_fmt, "24")) alsa.format = SND_PCM_FORMAT_S24_LE;
++ 		if (!strcmp(alsa_sample_fmt, "24_3")) alsa.format = SND_PCM_FORMAT_S24_3LE;
++ 		if (!strcmp(alsa_sample_fmt, "16")) alsa.format = SND_PCM_FORMAT_S16_LE;
+++#endif
++ 	}
++ 
++ 	LOG_INFO("requested alsa_buffer: %u alsa_period: %u format: %s mmap: %u", output.buffer, output.period, 
++Index: output_pa.c
++===================================================================
++--- output_pa.c	(revision 1086)
+++++ output_pa.c	(working copy)
++@@ -72,7 +72,7 @@
++ 
++ extern u8_t *silencebuf;
++ #if DSD
++-extern u8_t *silencebuf_dop;
+++extern u8_t *silencebuf_dsd;
++ #endif
++ 
++ void list_devices(void) {
++@@ -383,9 +383,10 @@
++ 		}
++ 
++ 		IF_DSD(
++-			if (output.dop) {
+++			if (output.outfmt == DOP) {
++ 				update_dop((u32_t *) outputbuf->readp, out_frames, output.invert);
++-			}
+++			} else if (output.outfmt != PCM && output.invert)
+++				dsd_invert((u32_t *) outputbuf->readp, out_frames);
++ 		)
++ 
++ 		memcpy(optr, outputbuf->readp, out_frames * BYTES_PER_FRAME);
++@@ -395,8 +396,8 @@
++ 		u8_t *buf = silencebuf;
++ 
++ 		IF_DSD(
++-			if (output.dop) {
++-				buf = silencebuf_dop;
+++			if (output.outfmt != DOP) {
+++				buf = silencebuf_dsd;
++ 				update_dop((u32_t *) buf, out_frames, false); // don't invert silence
++ 			}
++ 		)
+ Index: output_pack.c
+ ===================================================================
+---- output_pack.c	(revision 1076)
++--- output_pack.c	(revision 1086)
+ +++ output_pack.c	(working copy)
+ @@ -45,6 +45,100 @@
+  
+@@ -1084,174 +1129,71 @@
+  	case S16_LE:
+  		{
+  			u32_t *optr = (u32_t *)(void *)outputptr;
+-Index: output.c
++Index: output_stdout.c
+ ===================================================================
+---- output.c	(revision 1076)
+-+++ output.c	(working copy)
+-@@ -33,7 +33,7 @@
++--- output_stdout.c	(revision 1086)
+++++ output_stdout.c	(working copy)
++@@ -37,7 +37,7 @@
+  
+- u8_t *silencebuf;
++ extern u8_t *silencebuf;
+  #if DSD
+--u8_t *silencebuf_dop;
+-+u8_t *silencebuf_dsd;
++-extern u8_t *silencebuf_dop;
+++extern u8_t *silencebuf_dsd;
+  #endif
+  
+- #define LOCK   mutex_lock(outputbuf->mutex)
+-@@ -127,8 +127,8 @@
+- 					delay = output.rate_delay;
+- 				}
+- 				IF_DSD(
+--				   if (output.dop != output.next_dop) {
+--					   delay = output.dop_delay;
+-+				   if (output.outfmt != output.next_fmt) {
+-+					   delay = output.dsd_delay;
+- 				   }
+- 				)
+- 				frames -= size;
+-@@ -150,7 +150,7 @@
+- 				output.track_start_time = gettime_ms();
+- 				output.current_sample_rate = output.next_sample_rate;
+- 				IF_DSD(
+--				   output.dop = output.next_dop;
+-+				   output.outfmt = output.next_fmt;
+- 				)
+- 				if (output.fade == FADE_INACTIVE || output.fade_mode != FADE_CROSSFADE) {
+- 					output.current_replay_gain = output.next_replay_gain;
+-@@ -164,7 +164,7 @@
+- 		}
++ // buffer to hold output data so we can block on writing outside of output lock, allocated on init
++@@ -64,11 +64,14 @@
++ 	}
+  
+- 		IF_DSD(
+--			if (output.dop) {
+-+			if (output.outfmt != PCM) {
+- 				gainL = gainR = FIXED_ONE;
+- 			}
+- 		)
+-@@ -360,12 +360,12 @@
+- 	memset(silencebuf, 0, MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
+- 
+  	IF_DSD(
+--		silencebuf_dop = malloc(MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
+--		if (!silencebuf_dop) {
+--			LOG_ERROR("unable to malloc silence dop buffer");
+-+		silencebuf_dsd = malloc(MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
+-+		if (!silencebuf_dsd) {
+-+			LOG_ERROR("unable to malloc silence dsd buffer");
+- 			exit(0);
+- 		}
+--		dop_silence_frames((u32_t *)silencebuf_dop, MAX_SILENCE_FRAMES);
+-+		dsd_silence_frames((u32_t *)silencebuf_dsd, MAX_SILENCE_FRAMES);
++-		   if (output.dop) {
+++		   if (output.outfmt != PCM) {
++ 			   if (silence) {
++-				   obuf = silencebuf_dop;
+++				   obuf = silencebuf_dsd;
++ 			   }
++-			   update_dop((u32_t *)obuf, out_frames, output.invert && !silence);
+++			   if (output.outfmt == DOP)
+++				   update_dop((u32_t *)obuf, out_frames, output.invert && !silence);
+++			   else if (output.invert && !silence)
+++				   dsd_invert((u32_t *)obuf, out_frames);
++ 		   }
+  	)
+  
+- 	LOG_DEBUG("idle timeout: %u", idle);
+-@@ -416,7 +416,7 @@
+- 	buf_destroy(outputbuf);
+- 	free(silencebuf);
+- 	IF_DSD(
+--		free(silencebuf_dop);
+-+		free(silencebuf_dsd);
+- 	)
+- }
+- 
+-Index: squeezelite.h
++Index: pcm.c
+ ===================================================================
+---- squeezelite.h	(revision 1076)
+-+++ squeezelite.h	(working copy)
+-@@ -550,7 +550,12 @@
+- typedef enum { OUTPUT_OFF = -1, OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNING, 
+- 			   OUTPUT_PAUSE_FRAMES, OUTPUT_SKIP_FRAMES, OUTPUT_START_AT } output_state;
+- 
+-+#if DSD
+-+typedef enum { PCM, DOP, DSD_U8, DSD_U16_LE, DSD_U32_LE, DSD_U16_BE, DSD_U32_BE, DOP_S24_LE, DOP_S24_3LE } dsd_format;
+-+typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE, U8, U16_LE, U16_BE, U32_LE, U32_BE } output_format;
+-+#else
+- typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE } output_format;
+-+#endif
+- 
+- typedef enum { FADE_INACTIVE = 0, FADE_DUE, FADE_ACTIVE } fade_state;
+- typedef enum { FADE_UP = 1, FADE_DOWN, FADE_CROSS } fade_dir;
+-@@ -608,10 +613,10 @@
+- 	u32_t stop_time;
+- 	u32_t idle_to;
+- #if DSD
+--	bool next_dop;             // set in decode thread
+--	bool dop;
+--	bool has_dop;              // set in dop_init - output device supports dop
+--	unsigned dop_delay;        // set in dop_init - delay in ms switching to/from dop
+-+	dsd_format next_fmt;       // set in decode thread
+-+	dsd_format outfmt;
+-+	dsd_format dsdfmt;	       // set in dsd_init - output for DSD: DOP, DSD_U8, ...
+-+	unsigned dsd_delay;		   // set in dsd_init - delay in ms switching to/from dop
+- #endif
+- };
+- 
+-@@ -665,10 +670,11 @@
+- 
+- // dop.c
+- #if DSD
+--bool is_flac_dop(u32_t *lptr, u32_t *rptr, frames_t frames);
+-+bool is_stream_dop(u8_t *lptr, u8_t *rptr, int step, frames_t frames);
+- void update_dop(u32_t *ptr, frames_t frames, bool invert);
+--void dop_silence_frames(u32_t *ptr, frames_t frames);
+--void dop_init(bool enable, unsigned delay);
+-+void dsd_silence_frames(u32_t *ptr, frames_t frames);
+-+void dsd_invert(u32_t *ptr, frames_t frames);
+-+void dsd_init(dsd_format format, unsigned delay);
+- #endif
+- 
+- // codecs
+-Index: ffmpeg.c
+-===================================================================
+---- ffmpeg.c	(revision 1076)
+-+++ ffmpeg.c	(working copy)
+-@@ -353,7 +353,7 @@
+- 		LOCK_O;
++--- pcm.c	(revision 1086)
+++++ pcm.c	(working copy)
++@@ -205,11 +205,29 @@
++ 	if (decode.new_stream) {
+  		LOG_INFO("setting track_start");
+- 		output.next_sample_rate = decode_newstream(ff->codecC->sample_rate, output.supported_rates);
+--		IF_DSD(	output.next_dop = false; )
+-+		IF_DSD(	output.next_fmt = PCM; )
+- 		output.track_start = outputbuf->writep;
+- 		if (output.fade_mode) _checkfade(true);
+- 		decode.new_stream = false;
+-Index: vorbis.c
+-===================================================================
+---- vorbis.c	(revision 1076)
+-+++ vorbis.c	(working copy)
+-@@ -153,7 +153,7 @@
+- 		LOG_INFO("setting track_start");
+  		LOCK_O_not_direct;
+- 		output.next_sample_rate = decode_newstream(info->rate, output.supported_rates); 
+--		IF_DSD(	output.next_dop = false; )
+-+		IF_DSD(	output.next_fmt = PCM; )
+- 		output.track_start = outputbuf->writep;
+- 		if (output.fade_mode) _checkfade(true);
+- 		decode.new_stream = false;
+-Index: flac.c
+-===================================================================
+---- flac.c	(revision 1076)
+-+++ flac.c	(working copy)
+-@@ -118,14 +118,22 @@
+- 		decode.new_stream = false;
+- 
+- #if DSD
+--		if (output.has_dop && bits_per_sample == 24 && is_flac_dop((u32_t *)lptr, (u32_t *)rptr, frames)) {
+-+#if SL_LITTLE_ENDIAN
+-+#define MARKER_OFFSET 2
+-+#else
+-+#define MARKER_OFFSET 1
+-+#endif		
+-+		if (bits_per_sample == 24 && is_stream_dop(((u8_t *)lptr) + MARKER_OFFSET, ((u8_t *)rptr) + MARKER_OFFSET, 4, frames)) {
+- 			LOG_INFO("file contains DOP");
+--			output.next_dop = true;
+++		output.track_start = outputbuf->writep;
+++		decode.new_stream = false;
+++#if DSD
+++		if (sample_size == 3 &&
+++			is_stream_dop(((u8_t *)streambuf->readp) + (bigendian?0:2),
+++						  ((u8_t *)streambuf->readp) + (bigendian?0:2) + sample_size,
+++						  sample_size * channels, bytes / (sample_size * channels))) {
+++			LOG_INFO("file contains DOP");
+ +			if (output.dsdfmt == DOP_S24_LE || output.dsdfmt == DOP_S24_3LE)
+ +				output.next_fmt = output.dsdfmt;
+ +			else
+ +				output.next_fmt = DOP;
+- 			output.next_sample_rate = frame->header.sample_rate;
+- 			output.fade = FADE_INACTIVE;
+- 		} else {
+- 			output.next_sample_rate = decode_newstream(frame->header.sample_rate, output.supported_rates);
+--			output.next_dop = false;
+++			output.next_sample_rate = sample_rate;
+++			output.fade = FADE_INACTIVE;
+++		} else {
+++			output.next_sample_rate = decode_newstream(sample_rate, output.supported_rates);
+ +			output.next_fmt = PCM;
+- 			if (output.fade_mode) _checkfade(true);
+- 		}
+- #else
+++			if (output.fade_mode) _checkfade(true);
+++		}
+++#else
++ 		output.next_sample_rate = decode_newstream(sample_rate, output.supported_rates);
++-		output.track_start = outputbuf->writep;
++-		IF_DSD( output.next_dop = false; )
++ 		if (output.fade_mode) _checkfade(true);
++-		decode.new_stream = false;
+++#endif
++ 		UNLOCK_O_not_direct;
++ 		IF_PROCESS(
++ 			out = process.max_in_frames;
 Index: squeezelite.h
 ===================================================================
---- squeezelite.h	(revision 1076)
+--- squeezelite.h	(revision 1086)
 +++ squeezelite.h	(working copy)
 @@ -550,7 +550,12 @@
  typedef enum { OUTPUT_OFF = -1, OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNING, 
@@ -1199,22 +2392,9 @@ Index: squeezelite.h
  #endif
  
  // codecs
-Index: ffmpeg.c
-===================================================================
---- ffmpeg.c	(revision 1076)
-+++ ffmpeg.c	(working copy)
-@@ -353,7 +353,7 @@
- 		LOCK_O;
- 		LOG_INFO("setting track_start");
- 		output.next_sample_rate = decode_newstream(ff->codecC->sample_rate, output.supported_rates);
--		IF_DSD(	output.next_dop = false; )
-+		IF_DSD(	output.next_fmt = PCM; )
- 		output.track_start = outputbuf->writep;
- 		if (output.fade_mode) _checkfade(true);
- 		decode.new_stream = false;
 Index: vorbis.c
 ===================================================================
---- vorbis.c	(revision 1076)
+--- vorbis.c	(revision 1086)
 +++ vorbis.c	(working copy)
 @@ -153,7 +153,7 @@
  		LOG_INFO("setting track_start");
@@ -1225,33 +2405,3 @@ Index: vorbis.c
  		output.track_start = outputbuf->writep;
  		if (output.fade_mode) _checkfade(true);
  		decode.new_stream = false;
-Index: flac.c
-===================================================================
---- flac.c	(revision 1076)
-+++ flac.c	(working copy)
-@@ -118,14 +118,22 @@
- 		decode.new_stream = false;
- 
- #if DSD
--		if (output.has_dop && bits_per_sample == 24 && is_flac_dop((u32_t *)lptr, (u32_t *)rptr, frames)) {
-+#if SL_LITTLE_ENDIAN
-+#define MARKER_OFFSET 2
-+#else
-+#define MARKER_OFFSET 1
-+#endif		
-+		if (bits_per_sample == 24 && is_stream_dop(((u8_t *)lptr) + MARKER_OFFSET, ((u8_t *)rptr) + MARKER_OFFSET, 4, frames)) {
- 			LOG_INFO("file contains DOP");
--			output.next_dop = true;
-+			if (output.dsdfmt == DOP_S24_LE || output.dsdfmt == DOP_S24_3LE)
-+				output.next_fmt = output.dsdfmt;
-+			else
-+				output.next_fmt = DOP;
- 			output.next_sample_rate = frame->header.sample_rate;
- 			output.fade = FADE_INACTIVE;
- 		} else {
- 			output.next_sample_rate = decode_newstream(frame->header.sample_rate, output.supported_rates);
--			output.next_dop = false;
-+			output.next_fmt = PCM;
- 			if (output.fade_mode) _checkfade(true);
- 		}
- #else
