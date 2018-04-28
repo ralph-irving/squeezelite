@@ -72,7 +72,7 @@ extern struct buffer *outputbuf;
 
 extern u8_t *silencebuf;
 #if DSD
-extern u8_t *silencebuf_dop;
+extern u8_t *silencebuf_dsd;
 #endif
 
 void list_devices(void) {
@@ -383,9 +383,10 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 		}
 
 		IF_DSD(
-			if (output.dop) {
+			if (output.outfmt == DOP) {
 				update_dop((u32_t *) outputbuf->readp, out_frames, output.invert);
-			}
+			} else if (output.outfmt != PCM && output.invert)
+				dsd_invert((u32_t *) outputbuf->readp, out_frames);
 		)
 
 		memcpy(optr, outputbuf->readp, out_frames * BYTES_PER_FRAME);
@@ -395,8 +396,8 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 		u8_t *buf = silencebuf;
 
 		IF_DSD(
-			if (output.dop) {
-				buf = silencebuf_dop;
+			if (output.outfmt != DOP) {
+				buf = silencebuf_dsd;
 				update_dop((u32_t *) buf, out_frames, false); // don't invert silence
 			}
 		)

@@ -110,7 +110,12 @@ static void usage(const char *argv0) {
 		   "  \t\t\t phase_response = 0-100 (0 = minimum / 50 = linear / 100 = maximum)\n"
 #endif
 #if DSD
-		   "  -D [delay]\t\tOutput device supports DSD over PCM (DoP), delay = optional delay switching between PCM and DoP in ms\n" 
+#if ALSA
+		   "  -D [delay][:format]\tOutput device supports DSD, delay = optional delay switching between PCM and DSD in ms\n"
+		   "  \t\t\t format = dop (default if not specified), u8, u16le, u16be, u32le or u32be.\n"
+#else
+		   "  -D [delay]\t\tOutput device supports DSD over PCM (DoP), delay = optional delay switching between PCM and DoP in ms\n"
+#endif
 #endif
 #if VISEXPORT
 		   "  -v \t\t\tVisualiser support\n"
@@ -220,6 +225,8 @@ static void license(void) {
 #if DSD		   
 		   "\nContains dsd2pcm library Copyright 2009, 2011 Sebastian Gesemann which\n"
 		   "is subject to its own license.\n"
+		   "\nContains the Daphile Project full dsd patch Copyright 2013-2017 Daphile,\n"
+		   "which is subject to its own license.\n"
 #endif
 		   "\nOption to allow server side upsampling for PCM streams (-W) from\n"
 		   "squeezelite-R2 (c) Marco Curti 2015, marcoc1712@gmail.com.\n"
@@ -279,8 +286,8 @@ int main(int argc, char **argv) {
 	bool linear_volume = false;
 #endif
 #if DSD
-	bool dop = false;
-	unsigned dop_delay = 0;
+	unsigned dsd_delay = 0;
+	dsd_format dsd_outfmt = PCM;
 #endif
 #if VISEXPORT
 	bool visexport = false;
@@ -525,9 +532,21 @@ int main(int argc, char **argv) {
 #endif
 #if DSD
 		case 'D':
-			dop = true;
+			dsd_outfmt = DOP;
 			if (optind < argc && argv[optind] && argv[optind][0] != '-') {
-				dop_delay = atoi(argv[optind++]);
+				char *dstr = next_param(argv[optind++], ':');
+				char *fstr = next_param(NULL, ':');
+				dsd_delay = dstr ? atoi(dstr) : 0;
+				if (fstr) {
+					if (!strcmp(fstr, "dop")) dsd_outfmt = DOP; 
+					if (!strcmp(fstr, "u8")) dsd_outfmt = DSD_U8; 
+					if (!strcmp(fstr, "u16le")) dsd_outfmt = DSD_U16_LE; 
+					if (!strcmp(fstr, "u32le")) dsd_outfmt = DSD_U32_LE; 
+					if (!strcmp(fstr, "u16be")) dsd_outfmt = DSD_U16_BE; 
+					if (!strcmp(fstr, "u32be")) dsd_outfmt = DSD_U32_BE;
+					if (!strcmp(fstr, "dop24")) dsd_outfmt = DOP_S24_LE;
+					if (!strcmp(fstr, "dop24_3")) dsd_outfmt = DOP_S24_3LE;
+				}
 			}
 			break;
 #endif
@@ -725,7 +744,7 @@ int main(int argc, char **argv) {
 	}
 
 #if DSD
-	dop_init(dop, dop_delay);
+	dsd_init(dsd_outfmt, dsd_delay);
 #endif
 
 #if VISEXPORT

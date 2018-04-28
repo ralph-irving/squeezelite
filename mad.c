@@ -242,7 +242,7 @@ static decode_state mad_decode(void) {
 			LOCK_O;
 			LOG_INFO("setting track_start");
 			output.next_sample_rate = decode_newstream(m->synth.pcm.samplerate, output.supported_rates);
-			IF_DSD(	output.next_dop = false; )
+			IF_DSD(	output.next_fmt = PCM; )
 			output.track_start = outputbuf->writep;
 			if (output.fade_mode) _checkfade(true);
 			decode.new_stream = false;

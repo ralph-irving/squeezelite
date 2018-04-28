@@ -59,11 +59,11 @@ extern struct processstate process;
 
 #define BLOCK 4096 // expected size of dsd block
 #define BLOCK_FRAMES BLOCK * BYTES_PER_FRAME
-#define WRAP_BUF_SIZE 16
+#define WRAP_BUF_SIZE 32 // max 4 bytes per frame and 8 channels
 
 typedef enum { UNKNOWN=0, DSF, DSDIFF } dsd_type;
 
-static bool dop = false; // local copy of output.has_dop to avoid holding output lock
+static dsd_format outfmt = PCM; // local copy of output.dsdfmt to avoid holding output lock
 
 struct dsd {
 	dsd_type type;
@@ -212,8 +212,24 @@ static decode_state _decode_dsf(void) {
 	
 	unsigned bytes = _buf_used(streambuf);
 	unsigned block_left = d->block_size;
+	unsigned padding = 0;
 	
-	unsigned bytes_per_frame = dop ? 2 : 1;
+	unsigned bytes_per_frame;
+	switch (outfmt) {
+	case DSD_U32_LE:
+	case DSD_U32_BE:
+		bytes_per_frame = 4;
+		break;
+	case DSD_U16_LE:
+	case DSD_U16_BE:
+	case DOP:
+	case DOP_S24_LE:
+	case DOP_S24_3LE:
+		bytes_per_frame = 2;
+		break;
+	default:
+		bytes_per_frame = 1;
+	}
 	
 	if (bytes < d->block_size * d->channels) {
 		LOG_INFO("stream too short"); // this can occur when scanning the track
@@ -237,6 +253,22 @@ static decode_state _decode_dsf(void) {
 			iptrr -= streambuf->size;
 		}
 		
+		// Remove zero padding from last block in case of inaccurate sample count 
+		if ((_buf_used(streambuf) == d->block_size * d->channels)
+			&& (d->sample_bytes > _buf_used(streambuf))) {
+			int i;
+			u8_t *ipl, *ipr;
+			for (i = d->block_size - 1; i > 0; i--) {
+				ipl = iptrl + i;
+				if (ipl >= streambuf->wrap) ipl -= streambuf->size;
+				ipr = iptrr + i;	
+				if (ipr >= streambuf->wrap) ipr -= streambuf->size;
+				if (*ipl || *ipr) break;
+				padding++;
+			}
+			block_left -= padding;
+		}
+
 		bytes = min(block_left, min(streambuf->wrap - iptrl, streambuf->wrap - iptrr));
 
 		IF_DIRECT(
@@ -250,12 +282,14 @@ static decode_state _decode_dsf(void) {
 
 		frames = min(bytes, d->sample_bytes) / bytes_per_frame;
 		if (frames == 0) {
-			if (dop && d->sample_bytes == 1 && bytes >= 2) {
-				// 1 byte left add a byte of silence and play
-				*(iptrl + 1) = *(iptrr + 1) = 0x69;
+			if (d->sample_bytes && bytes >= (2 * d->sample_bytes)) {
+				// byte(s) left fill frame with silence byte(s) and play
+				int i;
+				for (i = d->sample_bytes; i < bytes_per_frame; i++)
+					*(iptrl + i) = *(iptrr + i) = 0x69;
 				frames = 1;
 			} else {
-				// should not get here due to wrapping m/2 for dop should never result in 0 as header len is always even
+				// should not get here due to wrapping m/2 for dsd should never result in 0 as header len is always even
 				LOG_INFO("frames got to zero");
 				return DECODE_COMPLETE;
 			}
@@ -267,7 +301,125 @@ static decode_state _decode_dsf(void) {
 		
 		count = frames;
 		
-		if (dop) {
+		switch (outfmt) {
+			
+		case DSD_U32_LE:
+		case DSD_U32_BE:
+			
+			if (d->channels == 1) {
+				if (d->lsb_first) {
+					while (count--) {
+						*(optr++) = dsd2pcm_bitreverse[*(iptrl)] << 24 | dsd2pcm_bitreverse[*(iptrl+1)] << 16
+							| dsd2pcm_bitreverse[*(iptrl+2)] << 8 | dsd2pcm_bitreverse[*(iptrl+3)];
+						*(optr++) = dsd2pcm_bitreverse[*(iptrl)] << 24 | dsd2pcm_bitreverse[*(iptrl+1)] << 16
+							| dsd2pcm_bitreverse[*(iptrl+2)] << 8 | dsd2pcm_bitreverse[*(iptrl+3)];
+						iptrl += 4;
+					}
+				} else {
+					while (count--) {
+						*(optr++) = *(iptrl) << 24 | *(iptrl+1) << 16 | *(iptrl+2) << 8 | *(iptrl+3);
+						*(optr++) = *(iptrl) << 24 | *(iptrl+1) << 16 | *(iptrl+2) << 8 | *(iptrl+3);
+						iptrl += 4;
+					}
+				}
+			} else {
+				if (d->lsb_first) {
+					while (count--) {
+						*(optr++) = dsd2pcm_bitreverse[*(iptrl)] << 24 | dsd2pcm_bitreverse[*(iptrl+1)] << 16
+							| dsd2pcm_bitreverse[*(iptrl+2)] << 8 | dsd2pcm_bitreverse[*(iptrl+3)];
+						*(optr++) = dsd2pcm_bitreverse[*(iptrr)] << 24 | dsd2pcm_bitreverse[*(iptrr+1)] << 16
+							| dsd2pcm_bitreverse[*(iptrr+2)] << 8 | dsd2pcm_bitreverse[*(iptrr+3)];
+						iptrl += 4;
+						iptrr += 4;
+					}
+				} else {
+					while (count--) {
+						*(optr++) = *(iptrl) << 24 | *(iptrl+1) << 16 | *(iptrl+2) << 8 | *(iptrl+3);
+						*(optr++) = *(iptrr) << 24 | *(iptrr+1) << 16 | *(iptrr+2) << 8 | *(iptrr+3);
+						iptrl += 4;
+						iptrr += 4;
+					}
+				}
+			}
+			
+			break;
+
+		case DSD_U16_LE:
+		case DSD_U16_BE:
+			
+			if (d->channels == 1) {
+				if (d->lsb_first) {
+					while (count--) {
+						*(optr++) = dsd2pcm_bitreverse[*(iptrl)] << 24 | dsd2pcm_bitreverse[*(iptrl+1)] << 16;
+						*(optr++) = dsd2pcm_bitreverse[*(iptrl)] << 24 | dsd2pcm_bitreverse[*(iptrl+1)] << 16;
+						iptrl += 2;
+					}
+				} else {
+					while (count--) {
+						*(optr++) = *(iptrl) << 24 | *(iptrl+1) << 16;
+						*(optr++) = *(iptrl) << 24 | *(iptrl+1) << 16;
+						iptrl += 2;
+					}
+				}
+			} else {
+				if (d->lsb_first) {
+					while (count--) {
+						*(optr++) = dsd2pcm_bitreverse[*(iptrl)] << 24 | dsd2pcm_bitreverse[*(iptrl+1)] << 16;
+						*(optr++) = dsd2pcm_bitreverse[*(iptrr)] << 24 | dsd2pcm_bitreverse[*(iptrr+1)] << 16;
+						iptrl += 2;
+						iptrr += 2;
+					}
+				} else {
+					while (count--) {
+						*(optr++) = *(iptrl) << 24 | *(iptrl+1) << 16;
+						*(optr++) = *(iptrr) << 24 | *(iptrr+1) << 16;
+						iptrl += 2;
+						iptrr += 2;
+					}
+				}
+			}
+			
+			break;
+
+		case DSD_U8:
+			
+			if (d->channels == 1) {
+				if (d->lsb_first) {
+					while (count--) {
+						*(optr++) = dsd2pcm_bitreverse[*(iptrl)] << 24;
+						*(optr++) = dsd2pcm_bitreverse[*(iptrl)] << 24;
+						iptrl += 1;
+					}
+				} else {
+					while (count--) {
+						*(optr++) = *(iptrl) << 24;
+						*(optr++) = *(iptrl) << 24;
+						iptrl += 1;
+					}
+				}
+			} else {
+				if (d->lsb_first) {
+					while (count--) {
+						*(optr++) = dsd2pcm_bitreverse[*(iptrl)] << 24;
+						*(optr++) = dsd2pcm_bitreverse[*(iptrr)] << 24;
+						iptrl += 1;
+						iptrr += 1;
+					}
+				} else {
+					while (count--) {
+						*(optr++) = *(iptrl) << 24;
+						*(optr++) = *(iptrr) << 24;
+						iptrl += 1;
+						iptrr += 1;
+					}
+				}
+			}
+			
+			break;
+
+		case DOP:
+		case DOP_S24_LE:
+		case DOP_S24_3LE:
 			
 			if (d->channels == 1) {
 				if (d->lsb_first) {
@@ -301,7 +453,9 @@ static decode_state _decode_dsf(void) {
 				}
 			}
 			
-		} else {
+			break;
+
+		case PCM:
 			
 			if (d->channels == 1) {
 				float *iptrf = d->transfer[0];
@@ -330,6 +484,8 @@ static decode_state _decode_dsf(void) {
 				}
 			}
 			
+			break;
+			
 		}
 		
 		_buf_inc_readp(streambuf, bytes_read);
@@ -352,6 +508,11 @@ static decode_state _decode_dsf(void) {
 		);
 
 		LOG_SDEBUG("write %u frames", frames);
+	}
+	
+	if (padding) {
+		_buf_inc_readp(streambuf, padding);
+		LOG_INFO("Zero padding removed: %u bytes", padding);
 	}
 	
 	// skip the other channel blocks
@@ -386,9 +547,19 @@ static decode_state _decode_dsdiff(void) {
 		out = process.max_in_frames;
 	);
 	
-	if (dop) {
+	switch (outfmt) {
+	case DSD_U32_LE:
+	case DSD_U32_BE:
+		bytes_per_frame = d->channels * 4;
+		break;
+	case DSD_U16_LE:
+	case DSD_U16_BE:
+	case DOP:
+	case DOP_S24_LE:
+	case DOP_S24_3LE:
 		bytes_per_frame = d->channels * 2;
-	} else {
+		break;
+	default:
 		bytes_per_frame = d->channels;
 		out = min(out, BLOCK);
 	}
@@ -405,7 +576,7 @@ static decode_state _decode_dsdiff(void) {
 		optr = (u32_t *)process.inbuf;
 	);
 	
-	// handle wrap around end of streambuf and partial dop frame at end of stream
+	// handle wrap around end of streambuf and partial dsd frame at end of stream
 	if (!frames && bytes < bytes_per_frame) {
 		memset(tmp, 0x69, WRAP_BUF_SIZE); // 0x69 = dsd silence
 		memcpy(tmp, streambuf->readp, bytes);
@@ -421,7 +592,69 @@ static decode_state _decode_dsdiff(void) {
 	
 	count = frames;
 	
-	if (dop) {
+	switch (outfmt) {
+
+	case DSD_U32_LE:
+	case DSD_U32_BE:
+		
+		if (d->channels == 1) {
+			while (count--) {
+				*(optr++) = *(iptr) << 24 | *(iptr+1) << 16 | *(iptr+2) << 8 | *(iptr+3);
+				*(optr++) = *(iptr) << 24 | *(iptr+1) << 16 | *(iptr+2) << 8 | *(iptr+3);
+				iptr += bytes_per_frame;
+			}
+		} else {
+			while (count--) {
+				*(optr++) = *(iptr  ) << 24 | *(iptr + d->channels)     << 16
+					| *(iptr + 2 * d->channels)     << 8 | *(iptr + 3 * d->channels);
+				*(optr++) = *(iptr+1) << 24 | *(iptr + d->channels + 1) << 16
+					| *(iptr + 2 * d->channels + 1) << 8 | *(iptr + 3 * d->channels + 1);
+				iptr += bytes_per_frame;
+			}
+		}
+		
+		break;
+		
+	case DSD_U16_LE:
+	case DSD_U16_BE:
+		
+		if (d->channels == 1) {
+			while (count--) {
+				*(optr++) = *(iptr) << 24 | *(iptr+1) << 16;
+				*(optr++) = *(iptr) << 24 | *(iptr+1) << 16;
+				iptr += bytes_per_frame;
+			}
+		} else {
+			while (count--) {
+				*(optr++) = *(iptr  ) << 24 | *(iptr + d->channels)     << 16;
+				*(optr++) = *(iptr+1) << 24 | *(iptr + d->channels + 1) << 16;
+				iptr += bytes_per_frame;
+			}
+		}
+		
+		break;
+		
+	case DSD_U8:
+		
+		if (d->channels == 1) {
+			while (count--) {
+				*(optr++) = *(iptr) << 24;
+				*(optr++) = *(iptr) << 24;
+				iptr += bytes_per_frame;
+			}
+		} else {
+			while (count--) {
+				*(optr++) = *(iptr  ) << 24;
+				*(optr++) = *(iptr+1) << 24;
+				iptr += bytes_per_frame;
+			}
+		}
+		
+		break;
+		
+	case DOP:
+	case DOP_S24_LE:
+	case DOP_S24_3LE:
 		
 		if (d->channels == 1) {
 			while (count--) {
@@ -437,7 +670,9 @@ static decode_state _decode_dsdiff(void) {
 			}
 		}
 		
-	} else {
+		break;
+		
+	case PCM:
 		
 		if (d->channels == 1) {
 			float *iptrf = d->transfer[0];
@@ -466,6 +701,8 @@ static decode_state _decode_dsdiff(void) {
 			}
 		}
 
+		break;
+		
 	}
 	
 	_buf_inc_readp(streambuf, bytes_read);
@@ -492,6 +729,7 @@ static decode_state _decode_dsdiff(void) {
 
 static decode_state dsd_decode(void) {
 	decode_state ret;
+	char *fmtstr;
 
 	LOCK_S;
 
@@ -528,25 +766,61 @@ static decode_state dsd_decode(void) {
 		LOG_INFO("setting track_start");
 		output.track_start = outputbuf->writep;
 
-		dop = output.has_dop;
+		outfmt = output.dsdfmt;
 
-		if (dop && d->sample_rate / 16 > output.supported_rates[0]) {
-			LOG_INFO("DOP sample rate too high for device - converting to PCM");
-			dop = false;
+		switch (outfmt) {
+		case DSD_U32_LE:
+			fmtstr = "DSD_U32_LE";
+			output.next_sample_rate = d->sample_rate / 32;
+			break;
+		case DSD_U32_BE:
+			fmtstr = "DSD_U32_BE";
+			output.next_sample_rate = d->sample_rate / 32;
+			break;
+		case DSD_U16_LE:
+			fmtstr = "DSD_U16_LE";
+			output.next_sample_rate = d->sample_rate / 16;
+			break;
+		case DSD_U16_BE:
+			fmtstr = "DSD_U16_BE";
+			output.next_sample_rate = d->sample_rate / 16;
+			break;
+		case DSD_U8:
+			fmtstr = "DSD_U8";
+			output.next_sample_rate = d->sample_rate / 8;
+			break;
+		case DOP:
+			fmtstr = "DOP";
+			output.next_sample_rate = d->sample_rate / 16;
+			break;
+		case DOP_S24_LE:
+			fmtstr = "DOP_S24_LE";
+			output.next_sample_rate = d->sample_rate / 16;
+			break;
+		case DOP_S24_3LE:
+			fmtstr = "DOP_S24_3LE";
+			output.next_sample_rate = d->sample_rate / 16;
+			break;
+		case PCM:
+			// PCM case after DSD rate check and possible fallback to PCM conversion 
+			break;
 		}
 
-		if (dop) {
-			LOG_INFO("DOP output");
-			output.next_dop = true;
-			output.next_sample_rate = d->sample_rate / 16;
-			output.fade = FADE_INACTIVE;
-		} else {
+		if (outfmt != PCM && output.next_sample_rate > output.supported_rates[0]) {
+			LOG_INFO("DSD sample rate too high for device - converting to PCM");
+			outfmt = PCM;
+		}
+		
+		if (outfmt == PCM) {
 			LOG_INFO("DSD to PCM output");
-			output.next_dop = false;
 			output.next_sample_rate = decode_newstream(d->sample_rate / 8, output.supported_rates);
 			if (output.fade_mode) _checkfade(true);
+		} else {
+			LOG_INFO("DSD%u stream, format: %s, rate: %uHz\n", d->sample_rate / 44100, fmtstr, output.next_sample_rate);
+			output.fade = FADE_INACTIVE;
 		}
-	
+
+		output.next_fmt = outfmt;
 		decode.new_stream = false;
 
 		UNLOCK_O;
@@ -569,6 +843,13 @@ static decode_state dsd_decode(void) {
 	UNLOCK_S;
 
 	return ret;
+}
+
+void dsd_init(dsd_format format, unsigned delay) {
+	LOCK_O;
+	output.dsdfmt = format;
+	output.dsd_delay = delay;
+	UNLOCK_O;
 }
 
 static void dsd_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
@@ -624,6 +905,24 @@ struct codec *register_dsd(void) {
 
 	LOG_INFO("using dsd to decode dsf,dff");
 	return &ret;
+}
+
+// invert polarity for frames in the output buffer
+void dsd_invert(u32_t *ptr, frames_t frames) {
+	while (frames--) {
+		*ptr = ~(*ptr);
+		++ptr;
+		*ptr = ~(*ptr);
+		++ptr;
+	}
+}
+
+// fill silence buffer with 10101100 which represents dsd silence
+void dsd_silence_frames(u32_t *ptr, frames_t frames) {
+	while (frames--) {
+		*ptr++ = 0x69696969;
+		*ptr++ = 0x69696969;
+	}
 }
 
 #endif // DSD

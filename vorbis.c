@@ -153,7 +153,7 @@ static decode_state vorbis_decode(void) {
 		LOG_INFO("setting track_start");
 		LOCK_O_not_direct;
 		output.next_sample_rate = decode_newstream(info->rate, output.supported_rates); 
-		IF_DSD(	output.next_dop = false; )
+		IF_DSD(	output.next_fmt = PCM; )
 		output.track_start = outputbuf->writep;
 		if (output.fade_mode) _checkfade(true);
 		decode.new_stream = false;

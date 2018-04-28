@@ -37,7 +37,7 @@ extern struct buffer *outputbuf;
 
 extern u8_t *silencebuf;
 #if DSD
-extern u8_t *silencebuf_dop;
+extern u8_t *silencebuf_dsd;
 #endif
 
 // buffer to hold output data so we can block on writing outside of output lock, allocated on init
@@ -64,11 +64,14 @@ static int _stdout_write_frames(frames_t out_frames, bool silence, s32_t gainL, 
 	}
 
 	IF_DSD(
-		   if (output.dop) {
+		   if (output.outfmt != PCM) {
 			   if (silence) {
-				   obuf = silencebuf_dop;
+				   obuf = silencebuf_dsd;
 			   }
-			   update_dop((u32_t *)obuf, out_frames, output.invert && !silence);
+			   if (output.outfmt == DOP)
+				   update_dop((u32_t *)obuf, out_frames, output.invert && !silence);
+			   else if (output.invert && !silence)
+				   dsd_invert((u32_t *)obuf, out_frames);
 		   }
 	)
 

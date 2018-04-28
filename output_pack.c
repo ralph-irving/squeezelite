@@ -45,6 +45,100 @@ s32_t to_gain(float f) {
 
 void _scale_and_pack_frames(void *outputptr, s32_t *inputptr, frames_t cnt, s32_t gainL, s32_t gainR, output_format format) {
 	switch(format) {
+#if DSD
+	case U32_LE:
+		{
+#if SL_LITTLE_ENDIAN
+			memcpy(outputptr, inputptr, cnt * BYTES_PER_FRAME);
+#else
+			u32_t *optr = (u32_t *)(void *)outputptr;
+			while (cnt--) {
+				s32_t lsample = *(inputptr++);
+				s32_t rsample = *(inputptr++);
+				*(optr++) = 
+					(lsample & 0xff000000) >> 24 | (lsample & 0x00ff0000) >> 8 |
+					(lsample & 0x0000ff00) << 8  | (lsample & 0x000000ff) << 24;
+				*(optr++) = 
+					(rsample & 0xff000000) >> 24 | (rsample & 0x00ff0000) >> 8 |
+					(rsample & 0x0000ff00) << 8  | (rsample & 0x000000ff) << 24;
+			}
+#endif
+		}
+		break;
+	case U32_BE:
+		{
+#if SL_LITTLE_ENDIAN
+			u32_t *optr = (u32_t *)(void *)outputptr;
+			while (cnt--) {
+				s32_t lsample = *(inputptr++);
+				s32_t rsample = *(inputptr++);
+				*(optr++) = 
+					(lsample & 0xff000000) >> 24 | (lsample & 0x00ff0000) >> 8 |
+					(lsample & 0x0000ff00) << 8  | (lsample & 0x000000ff) << 24;
+				*(optr++) = 
+					(rsample & 0xff000000) >> 24 | (rsample & 0x00ff0000) >> 8 |
+					(rsample & 0x0000ff00) << 8  | (rsample & 0x000000ff) << 24;
+			}
+#else
+			memcpy(outputptr, inputptr, cnt * BYTES_PER_FRAME);
+#endif
+		}
+		break;
+	case U16_LE:
+		{
+			u32_t *optr = (u32_t *)(void *)outputptr;
+#if SL_LITTLE_ENDIAN
+			while (cnt--) {
+				*(optr++) = (*(inputptr) >> 16 & 0x0000ffff) | (*(inputptr + 1) & 0xffff0000);
+				inputptr += 2;
+			}
+#else
+			while (cnt--) {
+				s32_t lsample = *(inputptr++);
+				s32_t rsample = *(inputptr++);
+				*(optr++) = 
+					(lsample & 0x00ff0000) << 8 | (lsample & 0xff000000) >> 8 |
+					(rsample & 0x00ff0000) >> 8 | (rsample & 0xff000000) >> 24;
+			}
+#endif
+		}
+		break;
+	case U16_BE:
+		{
+			u32_t *optr = (u32_t *)(void *)outputptr;
+#if SL_LITTLE_ENDIAN
+			while (cnt--) {
+				s32_t lsample = *(inputptr++);
+				s32_t rsample = *(inputptr++);
+				*(optr++) = 
+					(lsample & 0xff000000) >> 24 | (lsample & 0x00ff0000) >> 8 |
+					(rsample & 0xff000000) >> 8 | (rsample & 0x00ff0000) << 8;
+			}
+#else
+			while (cnt--) {
+				*(optr++) = (*(inputptr) & 0xffff0000) | (*(inputptr + 1) >> 16 & 0x0000ffff);
+				inputptr += 2;
+			}
+#endif
+		}
+		break;
+	case U8:
+		{
+			u16_t *optr = (u16_t *)(void *)outputptr;
+#if SL_LITTLE_ENDIAN
+			while (cnt--) {
+				*(optr++) = (u16_t)((*(inputptr) >> 24 & 0x000000ff) | (*(inputptr + 1) >> 16 & 0x0000ff00));
+				inputptr += 2;
+			}
+#else
+			while (cnt--) {
+				*(optr++) = (u16_t)((*(inputptr) >> 16 & 0x0000ff00) | (*(inputptr + 1) >> 24 & 0x000000ff));
+				inputptr += 2;
+			}
+#endif
+		}
+		break;
+#endif
 	case S16_LE:
 		{
 			u32_t *optr = (u32_t *)(void *)outputptr;

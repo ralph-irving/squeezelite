@@ -550,7 +550,12 @@ bool resample_init(char *opt);
 typedef enum { OUTPUT_OFF = -1, OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNING, 
 			   OUTPUT_PAUSE_FRAMES, OUTPUT_SKIP_FRAMES, OUTPUT_START_AT } output_state;
 
+#if DSD
+typedef enum { PCM, DOP, DSD_U8, DSD_U16_LE, DSD_U32_LE, DSD_U16_BE, DSD_U32_BE, DOP_S24_LE, DOP_S24_3LE } dsd_format;
+typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE, U8, U16_LE, U16_BE, U32_LE, U32_BE } output_format;
+#else
 typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE } output_format;
+#endif
 
 typedef enum { FADE_INACTIVE = 0, FADE_DUE, FADE_ACTIVE } fade_state;
 typedef enum { FADE_UP = 1, FADE_DOWN, FADE_CROSS } fade_dir;
@@ -608,10 +613,10 @@ struct outputstate {
 	u32_t stop_time;
 	u32_t idle_to;
 #if DSD
-	bool next_dop;             // set in decode thread
-	bool dop;
-	bool has_dop;              // set in dop_init - output device supports dop
-	unsigned dop_delay;        // set in dop_init - delay in ms switching to/from dop
+	dsd_format next_fmt;       // set in decode thread
+	dsd_format outfmt;
+	dsd_format dsdfmt;	       // set in dsd_init - output for DSD: DOP, DSD_U8, ...
+	unsigned dsd_delay;		   // set in dsd_init - delay in ms switching to/from dop
 #endif
 };
 
@@ -665,10 +670,11 @@ void vis_stop(void);
 
 // dop.c
 #if DSD
-bool is_flac_dop(u32_t *lptr, u32_t *rptr, frames_t frames);
+bool is_stream_dop(u8_t *lptr, u8_t *rptr, int step, frames_t frames);
 void update_dop(u32_t *ptr, frames_t frames, bool invert);
-void dop_silence_frames(u32_t *ptr, frames_t frames);
-void dop_init(bool enable, unsigned delay);
+void dsd_silence_frames(u32_t *ptr, frames_t frames);
+void dsd_invert(u32_t *ptr, frames_t frames);
+void dsd_init(dsd_format format, unsigned delay);
 #endif
 
 // codecs
