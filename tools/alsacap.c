@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <alsa/asoundlib.h>
 #include <errno.h>
+#include <ctype.h>
 #include <string.h>
 
 
