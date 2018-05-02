@@ -276,7 +276,7 @@ void scancards(snd_pcm_stream_t stream, int thecard, int thedev)
       snd_ctl_close(handle);
       goto nextcard;
     }
-    printf("Card %d, ID `%s', name `%s'\n", 
+    printf("\nCard %d, ID `%s', name `%s'\n", 
            card, snd_ctl_card_info_get_id(info),
            snd_ctl_card_info_get_name(info));
     if( thedev >= 0 )
@@ -354,7 +354,6 @@ void scancards(snd_pcm_stream_t stream, int thecard, int thedev)
 
 
       snd_pcm_close(pcm);
-      printf("\n");
       pcm= NULL;
 
       for( subd= 0; subd< nsubd; ++subd ) {
