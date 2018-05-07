@@ -1,7 +1,7 @@
 Squeezelite v1.8.x, Copyright 2012-2015 Adrian Smith, 2015-2018 Ralph Irving.<br>
 <br>
-See the debian squeezelite manpage for usage details.<br>
-https://manpages.debian.org/stretch/squeezelite/squeezelite.1.en.html<br>
+See the squeezelite manpage for usage details.<br>
+https://ralph-irving.github.io/squeezelite.html<br>
 <br>
 This program is free software: you can redistribute it and/or modify<br>
 it under the terms of the GNU General Public License as published by<br>
@@ -29,9 +29,9 @@ Additions (c) Paul Hermann, 2015, 2017 under the same license terms<br>
 - Launch a script on power status change<br>
 - Control of Raspberry pi GPIO for amplifier power<br>
 <br>
-Contains wiringpi GPIO Interface library Copyright (c) 2012-2017<br>
+RaspberryPi wiringpi GPIO Interface library Copyright (c) 2012-2017<br>
 Gordon Henderson, which is subject to its own license.<br>
 <br>
 This software uses libraries from the FFmpeg project under<br>
 the LGPLv2.1 and its source can be downloaded from<br>
-<https://sourceforge.net/projects/lmsclients/files/source/>
+https://sourceforge.net/projects/lmsclients/files/source/<br>
