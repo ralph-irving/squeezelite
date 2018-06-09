@@ -634,26 +634,36 @@ static void slimproto_run() {
 
 #if GPIO
 			//Watch for paused player and put amp to sleep or wake up if playing resumes
-			if (gpio_active || power_script != NULL){
-	                        if ((ampstate == 1) && (ampidle_set == 0) && (ampidle == 1) && (now - ampidletime > SLEEP_DELAY) ){
-        	                        ampidle_set = 1;
-                	               if (gpio_active){
-												relay( 0);
-											}
-											else{
-												relay_script( 0);
-											}
-                        	}
-	                        if ( ampstate == 1 && ampidle_set == 1 && ampidle == 0){
-        	                        ampidletime = 0;
-                	                ampidle_set = 0;
-                	               if (gpio_active){
-												relay( 1);
-											}
-											else{
-												relay_script( 1);
-											}
-                        	}
+			if (gpio_active || power_script != NULL)
+			{
+				if ((ampstate == 1) && (ampidle_set == 0) && (ampidle == 1)
+					&& (now - ampidletime > SLEEP_DELAY))
+				{
+					ampidle_set = 1;
+
+					if (gpio_active)
+					{
+						relay(0);
+					}
+					else
+					{
+						relay_script(0);
+					}
+				}
+				if (ampstate == 1 && ampidle_set == 1 && ampidle == 0)
+				{
+					ampidletime = 0;
+					ampidle_set = 0;
+
+					if (gpio_active)
+					{
+						relay(1);
+					}
+					else
+					{
+						relay_script(1);
+					}
+				}
 			}
 #endif
 			LOCK_S;
