@@ -264,6 +264,7 @@ int main(int argc, char **argv) {
 	char *namefile = NULL;
 	char *modelname = NULL;
 	extern bool pcm_check_header;
+	extern bool user_rates;
 	char *logfile = NULL;
 	u8_t mac[6];
 	unsigned stream_buf_size = STREAMBUF_SIZE;
@@ -483,6 +484,9 @@ int main(int argc, char **argv) {
 				}
 				if (dstr) {
 					rate_delay = atoi(dstr);
+				}
+				if (rates[0]) {
+					user_rates = true;
 				}
 			}
 			break;

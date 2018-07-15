@@ -36,6 +36,8 @@ u8_t *silencebuf;
 u8_t *silencebuf_dsd;
 #endif
 
+bool user_rates = false;
+
 #define LOCK   mutex_lock(outputbuf->mutex)
 #define UNLOCK mutex_unlock(outputbuf->mutex)
 
@@ -377,12 +379,12 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 	output.error_opening = false;
 	output.idle_to = (u32_t) idle;
 
-	if (!rates[0]) {
-		if (!test_open(output.device, output.supported_rates)) {
-			LOG_ERROR("unable to open output device");
-			exit(0);
-		}
-	} else {
+	if (!test_open(output.device, output.supported_rates, user_rates)) {
+		LOG_ERROR("unable to open output device: %s", output.device);
+		exit(0);
+	}
+
+	if (user_rates) {
 		for (i = 0; i < MAX_SUPPORTED_SAMPLERATES; ++i) {
 			output.supported_rates[i] = rates[i];
 		}

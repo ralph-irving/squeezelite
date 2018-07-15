@@ -269,7 +269,7 @@ static void alsa_close(void) {
 	}
 }
 
-bool test_open(const char *device, unsigned rates[]) {
+bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 	int err;
 	snd_pcm_t *pcm;
 	snd_pcm_hw_params_t *hw_params;
@@ -289,12 +289,14 @@ bool test_open(const char *device, unsigned rates[]) {
 	}
 
 	// find supported sample rates to enable client side resampling of non supported rates
-	unsigned i, ind;
-	unsigned ref[] TEST_RATES;
+	if (!userdef_rates) {
+		unsigned i, ind;
+		unsigned ref[] TEST_RATES;
 
-	for (i = 0, ind = 0; ref[i]; ++i) {
-		if (snd_pcm_hw_params_test_rate(pcm, hw_params, ref[i], 0) == 0) {
-			rates[ind++] = ref[i];
+		for (i = 0, ind = 0; ref[i]; ++i) {
+			if (snd_pcm_hw_params_test_rate(pcm, hw_params, ref[i], 0) == 0) {
+				rates[ind++] = ref[i];
+			}
 		}
 	}
 
