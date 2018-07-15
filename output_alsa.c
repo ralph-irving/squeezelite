@@ -659,7 +659,7 @@ static void *output_thread(void *arg) {
 
 		// wait until device returns - to allow usb audio devices to be turned off
 		if (probe_device) {
-			while (!pcm_probe(output.device) && running) {
+			while (!pcm_probe(output.device)) {
 				LOG_DEBUG("waiting for device %s to return", output.device);
 				sleep(5);
 			}
