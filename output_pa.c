@@ -181,11 +181,20 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 			outputParameters.channelCount, outputParameters.sampleFormat, NULL, (double)ref[i],
 			paFramesPerBuffer, paNumberOfBuffers, paNoFlag, pa_callback, NULL);
 #endif
-		if (err == paNoError) {
+		if (err == paInvalidSampleRate) {
+			continue;
+
+		} else if (err == paNoError) {
 			Pa_CloseStream(pa.stream);
 			if (!userdef_rates) {
 				rates[ind++] = ref[i];
 			}
+			continue;
+
+		} else {
+			/* Any other error is a failure */
+			LOG_WARN("error opening portaudio stream: %s", Pa_GetErrorText(err));
+			return false;
 		}
 	}
 
