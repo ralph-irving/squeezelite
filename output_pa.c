@@ -174,27 +174,34 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 	// Note use Pa_OpenStream as it appears more reliable than Pa_IsFormatSupported on some windows apis
 	for (i = 0, ind = 0; ref[i]; ++i) {
 #ifndef PA18API
-		err = Pa_OpenStream(&pa.stream, NULL, &outputParameters, (double)ref[i], paFramesPerBufferUnspecified, paNoFlag, 
-							pa_callback, NULL);
+		err = Pa_OpenStream(&pa.stream, NULL, &outputParameters, (double)ref[i],
+			paFramesPerBufferUnspecified, paNoFlag, pa_callback, NULL);
 #else
 		err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device,
 			outputParameters.channelCount, outputParameters.sampleFormat, NULL, (double)ref[i],
 			paFramesPerBuffer, paNumberOfBuffers, paNoFlag, pa_callback, NULL);
 #endif
-		if (err == paInvalidSampleRate) {
-			continue;
+		switch (err) {
+			case paInvalidSampleRate:
+				continue;
+#if WIN
+#ifndef PA18API
+			/* Some windows apis return paUnanticipatedHostError for paInvalidSampleRate */
+			case paUnanticipatedHostError:
+				continue;
+#endif
+#endif
+			case paNoError:
+				Pa_CloseStream(pa.stream);
+				if (!userdef_rates) {
+					rates[ind++] = ref[i];
+				}
+				continue;
 
-		} else if (err == paNoError) {
-			Pa_CloseStream(pa.stream);
-			if (!userdef_rates) {
-				rates[ind++] = ref[i];
-			}
-			continue;
-
-		} else {
-			/* Any other error is a failure */
-			LOG_WARN("error opening portaudio stream: %s", Pa_GetErrorText(err));
-			return false;
+			default:	
+				/* Any other error is a failure */
+				LOG_WARN("error opening portaudio stream: %s", Pa_GetErrorText(err));
+				return false;
 		}
 	}
 
