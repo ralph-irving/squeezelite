@@ -285,7 +285,8 @@ void _checkfade(bool start) {
 
 	bytes = output.next_sample_rate * BYTES_PER_FRAME * output.fade_secs;
 	if (output.fade_mode == FADE_INOUT) {
-		bytes /= 2;
+		/* align on a frame boundary */
+		bytes = ((bytes / 2) / BYTES_PER_FRAME) * BYTES_PER_FRAME;
 	}
 
 	if (start && (output.fade_mode == FADE_IN || (output.fade_mode == FADE_INOUT && _buf_used(outputbuf) == 0))) {
