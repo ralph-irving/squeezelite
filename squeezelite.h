@@ -24,7 +24,7 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
-#define VERSION "v1.9.0-1112"
+#define VERSION "v1.9.0-1113"
 
 #if !defined(MODEL_NAME)
 #define MODEL_NAME SqueezeLite
@@ -561,8 +561,8 @@ typedef enum { FADE_INACTIVE = 0, FADE_DUE, FADE_ACTIVE } fade_state;
 typedef enum { FADE_UP = 1, FADE_DOWN, FADE_CROSS } fade_dir;
 typedef enum { FADE_NONE = 0, FADE_CROSSFADE, FADE_IN, FADE_OUT, FADE_INOUT } fade_mode;
 
-#define MAX_SUPPORTED_SAMPLERATES 16
-#define TEST_RATES = { 384000, 352800, 192000, 176400, 96000, 88200, 48000, 44100, 32000, 24000, 22500, 16000, 12000, 11025, 8000, 0 }
+#define MAX_SUPPORTED_SAMPLERATES 18
+#define TEST_RATES = { 768000, 705600, 384000, 352800, 192000, 176400, 96000, 88200, 48000, 44100, 32000, 24000, 22500, 16000, 12000, 11025, 8000, 0 }
 
 struct outputstate {
 	output_state state;
