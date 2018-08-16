@@ -150,7 +150,7 @@ static int pa_callback(const void *pa_input, void *pa_output, unsigned long pa_f
 static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_wanted, 
 			   PaTimestamp outTime, void *userData);
 #endif
-bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
+bool test_open(const char *device, unsigned rates[]) {
 	PaStreamParameters outputParameters;
 	PaError err;
 	unsigned ref[] TEST_RATES;
@@ -193,9 +193,7 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 #endif
 			case paNoError:
 				Pa_CloseStream(pa.stream);
-				if (!userdef_rates) {
-					rates[ind++] = ref[i];
-				}
+				rates[ind++] = ref[i];
 				continue;
 
 			default:	
@@ -205,7 +203,7 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 		}
 	}
 
-	if (!rates[0] && !userdef_rates) {
+	if (!rates[0]) {
 		LOG_WARN("no available rate found");
 		return false;
 	}

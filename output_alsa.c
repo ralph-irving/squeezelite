@@ -62,6 +62,7 @@ static struct {
 	u8_t *write_buf;
 	const char *volume_mixer_name;
 	bool mixer_linear;
+	unsigned mixer_scaling;
 	snd_mixer_elem_t* mixer_elem;
 	snd_mixer_t *mixer_handle;
 	long mixer_min;
@@ -181,14 +182,22 @@ void list_mixers(const char *output_device) {
 static void set_mixer(bool setmax, float ldB, float rdB) {
 	int err;
 	long nleft, nright;
+   float dBscaling;
+   float ldBscaled;
+   float rdBscaled;
+
+   dBscaling = 50.0F * log10(alsa.mixer_scaling / 100.0F);
+   LOG_DEBUG("Volume scaling factor: %i -> %3.1fdB", alsa.mixer_scaling, dBscaling);
+   ldBscaled = ldB + dBscaling;
+   rdBscaled = rdB + dBscaling;
 	
 	if (alsa.mixer_linear) {
         long lraw, rraw;
         if (setmax) {
             lraw = rraw = alsa.mixer_max;
         } else {
-            lraw = ((ldB > -MINVOL_DB ? MINVOL_DB + floor(ldB) : 0) / MINVOL_DB * (alsa.mixer_max-alsa.mixer_min)) + alsa.mixer_min;
-            rraw = ((rdB > -MINVOL_DB ? MINVOL_DB + floor(rdB) : 0) / MINVOL_DB * (alsa.mixer_max-alsa.mixer_min)) + alsa.mixer_min;
+            lraw = ((ldBscaled > -MINVOL_DB ? MINVOL_DB + floor(ldBscaled) : 0) / MINVOL_DB * (alsa.mixer_max-alsa.mixer_min)) + alsa.mixer_min;
+            rraw = ((rdBscaled > -MINVOL_DB ? MINVOL_DB + floor(rdBscaled) : 0) / MINVOL_DB * (alsa.mixer_max-alsa.mixer_min)) + alsa.mixer_min;
         }
         LOG_DEBUG("setting vol raw [%ld..%ld]", alsa.mixer_min, alsa.mixer_max);
         if ((err = snd_mixer_selem_set_playback_volume(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_LEFT, lraw)) < 0) {
@@ -203,15 +212,15 @@ static void set_mixer(bool setmax, float ldB, float rdB) {
 		if (setmax) {
 			// set to 0dB if available as this should be max volume for music recored at max pcm values
 			if (alsa.mixer_max >= 0 && alsa.mixer_min <= 0) {
-				ldB = rdB = 0;
+				ldB = rdB = 0 + dBscaling;
 			} else {
-				ldB = rdB = alsa.mixer_max;
+				ldB = rdB = alsa.mixer_max + dBscaling;
 			}
 		}
-		if ((err = snd_mixer_selem_set_playback_dB(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_LEFT, 100 * ldB, 1)) < 0) {
+		if ((err = snd_mixer_selem_set_playback_dB(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_LEFT, 100 * ldBscaled, 1)) < 0) {
 			LOG_ERROR("error setting left volume: %s", snd_strerror(err));
 		}
-		if ((err = snd_mixer_selem_set_playback_dB(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_RIGHT, 100 * rdB, 1)) < 0) {
+		if ((err = snd_mixer_selem_set_playback_dB(alsa.mixer_elem, SND_MIXER_SCHN_FRONT_RIGHT, 100 * rdBscaled, 1)) < 0) {
 			LOG_ERROR("error setting right volume: %s", snd_strerror(err));
 		}
 	}
@@ -223,7 +232,7 @@ static void set_mixer(bool setmax, float ldB, float rdB) {
 		LOG_ERROR("error getting right vol: %s", snd_strerror(err));
 	}
 
-	LOG_DEBUG("%s left: %3.1fdB -> %ld right: %3.1fdB -> %ld", alsa.volume_mixer_name, ldB, nleft, rdB, nright);
+	LOG_DEBUG("%s left: %3.1fdB -> %ld right: %3.1fdB -> %ld", alsa.volume_mixer_name, ldBscaled, nleft, rdBscaled, nright);
 }
 
 void set_volume(unsigned left, unsigned right) {
@@ -269,7 +278,7 @@ static void alsa_close(void) {
 	}
 }
 
-bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
+bool test_open(const char *device, unsigned rates[]) {
 	int err;
 	snd_pcm_t *pcm;
 	snd_pcm_hw_params_t *hw_params;
@@ -289,14 +298,12 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 	}
 
 	// find supported sample rates to enable client side resampling of non supported rates
-	if (!userdef_rates) {
-		unsigned i, ind;
-		unsigned ref[] TEST_RATES;
+	unsigned i, ind;
+	unsigned ref[] TEST_RATES;
 
-		for (i = 0, ind = 0; ref[i]; ++i) {
-			if (snd_pcm_hw_params_test_rate(pcm, hw_params, ref[i], 0) == 0) {
-				rates[ind++] = ref[i];
-			}
+	for (i = 0, ind = 0; ref[i]; ++i) {
+		if (snd_pcm_hw_params_test_rate(pcm, hw_params, ref[i], 0) == 0) {
+			rates[ind++] = ref[i];
 		}
 	}
 
@@ -911,7 +918,7 @@ int mixer_init_alsa(const char *device, const char *mixer, int mixer_index) {
 
 static pthread_t thread;
 
-void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, bool mixer_unmute, bool mixer_linear) {
+void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, bool mixer_unmute, bool mixer_linear, unsigned mixer_scaling) {
 
 	unsigned alsa_buffer = ALSA_BUFFER_TIME;
 	unsigned alsa_period = ALSA_PERIOD_COUNT;
@@ -953,6 +960,7 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	alsa.mixer_ctl = mixer_device ? ctl4device(mixer_device) : alsa.ctl;
 	alsa.volume_mixer_name = volume_mixer_name;
 	alsa.mixer_linear = mixer_linear;
+	alsa.mixer_scaling = mixer_scaling;
 
 	output.format = 0;
 	output.buffer = alsa_buffer;
