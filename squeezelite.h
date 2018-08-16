@@ -633,13 +633,8 @@ void _checkfade(bool);
 void list_devices(void);
 void list_mixers(const char *output_device);
 void set_volume(unsigned left, unsigned right);
-<<<<<<< HEAD
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, bool mixer_unmute, bool mixer_linear, unsigned mixer_scaling);
-=======
-bool test_open(const char *device, unsigned rates[]);
-void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, bool mixer_unmute, bool mixer_linear);
->>>>>>> parent of 54f9206... Fix output_thread hang when an invalid output device name and user defined rate(s) are specified.
 void output_close_alsa(void);
 #endif
 
