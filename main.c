@@ -126,6 +126,7 @@ static void usage(const char *argv0) {
 		   "  -U <control>\t\tUnmute ALSA control and set to full volume (not supported with -V)\n"
 		   "  -V <control>\t\tUse ALSA control for volume adjustment, otherwise use software volume adjustment\n"
 		   "  -X \t\t\tUse linear volume adjustments instead of in terms of dB (only for hardware volume control)\n"
+		   "  -Y <mixer_scaling>\tScaling of ALSA mixer output relative to LMS volume level\n"
 #endif
 #if LINUX || FREEBSD || SUN
 		   "  -z \t\t\tDaemonize\n"
@@ -280,6 +281,7 @@ int main(int argc, char **argv) {
 	FILE *pidfp = NULL;
 #endif
 #if ALSA
+	unsigned mixer_scaling = OUTPUT_MIXER_SCALING;
 	unsigned rt_priority = OUTPUT_RT_PRIORITY;
 	char *mixer_device = output_device;
 	char *output_mixer = NULL;
@@ -323,7 +325,7 @@ int main(int argc, char **argv) {
 
 	while (optind < argc && strlen(argv[optind]) >= 2 && argv[optind][0] == '-') {
 		char *opt = argv[optind] + 1;
-		if (strstr("oabcCdefmMnNpPrs"
+		if (strstr("oabcCdefmMnNpPrsY"
 #if ALSA
 				   "UVO"
 #endif
@@ -503,6 +505,14 @@ int main(int argc, char **argv) {
 			pcm_check_header = true;
 			break;
 #if ALSA
+		case 'Y':
+			mixer_scaling = atoi(optarg);
+			if (mixer_scaling > 100 || mixer_scaling < 0) {
+				fprintf(stderr, "\nError: invalid volume scaling: %s\n\n", optarg);
+				usage(argv[0]);
+				exit(1);
+			}
+			break;
 		case 'p':
 			rt_priority = atoi(optarg);
 			if (rt_priority > 99 || rt_priority < 1) {
@@ -740,7 +750,7 @@ int main(int argc, char **argv) {
 	} else {
 #if ALSA
 		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, rt_priority, idle, mixer_device, output_mixer,
-						 output_mixer_unmute, linear_volume);
+						 output_mixer_unmute, linear_volume, mixer_scaling);
 #endif
 #if PORTAUDIO
 		output_init_pa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
