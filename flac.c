@@ -273,8 +273,8 @@ struct codec *register_flac(void) {
 	static struct codec ret = { 
 		'f',          // id
 		"flc",        // types
-		8192,         // min read
-		102400,       // min space
+		16384,        // min read
+		139264,       // min space
 		flac_open,    // open
 		flac_close,   // close
 		flac_decode,  // decode
