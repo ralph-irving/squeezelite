@@ -274,7 +274,7 @@ struct codec *register_flac(void) {
 		'f',          // id
 		"flc",        // types
 		16384,        // min read
-		139264,       // min space
+		204800,       // min space
 		flac_open,    // open
 		flac_close,   // close
 		flac_decode,  // decode
