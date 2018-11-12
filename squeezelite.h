@@ -24,7 +24,16 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
-#define VERSION "v1.9.0-1119"
+#define MAJOR_VERSION "1.9"
+#define MINOR_VERSION "0"
+#define MICRO_VERSION "1120"
+
+#if defined(CUSTOM_VERSION)
+#define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
+#else
+#define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION
+#endif
+
 
 #if !defined(MODEL_NAME)
 #define MODEL_NAME SqueezeLite
