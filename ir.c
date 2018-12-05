@@ -223,9 +223,12 @@ void ir_init(log_level level, char *lircrc) {
 	fd = LIRC(i, init, LIRC_CLIENT_ID, 0);
 
 	if (fd > 0) {
-		if (LIRC(i, readconfig,lircrc, &config, NULL) != 0) {
+		if (LIRC(i, readconfig, lircrc, &config, NULL) != 0) {
 			LOG_WARN("error reading config: %s", lircrc);
 		}
+		else {
+			LOG_DEBUG("loaded lircrc config: %s", lircrc);
+		}	
 
 		mutex_create(ir.mutex);
 
