@@ -1,14 +1,20 @@
 #!/bin/bash
-SLBINARY=squeezelite-x86_64
-make -f Makefile.x86_64 clean
-make -f Makefile.x86_64
+SLBINARY=squeezelite
+
+BUILDOPTS="-DPORTAUDIO -DFFMPEG -DRESAMPLE -DGPIO -DLINKALL"
+make "OPTS=$BUILDOPTS" clean
+make -f Makefile "OPTS=$BUILDOPTS -I./include64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch x86_64 -mmacosx-version-min=10.7" "LDADD=-Wl,-syslibroot,/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch x86_64 -mmacosx-version-min=10.7 -L./lib64 -lportaudio -lFLAC -lvorbisfile -lvorbis -logg -lmad -lfaad -lmpg123 -lsoxr -lavformat -lavcodec -lavutil -lpthread -ldl -lm -framework CoreVideo -framework VideoDecodeAcceleration -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon"
+if [ ! -f $SLBINARY ]; then
+	echo "Build Failed."
+	exit 1
+fi
 strip $SLBINARY
 
 BUNDLE_NAME=Squeezelite.app
 APP_NAME=Squeezelite
 BUNDLE_CONTENTS=$BUNDLE_NAME/Contents
 PLIST_FILE=$BUNDLE_CONTENTS/Info.plist
-VERSION_TEXT=1.8.7r`svnversion -n | sed -e 's/[MS]//g'`
+VERSION_TEXT=`./$SLBINARY -? | grep ^Squeezelite\ v | awk -F'[v,]' '{printf "%s", $2}' | sed -e 's/-/r/g'`
 ICNS_NAME=icon.icns
 DMG_TEMP_DIR=temp-Squeezelite_image
 DMG_IMAGE_DIR=Squeezelite_image
