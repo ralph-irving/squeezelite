@@ -1,7 +1,7 @@
 #!/bin/bash
 SLBINARY=squeezelite
 
-BUILDOPTS="-DPORTAUDIO -DFFMPEG -DRESAMPLE -DGPIO -DLINKALL"
+BUILDOPTS="-DPORTAUDIO -DFFMPEG -DRESAMPLE -DGPIO -DLINKALL -DVISEXPORT"
 make "OPTS=$BUILDOPTS" clean
 make -f Makefile "OPTS=$BUILDOPTS -I./include64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch x86_64 -mmacosx-version-min=10.7" "LDADD=-Wl,-syslibroot,/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch x86_64 -mmacosx-version-min=10.7 -L./lib64 -lportaudio -lFLAC -lvorbisfile -lvorbis -logg -lmad -lfaad -lmpg123 -lsoxr -lavformat -lavcodec -lavutil -lpthread -ldl -lm -framework CoreVideo -framework VideoDecodeAcceleration -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon"
 if [ ! -f $SLBINARY ]; then

@@ -28,6 +28,18 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#if OSX
+#include <mach/clock.h>
+#include <mach/mach.h>
+
+static int pthread_rwlock_timedwrlock( pthread_rwlock_t * restrict rwlock, const struct timespec * restrict abs_timeout )
+{
+    ( void )rwlock;
+    ( void )abs_timeout;
+    
+    return 0;
+}
+#endif
 
 #define VIS_BUF_SIZE 16384
 #define VIS_LOCK_NS  1000000 // ns to wait for vis wrlock
@@ -56,7 +68,17 @@ void _vis_export(struct buffer *outputbuf, struct outputstate *output, frames_t 
 		err = pthread_rwlock_trywrlock(&vis_mmap->rwlock);
 		if (err) {
 			struct timespec ts;
+#ifdef OSX
+			clock_serv_t cclock;
+			mach_timespec_t mts;
+			host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+			clock_get_time(cclock, &mts);
+			mach_port_deallocate(mach_task_self(), cclock);
+			ts.tv_sec = mts.tv_sec;
+			ts.tv_nsec = mts.tv_nsec;
+#else
 			clock_gettime(CLOCK_REALTIME, &ts);
+#endif
 			ts.tv_nsec += VIS_LOCK_NS;
 			if (ts.tv_nsec > 1000000000) {
 				ts.tv_sec  += 1;
@@ -117,6 +139,10 @@ void output_vis_init(log_level level, u8_t *mac) {
 
 	mode_t old_mask = umask(000); // allow any user to read our shm when created
 
+#if OSX
+	/* ftruncate on MacOS only works on the initial segment creation */
+	shm_unlink(vis_shm_path);
+#endif	
 	vis_fd = shm_open(vis_shm_path, O_CREAT | O_RDWR, 0666);
 	if (vis_fd != -1) {
 		if (ftruncate(vis_fd, sizeof(struct vis_t)) == 0) {

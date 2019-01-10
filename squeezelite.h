@@ -25,8 +25,8 @@
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
 #define MAJOR_VERSION "1.9"
-#define MINOR_VERSION "0"
-#define MICRO_VERSION "1126"
+#define MINOR_VERSION "1"
+#define MICRO_VERSION "1127"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -125,7 +125,7 @@
 #define FFMPEG    0
 #endif
 
-#if LINUX && defined(VISEXPORT)
+#if (defined(LINUX) || defined(OSX)) && defined(VISEXPORT)
 #undef VISEXPORT
 #define VISEXPORT 1 // visulizer export support uses linux shared memory
 #else
@@ -261,7 +261,9 @@
 #define DECODE_THREAD_STACK_SIZE 128 * 1024
 #define OUTPUT_THREAD_STACK_SIZE  64 * 1024
 #define IR_THREAD_STACK_SIZE      64 * 1024
+#if !OSX
 #define thread_t pthread_t;
+#endif
 #define closesocket(s) close(s)
 #define last_error() errno
 #define ERROR_WOULDBLOCK EWOULDBLOCK
