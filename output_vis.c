@@ -68,7 +68,7 @@ void _vis_export(struct buffer *outputbuf, struct outputstate *output, frames_t 
 		err = pthread_rwlock_trywrlock(&vis_mmap->rwlock);
 		if (err) {
 			struct timespec ts;
-#ifdef OSX
+#if OSX
 			clock_serv_t cclock;
 			mach_timespec_t mts;
 			host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
