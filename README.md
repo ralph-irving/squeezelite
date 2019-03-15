@@ -1,4 +1,4 @@
-Squeezelite v1.8.x, Copyright 2012-2015 Adrian Smith, 2015-2018 Ralph Irving.<br>
+Squeezelite v1.9.x, Copyright 2012-2015 Adrian Smith, 2015-2019 Ralph Irving.<br>
 <br>
 See the squeezelite manpage for usage details.<br>
 https://ralph-irving.github.io/squeezelite.html<br>
