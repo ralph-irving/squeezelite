@@ -4,6 +4,7 @@
 	Version="9.00"
 	Name="squeezelite"
 	ProjectGUID="{7CB5A216-CEFA-4932-93CD-E9BFA33DD349}"
+	RootNamespace="squeezelite"
 	Keyword="Win32Proj"
 	TargetFrameworkVersion="0"
 	>
@@ -114,7 +115,7 @@
 				RuntimeLibrary="2"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				Detect64BitPortabilityProblems="true"
+				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="3"
 			/>
 			<Tool
@@ -130,7 +131,7 @@
 				Name="VCLinkerTool"
 				AdditionalOptions="/NODEFAULTLIB:LIBCMT"
 				AdditionalDependencies="ws2_32.lib lib\portaudio.lib lib\libvorbisfile.lib lib\libvorbis.lib lib\libogg.lib lib\libmad.lib lib\libFLAC.lib lib\libfaad.lib lib\libmpg123.lib lib\libsoxr.lib lib\libavformat.a lib\libavcodec.a lib\libavutil.a"
-				OutputFile="$(OutDir)\$(ProjectName).exe"
+				OutputFile="$(OutDir)\$(ProjectName)-win.exe"
 				LinkIncremental="1"
 				ModuleDefinitionFile=""
 				GenerateDebugInformation="false"
