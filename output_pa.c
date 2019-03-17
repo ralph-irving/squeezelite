@@ -335,19 +335,21 @@ void _pa_open(void) {
 #ifndef PA18API
 		(err = Pa_OpenStream(&pa.stream, NULL, &outputParameters, (double)output.current_sample_rate, paFramesPerBufferUnspecified,
 							 paPrimeOutputBuffersUsingStreamCallback | paDitherOff, pa_callback, NULL)) != paNoError) {
+		LOG_WARN("error opening device %i - %s [%s] : %s", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name, 
+				  Pa_GetHostApiInfo(Pa_GetDeviceInfo(outputParameters.device)->hostApi)->name, Pa_GetErrorText(err));
 #else
 		(err = Pa_OpenStream(&pa.stream, paNoDevice, 0, 0, NULL, outputParameters.device, outputParameters.channelCount,
 							outputParameters.sampleFormat, NULL, (double)output.current_sample_rate, paFramesPerBuffer,
 							paNumberOfBuffers, paDitherOff, pa_callback, NULL)) != paNoError) {
-
-#endif
 		LOG_WARN("error opening device %i - %s : %s", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name, 
 				 Pa_GetErrorText(err));
+#endif
 	}
 
 	if (!err) {
 #ifndef PA18API
-		LOG_INFO("opened device %i - %s at %u latency %u ms", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name,
+		LOG_INFO("opened device %i - %s [%s] at %u latency %u ms", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name,
+				 Pa_GetHostApiInfo(Pa_GetDeviceInfo(outputParameters.device)->hostApi)->name,
 				 (unsigned int)Pa_GetStreamInfo(pa.stream)->sampleRate, (unsigned int)(Pa_GetStreamInfo(pa.stream)->outputLatency * 1000));
 #else
 		LOG_INFO("opened device %i - %s at %u fpb %u nbf %u", outputParameters.device, Pa_GetDeviceInfo(outputParameters.device)->name,
