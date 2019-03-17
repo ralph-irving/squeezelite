@@ -186,8 +186,11 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 				continue;
 #if WIN
 #ifndef PA18API
-			/* Some windows apis return paUnanticipatedHostError for paInvalidSampleRate */
+			/* Ignore these errors for device probe */
 			case paUnanticipatedHostError:
+				continue;
+
+			case paInvalidDevice:
 				continue;
 #endif
 #endif
