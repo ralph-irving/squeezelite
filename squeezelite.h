@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "1"
-#define MICRO_VERSION "1136"
+#define MICRO_VERSION "1137"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -587,7 +587,7 @@ struct outputstate {
 #if PORTAUDIO
 	bool  pa_reopen;
 	unsigned latency;
-	int osx_playnice;
+	int pa_hostapi_option;
 #endif
 	int (* write_cb)(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR, s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr);
 	unsigned start_frames;

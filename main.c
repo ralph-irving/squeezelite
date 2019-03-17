@@ -62,6 +62,8 @@ static void usage(const char *argv0) {
 		   "  -a <frames>:<buffers>\tSpecify output target 4 byte frames per buffer, number of buffers\n"
 #elif OSX && !defined(OSXPPC)
 		   "  -a <l>:<r>\t\tSpecify Portaudio params to open output device, l = target latency in ms, r = allow OSX to resample (0|1)\n"
+#elif WIN
+		   "  -a <l>:<e>\t\tSpecify Portaudio params to open output device, l = target latency in ms, e = use exclusive mode for WASAPI (0|1)\n"
 #else
 		   "  -a <l>\t\tSpecify Portaudio params to open output device, l = target latency in ms\n"
 #endif

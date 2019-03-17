@@ -26,9 +26,14 @@
 #if PORTAUDIO
 
 #include <portaudio.h>
+
 #if WIN
+#ifndef PA18API
+#include <pa_win_wasapi.h>
+#endif
 #define snprintf _snprintf
 #endif
+
 #if OSX && !defined(OSXPPC)
 #include <pa_mac_core.h>
 #endif
@@ -155,7 +160,12 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 	PaError err;
 	unsigned ref[] TEST_RATES;
 	int device_id, i, ind;
+#if WIN
+	PaWasapiStreamInfo wasapiInfo;
+	const PaDeviceInfo * paDeviceInfo;
+	const PaHostApiInfo *paHostApiInfo;
 
+#endif
 	if ((device_id = pa_device_id(device)) == -1) {
 		LOG_INFO("device %s not found", device);
 		return false;
@@ -168,6 +178,27 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 	outputParameters.suggestedLatency =
 		output.latency ? (double)output.latency/(double)1000 : Pa_GetDeviceInfo(outputParameters.device)->defaultHighOutputLatency;
 	outputParameters.hostApiSpecificStreamInfo = NULL;
+#if WIN
+	paDeviceInfo = Pa_GetDeviceInfo( outputParameters.device );
+	paHostApiInfo = Pa_GetHostApiInfo ( paDeviceInfo->hostApi );
+
+	if ( paHostApiInfo != NULL )
+	{
+		if ( paHostApiInfo->type == paWASAPI )
+		{
+			/* Use exclusive mode for WasApi device, default is shared */
+			if (output.pa_hostapi_option == 1)
+			{
+				wasapiInfo.size = sizeof(PaWasapiStreamInfo);
+				wasapiInfo.hostApiType = paWASAPI;
+				wasapiInfo.version = 1;
+				wasapiInfo.flags = paWinWasapiExclusive;
+				outputParameters.hostApiSpecificStreamInfo = &wasapiInfo;
+				LOG_INFO("opening WASAPI device in exclusive mode");
+			}
+		}
+	}
+#endif /* WIN */
 #endif
 
 	// check supported sample rates
@@ -286,7 +317,12 @@ void _pa_open(void) {
 	PaStreamParameters outputParameters;
 	PaError err = paNoError;
 	int device_id;
+#if WIN
+	PaWasapiStreamInfo wasapiInfo;
+	const PaDeviceInfo * paDeviceInfo;
+	const PaHostApiInfo *paHostApiInfo;
 
+#endif
 	if (pa.stream) {
 		if ((err = Pa_CloseStream(pa.stream)) != paNoError) {
 			LOG_WARN("error closing stream: %s", Pa_GetErrorText(err));
@@ -314,12 +350,11 @@ void _pa_open(void) {
 		
 #endif
 #if OSX && !defined(OSXPPC)
-		// enable pro mode which aims to avoid resampling if possible
-		// see http://code.google.com/p/squeezelite/issues/detail?id=11 & http://code.google.com/p/squeezelite/issues/detail?id=37
-		// command line controls osx_playnice which is -1 if not specified, 0 or 1 - choose playnice if -1 or 1
+		/* enable pro mode which aims to avoid resampling if possible */
+		/* command line controls pa_hostapi_option which is -1 if not specified, 0 or 1 - choose playnice if -1 or 1 */
 		PaMacCoreStreamInfo macInfo;
 		unsigned long streamInfoFlags;
-	 	if (output.osx_playnice) {
+	 	if (output.pa_hostapi_option) {
 			LOG_INFO("opening device in PlayNice mode");
 			streamInfoFlags = paMacCorePlayNice;
 		} else {
@@ -328,6 +363,27 @@ void _pa_open(void) {
 		}
 		PaMacCore_SetupStreamInfo(&macInfo, streamInfoFlags);
 		outputParameters.hostApiSpecificStreamInfo = &macInfo;
+#endif
+#if WIN
+		paDeviceInfo = Pa_GetDeviceInfo( outputParameters.device );
+		paHostApiInfo = Pa_GetHostApiInfo ( paDeviceInfo->hostApi );
+
+		if ( paHostApiInfo != NULL )
+		{
+			if ( paHostApiInfo->type == paWASAPI )
+			{
+				/* Use exclusive mode for WasApi device, default is shared */
+				if (output.pa_hostapi_option == 1)
+				{
+					wasapiInfo.size = sizeof(PaWasapiStreamInfo);
+					wasapiInfo.hostApiType = paWASAPI;
+					wasapiInfo.version = 1;
+					wasapiInfo.flags = paWinWasapiExclusive;
+					outputParameters.hostApiSpecificStreamInfo = &wasapiInfo;
+					LOG_INFO("opening WASAPI device in exclusive mode");
+				}
+			}
+		}
 #endif
 	}
 
@@ -493,7 +549,7 @@ void output_init_pa(log_level level, const char *device, unsigned output_buf_siz
 	PaError err;
 #ifndef PA18API
 	unsigned latency = 0;
-	int osx_playnice = -1;
+	int pa_hostapi_option = -1;
 
 #else
 	unsigned pa_frames = 0;
@@ -504,7 +560,7 @@ void output_init_pa(log_level level, const char *device, unsigned output_buf_siz
 	char *p = next_param(NULL, ':');
 
 	if (l) latency = (unsigned)atoi(l);
-	if (p) osx_playnice = atoi(p);
+	if (p) pa_hostapi_option = atoi(p);
 #else
 	char *t = next_param(params, ':');
 	char *c = next_param(NULL, ':');
@@ -520,7 +576,7 @@ void output_init_pa(log_level level, const char *device, unsigned output_buf_siz
 
 #ifndef PA18API
 	output.latency = latency;
-	output.osx_playnice = osx_playnice;
+	output.pa_hostapi_option = pa_hostapi_option;
 #else
 	if ( pa_frames != 0 )
 		paFramesPerBuffer = pa_frames;
