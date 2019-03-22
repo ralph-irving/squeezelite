@@ -380,9 +380,17 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 	output.error_opening = false;
 	output.idle_to = (u32_t) idle;
 
-	if (!test_open(output.device, output.supported_rates, user_rates)) {
-		LOG_ERROR("unable to open output device: %s", output.device);
-		exit(0);
+	/* Skip test_open for stdout, set default sample rates */
+	if ( output.device[0] == '-' ) {
+		for (i = 0; i < MAX_SUPPORTED_SAMPLERATES; ++i) {
+			output.supported_rates[i] = rates[i];
+		}
+	}
+	else {
+		if (!test_open(output.device, output.supported_rates, user_rates)) {
+			LOG_ERROR("unable to open output device: %s", output.device);
+			exit(0);
+		}
 	}
 
 	if (user_rates) {
