@@ -156,6 +156,13 @@
 #define LINKALL   0
 #endif
 
+#if defined (USE_SSL)
+#undef USE_SSL
+#define USE_SSL 1
+#else
+#define USE_SSL 0
+#endif
+
 
 #if !LINKALL
 
