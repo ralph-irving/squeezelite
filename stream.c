@@ -77,7 +77,7 @@ static int _send(SSL *ssl, int fd, void *buffer, size_t bytes, int options) {
 
 /*
 can't mimic exactly poll as SSL is a real pain. Even if SSL_pending returns
-c0, there might be bytes to read but when select (poll) return > 0, there might
+0, there might be bytes to read but when select (poll) return > 0, there might
 be no frame available. As well select (poll) < 0 does not mean that there is
 no data pending
 */
