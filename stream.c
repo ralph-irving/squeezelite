@@ -347,7 +347,9 @@ static void *stream_thread() {
 	}
 	
 #if USE_SSL	
-	if (SSLCtx) SSL_CTX_free(SSLctx);
+	if (SSLctx) {
+		SSL_CTX_free(SSLctx);
+	}	
 #endif	
 
 	return 0;
