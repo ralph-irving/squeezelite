@@ -53,7 +53,7 @@ SSL *ssl;
 #if !USE_SSL
 #define _recv(ssl, fc, buf, n, opt) recv(fd, buf, n, opt)
 #define _send(ssl, fd, buf, n, opt) send(fd, buf, n, opt)
-#define _poll(ssl, pollinfo, n, timeout) poll(pollinfo, n, timeout)
+#define _poll(ssl, pollinfo, timeout) poll(pollinfo, 1, timeout)
 #define _last_error() last_error()
 #else
 #define _last_error() ERROR_WOULDBLOCK
@@ -81,14 +81,14 @@ can't mimic exactly poll as SSL is a real pain. Even if SSL_pending returns
 be no frame available. As well select (poll) < 0 does not mean that there is
 no data pending
 */
-static int _poll(SSL *ssl, struct pollfd *pollinfo, int n, int timeout) {
+static int _poll(SSL *ssl, struct pollfd *pollinfo, int timeout) {
 	if (!ssl) return poll(pollinfo, 1, timeout);
 	if (pollinfo->events & POLLIN && SSL_pending(ssl)) {
-		if (pollinfo->events & POLLOUT) poll(pollinfo, n, 0);
+		if (pollinfo->events & POLLOUT) poll(pollinfo, 1, 0);
 		pollinfo->revents = POLLIN;
 		return 1;
 	}
-	return poll(pollinfo, n, timeout);
+	return poll(pollinfo, 1, timeout);
 }
 #endif
 
@@ -186,7 +186,7 @@ static void *stream_thread() {
 
 		UNLOCK;
 
-		if (_poll(ssl, &pollinfo, 1, 100)) {
+		if (_poll(ssl, &pollinfo, 100)) {
 
 			LOCK;
 
