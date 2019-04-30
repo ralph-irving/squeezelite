@@ -93,7 +93,7 @@ static int _poll(SSL *ssl, struct pollfd *pollinfo, int timeout) {
 #endif
 
 
-static void send_header(void) {
+static bool send_header(void) {
 	char *ptr = stream.header;
 	int len = stream.header_len;
 
@@ -112,13 +112,14 @@ static void send_header(void) {
 			stream.disconnect = LOCAL_DISCONNECT;
 			stream.state = DISCONNECT;
 			wake_controller();
-			return;
+			return false;
 		}
 		LOG_SDEBUG("wrote %d bytes to socket", n);
 		ptr += n;
 		len -= n;
 	}
 	LOG_SDEBUG("wrote header");
+	return true;
 }
 
 static bool running = true;
@@ -197,9 +198,8 @@ static void *stream_thread() {
 			}
 
 			if ((pollinfo.revents & POLLOUT) && stream.state == SEND_HEADERS) {
-				send_header();
+				if (send_header()) stream.state = RECV_HEADERS;
 				stream.header_len = 0;
-				stream.state = RECV_HEADERS;
 				UNLOCK;
 				continue;
 			}
