@@ -21,6 +21,8 @@
 
 // stream thread
 
+#define _GNU_SOURCE
+
 #include "squeezelite.h"
 
 #include <fcntl.h>
@@ -68,11 +70,16 @@ static int _recv(SSL *ssl, int fd, void *buffer, size_t bytes, int options) {
 static int _send(SSL *ssl, int fd, void *buffer, size_t bytes, int options) {
 	int n;
 	if (!ssl) return send(fd, buffer, bytes, options);
-	while ((n = SSL_write(ssl, (u8_t*) buffer, bytes)) < 0) {
-		int err = SSL_get_error(ssl, n);
-		if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE) break;
+	while (1) {
+		int err;
+		ERR_clear_error();
+		if ((n = SSL_write(ssl, (u8_t*) buffer, bytes)) >= 0) return n;
+		err = SSL_get_error(ssl, n);
+		if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE) {
+			LOG_INFO("SSL write error %d", err );
+			return n;
+		}
 	}
-	return n;
 }
 
 /*
@@ -482,13 +489,37 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	
 #if USE_SSL
 	if (ntohs(port) == 443) {
-		int err;
+		char *server = strcasestr(header, "Host:");
+
 		ssl = SSL_new(SSLctx);
 		SSL_set_fd(ssl, sock);
 
-		if (!(err = SSL_connect(ssl))) {
-			err = SSL_get_error(ssl, err);
-			LOG_WARN("unable to open SSL socket");
+		// add SNI
+		if (server) {
+			char *p, *servername = malloc(1024);
+
+			sscanf(server, "Host:%255[^:]s", servername);
+			for (p = servername; *p == ' '; p++);
+			SSL_set_tlsext_host_name(ssl, p);
+			free(servername);
+		}
+		
+		while (1) {
+			int status, err = 0;
+
+			ERR_clear_error();
+			status = SSL_connect(ssl);
+
+			// successful negotiation
+			if (status == 1) break;
+
+			// error or non-blocking requires more time
+			if (status < 0) {
+				err = SSL_get_error(ssl, status);
+				if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) continue;
+			}
+
+			LOG_WARN("unable to open SSL socket %d (%d)", status, err);
 			closesocket(sock);
 			SSL_free(ssl);
 			ssl = NULL;
@@ -496,11 +527,12 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 			stream.state = DISCONNECT;
 			stream.disconnect = UNREACHABLE;
 			UNLOCK;
+
 			return;
 		}
 	} else {
-		ssl = NULL;
-	}	
+		ssl = NULL;	
+	}
 #endif
 
 	buf_flush(streambuf);
