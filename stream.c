@@ -59,6 +59,7 @@ SSL *ssl;
 #define _last_error() last_error()
 #else
 #define _last_error() ERROR_WOULDBLOCK
+
 static int _recv(SSL *ssl, int fd, void *buffer, size_t bytes, int options) {
 	int n;
 	if (!ssl) return recv(fd, buffer, bytes, options);
@@ -75,10 +76,9 @@ static int _send(SSL *ssl, int fd, void *buffer, size_t bytes, int options) {
 		ERR_clear_error();
 		if ((n = SSL_write(ssl, (u8_t*) buffer, bytes)) >= 0) return n;
 		err = SSL_get_error(ssl, n);
-		if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE) {
-			LOG_INFO("SSL write error %d", err );
-			return n;
-		}
+		if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) continue;
+		LOG_INFO("SSL write error %d", err );
+		return n;
 	}
 }
 
