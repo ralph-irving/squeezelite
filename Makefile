@@ -13,6 +13,7 @@ OPT_IR      = -DIR
 OPT_GPIO    = -DGPIO
 OPT_RPI     = -DRPI
 OPT_NO_FAAD = -DNO_FAAD
+OPT_SSL	    = -DUSE_SSL
 
 SOURCES = \
 	main.c slimproto.c buffer.c stream.c utils.c \
@@ -29,6 +30,7 @@ SOURCES_FAAD     = faad.c
 
 LINK_LINUX       = -ldl
 LINK_RPI         = -lwiringPi
+LINK_SSL         = -lssl -lcrypto
 
 LINKALL          = -lFLAC -lmad -lvorbisfile -lmpg123
 LINKALL_FF       = -lavcodec -lavformat -lavutil
@@ -95,6 +97,9 @@ ifeq ($(UNAME), Linux)
 endif
 ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
 	LDADD += $(LINK_RPI)
+endif
+ifneq (,$(findstring $(OPT_SSL), $(OPTS)))
+	LDADD += $(LINK_SSL)
 endif
 endif
 

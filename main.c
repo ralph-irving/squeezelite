@@ -202,6 +202,9 @@ static void usage(const char *argv0) {
 #if DSD
 		   " DSD"
 #endif
+#if USE_SSL
+                   " SSL"
+#endif
 #if LINKALL
 		   " LINKALL"
 #endif

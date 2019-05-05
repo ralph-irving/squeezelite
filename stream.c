@@ -21,9 +21,16 @@
 
 // stream thread
 
+#define _GNU_SOURCE
+
 #include "squeezelite.h"
 
 #include <fcntl.h>
+
+#if USE_SSL
+#include "openssl/ssl.h"
+#include "openssl/err.h"
+#endif
 
 #if SUN
 #include <signal.h>
@@ -40,7 +47,60 @@ static sockfd fd;
 
 struct streamstate stream;
 
-static void send_header(void) {
+#if USE_SSL
+static SSL_CTX *SSLctx;
+SSL *ssl;
+#endif
+
+#if !USE_SSL
+#define _recv(ssl, fc, buf, n, opt) recv(fd, buf, n, opt)
+#define _send(ssl, fd, buf, n, opt) send(fd, buf, n, opt)
+#define _poll(ssl, pollinfo, timeout) poll(pollinfo, 1, timeout)
+#define _last_error() last_error()
+#else
+#define _last_error() ERROR_WOULDBLOCK
+
+static int _recv(SSL *ssl, int fd, void *buffer, size_t bytes, int options) {
+	int n;
+	if (!ssl) return recv(fd, buffer, bytes, options);
+	n = SSL_read(ssl, (u8_t*) buffer, bytes);
+	if (n <= 0 && SSL_get_error(ssl, n) == SSL_ERROR_ZERO_RETURN) return 0;
+	return n;
+}
+
+static int _send(SSL *ssl, int fd, void *buffer, size_t bytes, int options) {
+	int n;
+	if (!ssl) return send(fd, buffer, bytes, options);
+	while (1) {
+		int err;
+		ERR_clear_error();
+		if ((n = SSL_write(ssl, (u8_t*) buffer, bytes)) >= 0) return n;
+		err = SSL_get_error(ssl, n);
+		if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) continue;
+		LOG_INFO("SSL write error %d", err );
+		return n;
+	}
+}
+
+/*
+can't mimic exactly poll as SSL is a real pain. Even if SSL_pending returns
+0, there might be bytes to read but when select (poll) return > 0, there might
+be no frame available. As well select (poll) < 0 does not mean that there is
+no data pending
+*/
+static int _poll(SSL *ssl, struct pollfd *pollinfo, int timeout) {
+	if (!ssl) return poll(pollinfo, 1, timeout);
+	if (pollinfo->events & POLLIN && SSL_pending(ssl)) {
+		if (pollinfo->events & POLLOUT) poll(pollinfo, 1, 0);
+		pollinfo->revents = POLLIN;
+		return 1;
+	}
+	return poll(pollinfo, 1, timeout);
+}
+#endif
+
+
+static bool send_header(void) {
 	char *ptr = stream.header;
 	int len = stream.header_len;
 
@@ -48,9 +108,9 @@ static void send_header(void) {
 	ssize_t n;
 	
 	while (len) {
-		n = send(fd, ptr, len, MSG_NOSIGNAL);
+		n = _send(ssl, fd, ptr, len, MSG_NOSIGNAL);
 		if (n <= 0) {
-			if (n < 0 && last_error() == ERROR_WOULDBLOCK && try < 10) {
+			if (n < 0 && _last_error() == ERROR_WOULDBLOCK && try < 10) {
 				LOG_SDEBUG("retrying (%d) writing to socket", ++try);
 				usleep(1000);
 				continue;
@@ -59,13 +119,14 @@ static void send_header(void) {
 			stream.disconnect = LOCAL_DISCONNECT;
 			stream.state = DISCONNECT;
 			wake_controller();
-			return;
+			return false;
 		}
 		LOG_SDEBUG("wrote %d bytes to socket", n);
 		ptr += n;
 		len -= n;
 	}
 	LOG_SDEBUG("wrote header");
+	return true;
 }
 
 static bool running = true;
@@ -73,6 +134,13 @@ static bool running = true;
 static void _disconnect(stream_state state, disconnect_code disconnect) {
 	stream.state = state;
 	stream.disconnect = disconnect;
+#if USE_SSL
+	if (ssl) {
+		SSL_shutdown(ssl);
+		SSL_free(ssl);
+		ssl = NULL;
+	}
+#endif
 	closesocket(fd);
 	fd = -1;
 	wake_controller();
@@ -126,7 +194,7 @@ static void *stream_thread() {
 
 		UNLOCK;
 
-		if (poll(&pollinfo, 1, 100)) {
+		if (_poll(ssl, &pollinfo, 100)) {
 
 			LOCK;
 
@@ -137,9 +205,8 @@ static void *stream_thread() {
 			}
 
 			if ((pollinfo.revents & POLLOUT) && stream.state == SEND_HEADERS) {
-				send_header();
+				if (send_header()) stream.state = RECV_HEADERS;
 				stream.header_len = 0;
-				stream.state = RECV_HEADERS;
 				UNLOCK;
 				continue;
 			}
@@ -153,9 +220,9 @@ static void *stream_thread() {
 					char c;
 					static int endtok;
 
-					int n = recv(fd, &c, 1, 0);
+					int n = _recv(ssl, fd, &c, 1, 0);
 					if (n <= 0) {
-						if (n < 0 && last_error() == ERROR_WOULDBLOCK) {
+						if (n < 0 && _last_error() == ERROR_WOULDBLOCK) {
 							UNLOCK;
 							continue;
 						}
@@ -195,9 +262,9 @@ static void *stream_thread() {
 					if (stream.meta_left == 0) {
 						// read meta length
 						u8_t c;
-						int n = recv(fd, &c, 1, 0);
+						int n = _recv(ssl, fd, &c, 1, 0);
 						if (n <= 0) {
-							if (n < 0 && last_error() == ERROR_WOULDBLOCK) {
+							if (n < 0 && _last_error() == ERROR_WOULDBLOCK) {
 								UNLOCK;
 								continue;
 							}
@@ -212,9 +279,9 @@ static void *stream_thread() {
 					}
 
 					if (stream.meta_left) {
-						int n = recv(fd, stream.header + stream.header_len, stream.meta_left, 0);
+						int n = _recv(ssl, fd, stream.header + stream.header_len, stream.meta_left, 0);
 						if (n <= 0) {
-							if (n < 0 && last_error() == ERROR_WOULDBLOCK) {
+							if (n < 0 && _last_error() == ERROR_WOULDBLOCK) {
 								UNLOCK;
 								continue;
 							}
@@ -248,12 +315,12 @@ static void *stream_thread() {
 						space = min(space, stream.meta_next);
 					}
 					
-					n = recv(fd, streambuf->writep, space, 0);
+					n = _recv(ssl, fd, streambuf->writep, space, 0);
 					if (n == 0) {
 						LOG_INFO("end of stream");
 						_disconnect(DISCONNECT, DISCONNECT_OK);
 					}
-					if (n < 0 && last_error() != ERROR_WOULDBLOCK) {
+					if (n < 0 && _last_error() != ERROR_WOULDBLOCK) {
 						LOG_INFO("error reading: %s", strerror(last_error()));
 						_disconnect(DISCONNECT, REMOTE_DISCONNECT);
 					}
@@ -264,6 +331,9 @@ static void *stream_thread() {
 						if (stream.meta_interval) {
 							stream.meta_next -= n;
 						}
+					} else {
+						UNLOCK;
+						continue;
 					}
 
 					if (stream.state == STREAMING_BUFFERING && stream.bytes > stream.threshold) {
@@ -282,6 +352,12 @@ static void *stream_thread() {
 			LOG_SDEBUG("poll timeout");
 		}
 	}
+	
+#if USE_SSL	
+	if (SSLctx) {
+		SSL_CTX_free(SSLctx);
+	}	
+#endif	
 
 	return 0;
 }
@@ -299,6 +375,13 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 		LOG_ERROR("unable to malloc buffer");
 		exit(0);
 	}
+	
+#if USE_SSL
+	SSL_library_init();
+	SSLctx = SSL_CTX_new(SSLv23_client_method());
+	if (SSLctx) SSL_CTX_set_options(SSLctx, SSL_OP_NO_SSLv2);
+	ssl = NULL;
+#endif
 	
 #if SUN
 	signal(SIGPIPE, SIG_IGN);	/* Force sockets to return -1 with EPIPE on pipe signal */
@@ -403,6 +486,54 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 		UNLOCK;
 		return;
 	}
+	
+#if USE_SSL
+	if (ntohs(port) == 443) {
+		char *server = strcasestr(header, "Host:");
+
+		ssl = SSL_new(SSLctx);
+		SSL_set_fd(ssl, sock);
+
+		// add SNI
+		if (server) {
+			char *p, *servername = malloc(1024);
+
+			sscanf(server, "Host:%255[^:]s", servername);
+			for (p = servername; *p == ' '; p++);
+			SSL_set_tlsext_host_name(ssl, p);
+			free(servername);
+		}
+		
+		while (1) {
+			int status, err = 0;
+
+			ERR_clear_error();
+			status = SSL_connect(ssl);
+
+			// successful negotiation
+			if (status == 1) break;
+
+			// error or non-blocking requires more time
+			if (status < 0) {
+				err = SSL_get_error(ssl, status);
+				if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) continue;
+			}
+
+			LOG_WARN("unable to open SSL socket %d (%d)", status, err);
+			closesocket(sock);
+			SSL_free(ssl);
+			ssl = NULL;
+			LOCK;
+			stream.state = DISCONNECT;
+			stream.disconnect = UNREACHABLE;
+			UNLOCK;
+
+			return;
+		}
+	} else {
+		ssl = NULL;	
+	}
+#endif
 
 	buf_flush(streambuf);
 
@@ -431,6 +562,13 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 bool stream_disconnect(void) {
 	bool disc = false;
 	LOCK;
+#if USE_SSL
+	if (ssl) {
+		SSL_shutdown(ssl);
+		SSL_free(ssl);
+		ssl = NULL;
+	}
+#endif
 	if (fd != -1) {
 		closesocket(fd);
 		fd = -1;

@@ -25,8 +25,8 @@
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
 #define MAJOR_VERSION "1.9"
-#define MINOR_VERSION "1"
-#define MICRO_VERSION "1140"
+#define MINOR_VERSION "2"
+#define MICRO_VERSION "1143"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -154,6 +154,13 @@
 #define LINKALL   1 // link all libraries at build time - requires all to be available at run time
 #else
 #define LINKALL   0
+#endif
+
+#if defined (USE_SSL)
+#undef USE_SSL
+#define USE_SSL 1
+#else
+#define USE_SSL 0
 #endif
 
 
