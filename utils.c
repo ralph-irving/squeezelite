@@ -43,6 +43,11 @@
 #endif
 #if WIN
 #include <iphlpapi.h>
+#if USE_SSL
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#endif
 #endif
 #if OSX
 #include <net/if_dl.h>
@@ -480,5 +485,40 @@ void touch_memory(u8_t *buf, size_t size) {
 	for (ptr = buf; ptr < buf + size; ptr += sysconf(_SC_PAGESIZE)) {
 		*ptr = 0;
 	}
+}
+#endif
+
+#if WIN && USE_SSL
+char *strcasestr(const char *haystack, const char *needle) {
+	size_t length_needle;
+	size_t length_haystack;
+	size_t i;
+
+	if (!haystack || !needle)
+		return NULL;
+
+	length_needle = strlen(needle);
+	length_haystack = strlen(haystack) - length_needle + 1;
+
+	for (i = 0; i < length_haystack; i++)
+	{
+		size_t j;
+
+		for (j = 0; j < length_needle; j++)
+		{
+			unsigned char c1;
+			unsigned char c2;
+
+			c1 = haystack[i+j];
+			c2 = needle[j];
+			if (toupper(c1) != toupper(c2))
+				goto next;
+		}
+		return (char *) haystack + i;
+		next:
+			;
+	}
+
+	return NULL;
 }
 #endif

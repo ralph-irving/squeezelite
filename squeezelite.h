@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "2"
-#define MICRO_VERSION "1143"
+#define MICRO_VERSION "1144"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -418,6 +418,9 @@ void logprint(const char *fmt, ...);
 
 // utils.c (non logging)
 typedef enum { EVENT_TIMEOUT = 0, EVENT_READ, EVENT_WAKE } event_type;
+#if WIN && USE_SSL
+char* strcasestr(const char *haystack, const char *needle);
+#endif
 
 char *next_param(char *src, char c);
 u32_t gettime_ms(void);
