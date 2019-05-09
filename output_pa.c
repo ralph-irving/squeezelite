@@ -475,7 +475,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 		u8_t *buf = silencebuf;
 
 		IF_DSD(
-			if (output.outfmt != DOP) {
+			if (output.outfmt != PCM) {
 				buf = silencebuf_dsd;
 				update_dop((u32_t *) buf, out_frames, false); // don't invert silence
 			}
