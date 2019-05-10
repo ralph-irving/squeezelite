@@ -689,6 +689,10 @@ int main(int argc, char **argv) {
 	signal(SIGHUP, sighandler);
 #endif
 
+#if USE_SSL && !LINKALL
+	ssl_loaded = load_ssl_symbols();
+#endif	
+
 	// set the output buffer size if not specified on the command line, take account of resampling
 	if (!output_buf_size) {
 		output_buf_size = OUTPUTBUF_SIZE;
@@ -811,6 +815,10 @@ int main(int argc, char **argv) {
 		free(pidfile);
 	}
 #endif
+
+#if USE_SSL && !LINKALL
+	free_ssl_symbols();
+#endif	
 
 	exit(0);
 }

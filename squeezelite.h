@@ -733,3 +733,11 @@ struct irstate {
 void ir_init(log_level level, char *lircrc);
 void ir_close(void);
 #endif
+
+// sslsym.c
+#if USE_SSL && !LINKALL
+bool load_ssl_symbols(void);
+void free_ssl_symbols(void);
+bool ssl_loaded;
+#endif
+
