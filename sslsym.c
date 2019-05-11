@@ -34,8 +34,10 @@ static void *SSLhandle = NULL;
 static void *CRYPThandle = NULL;
 
 #if WIN
-static char *LIBSSL[] 		= { "ssleay32.dll", NULL };
-static char *LIBCRYPTO[] 	= { "libeay32.dll", NULL };
+static char *LIBSSL[] 		= { "libssl.dll",
+							"ssleay32.dll", NULL };
+static char *LIBCRYPTO[] 	= { "libcrypto.dll",
+							"libeay32.dll", NULL };
 #elif OSX
 static char *LIBSSL[] 		= { "libssl.dylib", NULL };
 static char *LIBCRYPTO[] 	= { "libcrypto.dylib", NULL };
@@ -118,6 +120,11 @@ static int lambda(void) {
 bool load_ssl_symbols(void) {
 	CRYPThandle = dlopen_try(LIBCRYPTO, RTLD_NOW);
 	SSLhandle = dlopen_try(LIBSSL, RTLD_NOW);
+	
+	if (!SSLhandle || !CRYPThandle) {
+		free_ssl_symbols();
+		return false;
+	}
 
 	SYMLOAD(SSLhandle, SSL_CTX_new);
 	SYMLOAD(SSLhandle, SSL_CTX_ctrl);
