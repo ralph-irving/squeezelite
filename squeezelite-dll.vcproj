@@ -2,7 +2,7 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="squeezelite"
+	Name="squeezelite-dll"
 	ProjectGUID="{7CB5A216-CEFA-4932-93CD-E9BFA33DD349}"
 	RootNamespace="squeezelite"
 	Keyword="Win32Proj"
@@ -130,7 +130,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="ws2_32.lib lib\portaudio.lib lib\ssleay32.lib lib\libeay32.lib"
-				OutputFile="$(OutDir)\$(ProjectName)-win.exe"
+				OutputFile="$(OutDir)\$(ProjectName)-dll.exe"
 				LinkIncremental="1"
 				ModuleDefinitionFile=""
 				GenerateDebugInformation="false"
