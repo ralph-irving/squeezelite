@@ -114,12 +114,20 @@ void send_packet(u8_t *packet, size_t len) {
 }
 
 static void sendHELO(bool reconnect, const char *fixed_cap, const char *var_cap, u8_t mac[6]) {
-	const char *base_cap = 
-#if USE_SSL
-	"CanHTTPS=1,"
-#endif	
-	"Model=squeezelite,AccuratePlayPoints=1,HasDigitalOut=1,HasPolarityInversion=1,Firmware=" VERSION;
+	#define BASE_CAP "Model=squeezelite,AccuratePlayPoints=1,HasDigitalOut=1,HasPolarityInversion=1,Firmware=" VERSION
+	#define SSL_CAP "CanHTTPS=1"
+	const char *base_cap;
 	struct HELO_packet pkt;
+	
+#if USE_SSL
+#if !LINKALL
+	if (ssl_loaded) base_cap = SSL_CAP "," BASE_CAP;
+	else base_cap = BASE_CAP;
+#endif	
+	base_cap = SSL_CAP "," BASE_CAP;
+#else
+	base_cap = BASE_CAP;
+#endif	
 
 	memset(&pkt, 0, sizeof(pkt));
 	memcpy(&pkt.opcode, "HELO", 4);

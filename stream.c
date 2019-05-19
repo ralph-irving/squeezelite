@@ -377,9 +377,19 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 	}
 	
 #if USE_SSL
+#if !LINKALL
+	if (ssl_loaded) {
+#endif
 	SSL_library_init();
 	SSLctx = SSL_CTX_new(SSLv23_client_method());
-	if (SSLctx) SSL_CTX_set_options(SSLctx, SSL_OP_NO_SSLv2);
+	if (SSLctx == NULL) {
+		LOG_ERROR("unable to allocate SSL context");
+		exit(0);
+	}	
+	SSL_CTX_set_options(SSLctx, SSL_OP_NO_SSLv2);
+#if !LINKALL
+	}
+#endif	
 	ssl = NULL;
 #endif
 	

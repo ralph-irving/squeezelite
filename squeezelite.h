@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "2"
-#define MICRO_VERSION "1145"
+#define MICRO_VERSION "1153"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -733,3 +733,11 @@ struct irstate {
 void ir_init(log_level level, char *lircrc);
 void ir_close(void);
 #endif
+
+// sslsym.c
+#if USE_SSL && !LINKALL
+bool load_ssl_symbols(void);
+void free_ssl_symbols(void);
+bool ssl_loaded;
+#endif
+

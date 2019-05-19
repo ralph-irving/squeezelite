@@ -27,16 +27,17 @@ SOURCES_VIS      = output_vis.c
 SOURCES_IR       = ir.c
 SOURCES_GPIO     = gpio.c
 SOURCES_FAAD     = faad.c
+SOURCES_SSL      = sslsym.c
 
 LINK_LINUX       = -ldl
 LINK_RPI         = -lwiringPi
-LINK_SSL         = -lssl -lcrypto
 
 LINKALL          = -lFLAC -lmad -lvorbisfile -lmpg123
 LINKALL_FF       = -lavcodec -lavformat -lavutil
 LINKALL_RESAMPLE = -lsoxr
 LINKALL_IR       = -llirc_client
 LINKALL_FAAD     = -lfaad
+LINKALL_SSL      = -lssl -lcrypto
 
 DEPS             = squeezelite.h slimproto.h
 
@@ -89,6 +90,9 @@ ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
 endif
 ifeq (,$(findstring $(OPT_NO_FAAD), $(OPTS)))
 	LDADD += $(LINKALL_FAAD)
+endif	
+ifneq (,$(findstring $(OPT_SSL), $(OPTS)))
+	LDADD += $(LINKALL_SSL)
 endif
 else
 # if not LINKALL and linux add LINK_LINUX
@@ -99,7 +103,7 @@ ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
 	LDADD += $(LINK_RPI)
 endif
 ifneq (,$(findstring $(OPT_SSL), $(OPTS)))
-	LDADD += $(LINK_SSL)
+	SOURCES += $(SOURCES_SSL)
 endif
 endif
 
