@@ -130,7 +130,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="ws2_32.lib lib\portaudio.lib lib\ssleay32.lib lib\libeay32.lib"
-				OutputFile="$(OutDir)\$(ProjectName)-dll.exe"
+				OutputFile="$(OutDir)\$(ProjectName).exe"
 				LinkIncremental="1"
 				ModuleDefinitionFile=""
 				GenerateDebugInformation="false"
