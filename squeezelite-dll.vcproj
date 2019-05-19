@@ -111,8 +111,8 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				AdditionalIncludeDirectories="include"
-				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;RESAMPLE;FFMPEG;DSD;USE_SSL;FLAC__NO_DLL;LINKALL"
-				RuntimeLibrary="0"
+				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;RESAMPLE;DSD;USE_SSL"
+				RuntimeLibrary="2"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="false"
@@ -129,8 +129,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalOptions="/NODEFAULTLIB:LIBCMT"
-				AdditionalDependencies="ws2_32.lib lib\portaudio.lib lib\libvorbisfile.lib lib\libvorbis.lib lib\libogg.lib lib\libmad.lib lib\libFLAC.lib lib\libfaad.lib lib\libmpg123.lib lib\libsoxr.lib lib\libavformat.a lib\libavcodec.a lib\libavutil.a lib\ssleay32.lib lib\libeay32.lib"
+				AdditionalDependencies="ws2_32.lib lib\portaudio.lib lib\ssleay32.lib lib\libeay32.lib"
 				OutputFile="$(OutDir)\$(ProjectName)-win.exe"
 				LinkIncremental="1"
 				ModuleDefinitionFile=""
