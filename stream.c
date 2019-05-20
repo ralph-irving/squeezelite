@@ -377,7 +377,7 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 	}
 	
 #if USE_SSL
-#if !LINKALL
+#if !LINKALL && !NO_SSLSYM
 	if (ssl_loaded) {
 #endif
 	SSL_library_init();
@@ -387,7 +387,7 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 		exit(0);
 	}	
 	SSL_CTX_set_options(SSLctx, SSL_OP_NO_SSLv2);
-#if !LINKALL
+#if !LINKALL && !NO_SSLSYM
 	}
 #endif	
 	ssl = NULL;

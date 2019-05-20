@@ -1,5 +1,5 @@
 /*
- *  SSL symboles dynamic loader
+ *  SSL symbols dynamic loader
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
  
 #include "squeezelite.h"
 
-#if USE_SSL && !LINKALL
+#if USE_SSL && !LINKALL && !NO_SSLSYM
 
 #if WIN
 #define dlclose FreeLibrary
@@ -73,9 +73,8 @@ static char *LIBCRYPTO[] 	= {	"libcrypto.so",
 #define V5(t1, p1, t2, p2, t3, p3, t4, p4, t5, p5) p1, p2, p3, p4, p5
 #define V6(t1, p1, t2, p2, t3, p3, t4, p4, t5, p5, t6, p6) p1, p2, p3, p4, p5, p6
 
-#define EXPAND(x) x
-#define P(n, ...) EXPAND(P##n(__VA_ARGS__))
-#define V(n, ...) EXPAND(V##n(__VA_ARGS__))
+#define P(n, ...) P##n(__VA_ARGS__)
+#define V(n, ...) V##n(__VA_ARGS__)
 
 #define SYM(fn) dlsym_##fn
 #define SYMDECL(fn, ret, n, ...) 			\

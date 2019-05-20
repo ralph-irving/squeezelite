@@ -120,7 +120,7 @@ static void sendHELO(bool reconnect, const char *fixed_cap, const char *var_cap,
 	struct HELO_packet pkt;
 	
 #if USE_SSL
-#if !LINKALL
+#if !LINKALL && !NO_SSLSYM
 	if (ssl_loaded) base_cap = SSL_CAP "," BASE_CAP;
 	else base_cap = BASE_CAP;
 #endif	

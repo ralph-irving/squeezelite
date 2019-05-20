@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "2"
-#define MICRO_VERSION "1153"
+#define MICRO_VERSION "1154"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -163,6 +163,12 @@
 #define USE_SSL 0
 #endif
 
+#if defined (NO_SSLSYM)
+#undef NO_SSLSYM
+#define NO_SSLSYM 1
+#else
+#define NO_SSLSYM 0
+#endif
 
 #if !LINKALL
 
@@ -735,7 +741,7 @@ void ir_close(void);
 #endif
 
 // sslsym.c
-#if USE_SSL && !LINKALL
+#if USE_SSL && !LINKALL && !NO_SSLSYM
 bool load_ssl_symbols(void);
 void free_ssl_symbols(void);
 bool ssl_loaded;
