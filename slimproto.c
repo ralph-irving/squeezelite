@@ -156,9 +156,7 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 
 	if (status.current_sample_rate && status.frames_played && status.frames_played > status.device_frames) {
 		ms_played = (u32_t)(((u64_t)(status.frames_played - status.device_frames) * (u64_t)1000) / (u64_t)status.current_sample_rate);
-#ifndef STATUSHACK
 		if (now > status.updated) ms_played += (now - status.updated);
-#endif
 		LOG_SDEBUG("ms_played: %u (frames_played: %u device_frames: %u)", ms_played, status.frames_played, status.device_frames);
 	} else if (status.frames_played && now > status.stream_start) {
 		ms_played = now - status.stream_start;
@@ -328,9 +326,6 @@ static void process_strm(u8_t *pkt, int len) {
 			LOCK_O;
 			output.state = jiffies ? OUTPUT_START_AT : OUTPUT_RUNNING;
 			output.start_at = jiffies;
-#ifdef STATUSHACK
-			status.frames_played = output.frames_played;
-#endif
 			UNLOCK_O;
 
 			LOG_DEBUG("unpause at: %u now: %u", jiffies, gettime_ms());
@@ -696,9 +691,6 @@ static void slimproto_run() {
 				_sendSTMs = true;
 				output.track_started = false;
 				status.stream_start = output.track_start_time;
-#ifdef STATUSHACK 
-				status.frames_played = output.frames_played;
-#endif
 			}
 #if PORTAUDIO
 			if (output.pa_reopen) {
