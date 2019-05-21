@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "2"
-#define MICRO_VERSION "1155"
+#define MICRO_VERSION "1156"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -215,15 +215,16 @@
 #endif
 
 #if FREEBSD
-#define LIBFLAC "libFLAC.so.11"
-#define LIBMAD  "libmad.so.2"
+#define LIBFLAC "libFLAC.so.8"
+#define LIBMAD  "libmad.so.0"
 #define LIBMPG "libmpg123.so.0"
-#define LIBVORBIS "libvorbisfile.so.6"
+#define LIBVORBIS "libvorbisfile.so.3"
 #define LIBTREMOR "libvorbisidec.so.1"
 #define LIBFAAD "libfaad.so.2"
 #define LIBAVUTIL   "libavutil.so.%d"
 #define LIBAVCODEC  "libavcodec.so.%d"
 #define LIBAVFORMAT "libavformat.so.%d"
+#define LIBSOXR "libsoxr.so.0"
 #endif
 
 #endif // !LINKALL
