@@ -59,7 +59,7 @@ frames_t _output_frames(frames_t avail) {
 	silence = false;
 
 	// start when threshold met
-	if (output.state == OUTPUT_BUFFER && frames > output.threshold * output.next_sample_rate / 100 && frames > output.start_frames) {
+	if (output.state == OUTPUT_BUFFER && frames > output.threshold * output.next_sample_rate / 10 && frames > output.start_frames) {
 		output.state = OUTPUT_RUNNING;
 		LOG_INFO("start buffer frames: %u", frames);
 		wake_controller();
