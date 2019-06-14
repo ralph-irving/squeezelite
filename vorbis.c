@@ -313,7 +313,7 @@ struct codec *register_vorbis(void) {
 		'o',          // id
 		"ogg",        // types
 		4096,         // min read
-		40960,        // min space
+		20480,        // min space
 		vorbis_open,  // open
 		vorbis_close, // close
 		vorbis_decode,// decode
