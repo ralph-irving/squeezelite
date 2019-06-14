@@ -768,7 +768,7 @@ struct codec *register_ff(const char *codec) {
 
 		static struct codec ret = { 
 			'w',         // id
-			"wma,wmap,wmal", // types
+			"wma,wmap",  // types
 			READ_SIZE,   // min read
 			WRITE_SIZE,  // min space
 			ff_open_wma, // open
