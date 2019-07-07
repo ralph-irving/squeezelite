@@ -69,7 +69,7 @@ static struct lirc *i;
 #define LIRC(h, fn, ...) (h)->lirc_##fn(__VA_ARGS__)
 #endif
 
-// cmds based on entires in Slim_Device_Remote.ir
+// cmds based on entries in Slim_Device_Remote.ir
 // these may appear as config entries in .lircrc files
 static struct {
 	char  *cmd;
