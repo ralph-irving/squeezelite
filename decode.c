@@ -164,6 +164,9 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_ff("alc"));
 	if (!strstr(exclude_codecs, "wma")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "wma"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_ff("wma"));
+#else
+	if (!strstr(exclude_codecs, "alac") && (!include_codecs || (order_codecs = strstr(include_codecs, "alac"))))
+		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_alac());
 #endif
 #ifndef NO_FAAD
 	if (!strstr(exclude_codecs, "aac")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "aac"))))
@@ -175,6 +178,8 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_flac());
 	if (!strstr(exclude_codecs, "pcm")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "pcm"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_pcm());
+	if (!strstr(exclude_codecs, "ops")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "ops"))))
+		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_opus());
 
 	// try mad then mpg for mp3 unless command line option passed
 	if (!(strstr(exclude_codecs, "mp3") || strstr(exclude_codecs, "mad")) &&

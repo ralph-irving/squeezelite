@@ -18,7 +18,7 @@ OPT_SSL	    = -DUSE_SSL
 SOURCES = \
 	main.c slimproto.c buffer.c stream.c utils.c \
 	output.c output_alsa.c output_pa.c output_stdout.c output_pack.c decode.c \
-	flac.c pcm.c mad.c vorbis.c mpg.c
+	flac.c pcm.c mad.c vorbis.c mpg.c alac.c opus.c
 
 SOURCES_DSD      = dsd.c dop.c dsd2pcm/dsd2pcm.c
 SOURCES_FF       = ffmpeg.c
@@ -32,7 +32,7 @@ SOURCES_SSL      = sslsym.c
 LINK_LINUX       = -ldl
 LINK_RPI         = -lwiringPi
 
-LINKALL          = -lFLAC -lmad -lvorbisfile -lmpg123
+LINKALL          = -lFLAC -lmad -lvorbisfile -lmpg123 -lopusfile
 LINKALL_FF       = -lavcodec -lavformat -lavutil
 LINKALL_RESAMPLE = -lsoxr
 LINKALL_IR       = -llirc_client

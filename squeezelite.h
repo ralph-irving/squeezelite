@@ -54,7 +54,7 @@
 #define OSX       1
 #define WIN       0
 #define FREEBSD   0
-#elif defined (_MSC_VER)
+#elif defined (_MSC_VER) || defined (__BORLANDC__)
 #define LINUX     0
 #define OSX       0
 #define WIN       1
@@ -179,6 +179,7 @@
 #define LIBMAD  "libmad.so.0"
 #define LIBMPG "libmpg123.so.0"
 #define LIBVORBIS "libvorbisfile.so.3"
+#define LIBOPUS "libopusfile.so.0"
 #define LIBTREMOR "libvorbisidec.so.1"
 #define LIBFAAD "libfaad.so.2"
 #define LIBAVUTIL   "libavutil.so.%d"
@@ -194,6 +195,7 @@
 #define LIBMPG "libmpg123.0.dylib"
 #define LIBVORBIS "libvorbisfile.3.dylib"
 #define LIBTREMOR "libvorbisidec.1.dylib"
+#define LIBOPUS "libopusfile.0.dylib"
 #define LIBFAAD "libfaad.2.dylib"
 #define LIBAVUTIL   "libavutil.%d.dylib"
 #define LIBAVCODEC  "libavcodec.%d.dylib"
@@ -206,6 +208,7 @@
 #define LIBMAD  "libmad-0.dll"
 #define LIBMPG "libmpg123-0.dll"
 #define LIBVORBIS "libvorbisfile.dll"
+#define LIBOPUS "libopusfile-0.dll"
 #define LIBTREMOR "libvorbisidec.dll"
 #define LIBFAAD "libfaad2.dll"
 #define LIBAVUTIL   "avutil-%d.dll"
@@ -220,6 +223,7 @@
 #define LIBMPG "libmpg123.so.0"
 #define LIBVORBIS "libvorbisfile.so.3"
 #define LIBTREMOR "libvorbisidec.so.1"
+#define LIBOPUS "libopusfile.so.1"
 #define LIBFAAD "libfaad.so.2"
 #define LIBAVUTIL   "libavutil.so.%d"
 #define LIBAVCODEC  "libavcodec.so.%d"
@@ -329,7 +333,11 @@ typedef BOOL bool;
 #define true TRUE
 #define false FALSE
 
+#ifdef __BORLANDC__
+#define inline
+#else
 #define inline __inline
+#endif
 
 #define mutex_type HANDLE
 #define mutex_create(m) m = CreateMutex(NULL, FALSE, NULL)
@@ -409,6 +417,12 @@ struct wake {
 
 #define BYTES_PER_FRAME 8
 
+#if BYTES_PER_FRAME == 8
+#define ISAMPLE_T 		s32_t
+#else
+#define ISAMPLE_T		s16_t
+#endif
+
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
 // logging
@@ -417,11 +431,41 @@ typedef enum { lERROR = 0, lWARN, lINFO, lDEBUG, lSDEBUG } log_level;
 const char *logtime(void);
 void logprint(const char *fmt, ...);
 
+#ifdef __BORLANDC__
+#define BAR(...) printf(FIRST(__VA_ARGS__) "\n" REST(__VA_ARGS__))
+
+/* expands to the first argument */
+#define FIRST(...) FIRST_HELPER(__VA_ARGS__, throwaway)
+#define FIRST_HELPER(first, ...) first
+
+/*
+ * if there's only one argument, expands to nothing.  if there is more
+ * than one argument, expands to a comma followed by everything but
+ * the first argument.  only supports up to 9 arguments but can be
+ * trivially expanded.
+ */
+#define REST(...) REST_HELPER(NUM(__VA_ARGS__), __VA_ARGS__)
+#define REST_HELPER(qty, ...) REST_HELPER2(qty, __VA_ARGS__)
+#define REST_HELPER2(qty, ...) REST_HELPER_##qty(__VA_ARGS__)
+#define REST_HELPER_ONE(first)
+#define REST_HELPER_TWOORMORE(first, ...) , __VA_ARGS__
+#define NUM(...) \
+	SELECT_10TH(__VA_ARGS__, TWOORMORE, TWOORMORE, TWOORMORE, TWOORMORE,\
+				TWOORMORE, TWOORMORE, TWOORMORE, TWOORMORE, ONE, throwaway)
+#define SELECT_10TH(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, ...) a10
+
+#define LOG_ERROR(...) logprint("%s %s:%d " FIRST(__VA_ARGS__) "\n", logtime(), __FUNCTION__, __LINE__ REST(__VA_ARGS__))
+#define LOG_WARN(...)  if (loglevel >= lWARN)  logprint("%s %s:%d " FIRST(__VA_ARGS__) "\n", logtime(), __FUNCTION__, __LINE__ REST(__VA_ARGS__))
+#define LOG_INFO(...)  if (loglevel >= lINFO)  logprint("%s %s:%d " FIRST(__VA_ARGS__) "\n", logtime(), __FUNCTION__, __LINE__ REST(__VA_ARGS__))
+#define LOG_DEBUG(...) if (loglevel >= lDEBUG) logprint("%s %s:%d " FIRST(__VA_ARGS__) "\n", logtime(), __FUNCTION__, __LINE__ REST(__VA_ARGS__))
+#define LOG_SDEBUG(...) if (loglevel >= lSDEBUG) logprint("%s %s:%d " FIRST(__VA_ARGS__) "\n", logtime(), __FUNCTION__, __LINE__ REST(__VA_ARGS__))
+#else
 #define LOG_ERROR(fmt, ...) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_WARN(fmt, ...)  if (loglevel >= lWARN)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_INFO(fmt, ...)  if (loglevel >= lINFO)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_DEBUG(fmt, ...) if (loglevel >= lDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_SDEBUG(fmt, ...) if (loglevel >= lSDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#endif
 
 // utils.c (non logging)
 typedef enum { EVENT_TIMEOUT = 0, EVENT_READ, EVENT_WAKE } event_type;
@@ -715,7 +759,9 @@ struct codec *register_mpg(void);
 struct codec *register_vorbis(void);
 struct codec *register_faad(void);
 struct codec *register_dsd(void);
+struct codec *register_alac(void);
 struct codec *register_ff(const char *codec);
+struct codec *register_opus(void);
 
 //gpio.c
 #if GPIO
