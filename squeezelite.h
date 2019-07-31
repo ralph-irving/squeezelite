@@ -179,6 +179,7 @@
 #define LIBMAD  "libmad.so.0"
 #define LIBMPG "libmpg123.so.0"
 #define LIBVORBIS "libvorbisfile.so.3"
+#define LIBOPUS "libopusfile.so.0"
 #define LIBTREMOR "libvorbisidec.so.1"
 #define LIBFAAD "libfaad.so.2"
 #define LIBAVUTIL   "libavutil.so.%d"
@@ -194,6 +195,7 @@
 #define LIBMPG "libmpg123.0.dylib"
 #define LIBVORBIS "libvorbisfile.3.dylib"
 #define LIBTREMOR "libvorbisidec.1.dylib"
+#define LIBOPUS "libopusfile.0.dylib"
 #define LIBFAAD "libfaad.2.dylib"
 #define LIBAVUTIL   "libavutil.%d.dylib"
 #define LIBAVCODEC  "libavcodec.%d.dylib"
@@ -206,6 +208,7 @@
 #define LIBMAD  "libmad-0.dll"
 #define LIBMPG "libmpg123-0.dll"
 #define LIBVORBIS "libvorbisfile.dll"
+#define LIBOPUS "libopusfile-0.dll"
 #define LIBTREMOR "libvorbisidec.dll"
 #define LIBFAAD "libfaad2.dll"
 #define LIBAVUTIL   "avutil-%d.dll"
@@ -220,6 +223,7 @@
 #define LIBMPG "libmpg123.so.0"
 #define LIBVORBIS "libvorbisfile.so.3"
 #define LIBTREMOR "libvorbisidec.so.1"
+#define LIBOPUS "libopusfile.so.1"
 #define LIBFAAD "libfaad.so.2"
 #define LIBAVUTIL   "libavutil.so.%d"
 #define LIBAVCODEC  "libavcodec.so.%d"
@@ -408,6 +412,12 @@ struct wake {
 #define FIXED_ONE 0x10000
 
 #define BYTES_PER_FRAME 8
+
+#if BYTES_PER_FRAME == 8
+#define ISAMPLE_T 		s32_t
+#else
+#define ISAMPLE_T		s16_t
+#endif
 
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
@@ -716,6 +726,7 @@ struct codec *register_vorbis(void);
 struct codec *register_faad(void);
 struct codec *register_dsd(void);
 struct codec *register_ff(const char *codec);
+struct codec *register_opus(void);
 
 //gpio.c
 #if GPIO
