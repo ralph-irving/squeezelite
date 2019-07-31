@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "2"
-#define MICRO_VERSION "1166"
+#define MICRO_VERSION "1167"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -408,6 +408,12 @@ struct wake {
 #define FIXED_ONE 0x10000
 
 #define BYTES_PER_FRAME 8
+
+#if BYTES_PER_FRAME == 8
+#define ISAMPLE_T 		s32_t
+#else
+#define ISAMPLE_T		s16_t
+#endif
 
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
