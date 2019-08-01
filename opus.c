@@ -111,7 +111,7 @@ static int _read_cb(void *datasource, char *ptr, int size) {
 
 static decode_state opus_decompress(void) {
 	frames_t frames;
-	int bytes, n;
+	int n;
 	static int channels;
 	u8_t *write_buf;
 
@@ -176,11 +176,10 @@ static decode_state opus_decompress(void) {
 #if FRAME_BUF
 	frames = min(frames, FRAME_BUF);
 #endif
-	bytes = frames * 2 * channels; // samples returned are 16 bits
-
+	
 	// write the decoded frames into outputbuf then unpack them (they are 16 bits)
-	n = OP(u, read, u->of, (opus_int16*) write_buf, bytes, NULL);
-
+	n = OP(u, read, u->of, (opus_int16*) write_buf, frames * channels, NULL);
+			
 #if FRAME_BUF
 	LOCK_O_direct;
 #endif
