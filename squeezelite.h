@@ -25,8 +25,8 @@
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
 #define MAJOR_VERSION "1.9"
-#define MINOR_VERSION "2"
-#define MICRO_VERSION "1167"
+#define MINOR_VERSION "3"
+#define MICRO_VERSION "1168"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -125,6 +125,13 @@
 #define FFMPEG    0
 #endif
 
+#if defined(OPUS)
+#undef OPUS
+#define OPUS    1
+#else
+#define OPUS    0
+#endif
+
 #if (LINUX || OSX) && defined(VISEXPORT)
 #undef VISEXPORT
 #define VISEXPORT 1 // visulizer export support uses linux shared memory
@@ -179,6 +186,7 @@
 #define LIBMAD  "libmad.so.0"
 #define LIBMPG "libmpg123.so.0"
 #define LIBVORBIS "libvorbisfile.so.3"
+#define LIBOPUS "libopusfile.so.0"
 #define LIBTREMOR "libvorbisidec.so.1"
 #define LIBFAAD "libfaad.so.2"
 #define LIBAVUTIL   "libavutil.so.%d"
@@ -194,6 +202,7 @@
 #define LIBMPG "libmpg123.0.dylib"
 #define LIBVORBIS "libvorbisfile.3.dylib"
 #define LIBTREMOR "libvorbisidec.1.dylib"
+#define LIBOPUS "libopusfile.0.dylib"
 #define LIBFAAD "libfaad.2.dylib"
 #define LIBAVUTIL   "libavutil.%d.dylib"
 #define LIBAVCODEC  "libavcodec.%d.dylib"
@@ -206,6 +215,7 @@
 #define LIBMAD  "libmad-0.dll"
 #define LIBMPG "libmpg123-0.dll"
 #define LIBVORBIS "libvorbisfile.dll"
+#define LIBOPUS "libopusfile-0.dll"
 #define LIBTREMOR "libvorbisidec.dll"
 #define LIBFAAD "libfaad2.dll"
 #define LIBAVUTIL   "avutil-%d.dll"
@@ -220,6 +230,7 @@
 #define LIBMPG "libmpg123.so.0"
 #define LIBVORBIS "libvorbisfile.so.3"
 #define LIBTREMOR "libvorbisidec.so.1"
+#define LIBOPUS "libopusfile.so.1"
 #define LIBFAAD "libfaad.so.2"
 #define LIBAVUTIL   "libavutil.so.%d"
 #define LIBAVCODEC  "libavcodec.so.%d"
@@ -722,6 +733,9 @@ struct codec *register_vorbis(void);
 struct codec *register_faad(void);
 struct codec *register_dsd(void);
 struct codec *register_ff(const char *codec);
+#if OPUS
+struct codec *register_opus(void);
+#endif
 
 //gpio.c
 #if GPIO

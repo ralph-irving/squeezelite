@@ -14,6 +14,7 @@ OPT_GPIO    = -DGPIO
 OPT_RPI     = -DRPI
 OPT_NO_FAAD = -DNO_FAAD
 OPT_SSL	    = -DUSE_SSL
+OPT_OPUS    = -DOPUS
 
 SOURCES = \
 	main.c slimproto.c buffer.c stream.c utils.c \
@@ -28,6 +29,7 @@ SOURCES_IR       = ir.c
 SOURCES_GPIO     = gpio.c
 SOURCES_FAAD     = faad.c
 SOURCES_SSL      = sslsym.c
+SOURCES_OPUS     = opus.c
 
 LINK_LINUX       = -ldl
 LINK_RPI         = -lwiringPi
@@ -38,6 +40,7 @@ LINKALL_RESAMPLE = -lsoxr
 LINKALL_IR       = -llirc_client
 LINKALL_FAAD     = -lfaad
 LINKALL_SSL      = -lssl -lcrypto
+LINKALL_OPUS     = -lopusurl -lopusfile -lopus
 
 DEPS             = squeezelite.h slimproto.h
 
@@ -49,6 +52,9 @@ ifneq (,$(findstring $(OPT_DSD), $(OPTS)))
 endif
 ifneq (,$(findstring $(OPT_FF), $(OPTS)))
 	SOURCES += $(SOURCES_FF)
+endif
+ifneq (,$(findstring $(OPT_OPUS), $(OPTS)))
+	SOURCES += $(SOURCES_OPUS)
 endif
 ifneq (,$(findstring $(OPT_RESAMPLE), $(OPTS)))
 	SOURCES += $(SOURCES_RESAMPLE)
@@ -78,6 +84,9 @@ ifneq (,$(findstring $(OPT_LINKALL), $(OPTS)))
 	LDADD += $(LINKALL)
 ifneq (,$(findstring $(OPT_FF), $(OPTS)))
 	LDADD += $(LINKALL_FF)
+endif
+ifneq (,$(findstring $(OPT_OPUS), $(OPTS)))
+	LDADD += $(LINKALL_OPUS)
 endif
 ifneq (,$(findstring $(OPT_RESAMPLE), $(OPTS)))
 	LDADD += $(LINKALL_RESAMPLE)

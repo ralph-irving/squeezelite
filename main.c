@@ -39,6 +39,11 @@
 #else
 #define CODECS_FF   ""
 #endif
+#if OPUS
+#define CODECS_OPUS   ",ops"
+#else
+#define CODECS_OPUS   ""
+#endif
 #if DSD
 #define CODECS_DSD  ",dsd"
 #else
@@ -46,7 +51,7 @@
 #endif
 #define CODECS_MP3  " (mad,mpg for specific mp3 codec)"
 
-#define CODECS CODECS_BASE CODECS_AAC CODECS_FF CODECS_DSD CODECS_MP3
+#define CODECS CODECS_BASE CODECS_AAC CODECS_FF CODECS_OPUS CODECS_DSD CODECS_MP3
 
 static void usage(const char *argv0) {
 	printf(TITLE " See -t for license terms\n"
@@ -183,6 +188,9 @@ static void usage(const char *argv0) {
 #endif
 #if FFMPEG
 		   " FFMPEG"
+#endif
+#if OPUS
+		   " OPUS"
 #endif
 #if NO_FAAD
 		   " NO_FAAD"
