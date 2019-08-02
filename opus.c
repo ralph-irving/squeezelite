@@ -50,7 +50,7 @@ struct opus {
 	// opus symbols to be dynamically loaded
 	void (*op_free)(OggOpusFile *_of);
 	int  (*op_read)(OggOpusFile *_of, opus_int16 *_pcm, int _buf_size, int *_li);
-	OpusHead* (*op_head)(OggOpusFile *_of, int _li);
+	const OpusHead* (*op_head)(OggOpusFile *_of, int _li);
 	OggOpusFile*  (*op_open_callbacks) (void *_source, OpusFileCallbacks *_cb, unsigned char *_initial_data, size_t _initial_bytes, int *_error);
 #endif
 };
@@ -126,7 +126,7 @@ static decode_state opus_decompress(void) {
 
 	if (decode.new_stream) {
 		struct OpusFileCallbacks cbs;
-		struct OpusHead *info;
+		const struct OpusHead *info;
 		int err;
 
 		cbs.read = (op_read_func) _read_cb;
