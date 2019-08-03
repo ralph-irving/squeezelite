@@ -246,9 +246,12 @@ static decode_state opus_decompress(void) {
 static void opus_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	if (!u->of) {
 #if FRAME_BUF
-		u->write_buf = malloc(FRAME_BUF * BYTES_PER_FRAME);
+		if (!u->write_buf) u->write_buf = malloc(FRAME_BUF * BYTES_PER_FRAME);
 #endif
-	}
+	} else {
+		OP(u, free, u->of);
+		u->of = NULL;
+	}	
 	u->opened = false;
 }
 
@@ -276,7 +279,7 @@ static bool load_opus(void) {
 	u->op_read = dlsym(handle, "op_read");
 	u->op_head = dlsym(handle, "op_head");
 	u->op_open_callbacks = dlsym(handle, "op_open_callbacks");
-
+	
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);
 		return false;
@@ -305,7 +308,7 @@ struct codec *register_opus(void) {
 	}
 
 	u->of = NULL;
-	u->opened = false;
+	u->write_buf = NULL;
 
 	if (!load_opus()) {
 		return NULL;
