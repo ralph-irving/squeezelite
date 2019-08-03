@@ -118,6 +118,7 @@ static decode_state opus_decompress(void) {
 
 	if (stream.state <= DISCONNECT && !_buf_used(streambuf)) {
 		UNLOCK_S;
+		LOG_INFO("end of stream");
 		return DECODE_COMPLETE;
 	}
 
@@ -219,9 +220,7 @@ static decode_state opus_decompress(void) {
 
 	} else if (n == 0) {
 
-		LOG_INFO("end of stream");
-		UNLOCK_O_direct;
-		return DECODE_COMPLETE;
+		LOG_INFO("no frame decoded");
 
 	} else if (n == OP_HOLE) {
 
