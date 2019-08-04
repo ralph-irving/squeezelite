@@ -42,7 +42,6 @@
 
 struct opus {
 	struct OggOpusFile *of;
-	bool opened;
 #if FRAME_BUF
 	u8_t *write_buf;
 #endif
@@ -137,7 +136,6 @@ static decode_state opus_decompress(void) {
 			return DECODE_COMPLETE;
 		}
 
-		u->opened = true;
 		info = OP(u, head, u->of, -1);
 
 		LOCK_O;
@@ -252,17 +250,17 @@ static void opus_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 		OP(u, free, u->of);
 		u->of = NULL;
 	}	
-	u->opened = false;
 }
 
 static void opus_close(void) {
-	u->opened = false;
-	OP(u, free, u->of);
+	if (u->of) {
+		OP(u, free, u->of);
+		u->of = NULL;
+	}
 #if FRAME_BUF
 	free(u->write_buf);
 	u->write_buf = NULL;
 #endif
-	u->of = NULL;
 }
 
 static bool load_opus(void) {
