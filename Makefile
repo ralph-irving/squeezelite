@@ -40,7 +40,7 @@ LINKALL_RESAMPLE = -lsoxr
 LINKALL_IR       = -llirc_client
 LINKALL_FAAD     = -lfaad
 LINKALL_SSL      = -lssl -lcrypto
-LINKALL_OPUS     = -lopusurl -lopusfile -lopus
+LINKALL_OPUS     = -lopusfile -lopus
 
 DEPS             = squeezelite.h slimproto.h
 

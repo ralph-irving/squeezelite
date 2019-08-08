@@ -1,13 +1,18 @@
 #!/bin/bash
 make -f Makefile.rpi clean
-make -f Makefile.rpi OPTS="-DLINKALL -DDSD -DVISEXPORT -DRESAMPLE -DIR -DGPIO -DRPI -I./include" LDFLAGS="/usr/lib/arm-linux-gnueabihf/libFLAC.a /usr/lib/arm-linux-gnueabihf/libvorbisfile.a /usr/lib/arm-linux-gnueabihf/libvorbis.a /usr/lib/arm-linux-gnueabihf/libogg.a /usr/lib/arm-linux-gnueabihf/libmad.a /usr/lib/arm-linux-gnueabihf/libfaad.a /usr/lib/arm-linux-gnueabihf/libmpg123.a /usr/lib/arm-linux-gnueabihf/libsoxr.a $HOME/source/picoreplayer/tcz/lirc/liblirc_client.a /usr/lib/gcc/arm-linux-gnueabihf/4.9/libgomp.a lib/libwiringPi.a -lpthread -ldl -lrt -lm -lasound"
+make -f Makefile.rpi OPTS="-DLINKALL -DFFMPEG -DOPUS -DDSD -DVISEXPORT -DRESAMPLE -DIR -DGPIO -DRPI -DUSE_SSL -I./include -I./include/opus" LDFLAGS="-L./lib -lFLAC -lvorbisfile -lvorbis -logg -lmad -lfaad -lmpg123 -lopusfile -lopus -lavformat -lavcodec -lavutil -lsoxr -llirc_client /usr/lib/gcc/arm-linux-gnueabihf/4.9/libgomp.a /usr/lib/arm-linux-gnueabihf/libssl.a /usr/lib/arm-linux-gnueabihf/libcrypto.a -lwiringPi /usr/lib/arm-linux-gnueabihf/libz.a -lpthread -ldl -lrt -lm -lasound"
 
 strip squeezelite-rpi
-mv squeezelite-rpi squeezelite-armv6hf-noffmpeg
+mv squeezelite-rpi squeezelite
 
-make -f Makefile.rpi clean
-make -f Makefile.rpi OPTS="-DLINKALL -DFFMPEG -DDSD -DVISEXPORT -DRESAMPLE -DIR -DGPIO -DRPI -I./include" LDFLAGS="/usr/lib/arm-linux-gnueabihf/libFLAC.a /usr/lib/arm-linux-gnueabihf/libvorbisfile.a /usr/lib/arm-linux-gnueabihf/libvorbis.a /usr/lib/arm-linux-gnueabihf/libogg.a /usr/lib/arm-linux-gnueabihf/libmad.a /usr/lib/arm-linux-gnueabihf/libfaad.a /usr/lib/arm-linux-gnueabihf/libmpg123.a lib/libswscale.a lib/libavdevice.a lib/libavformat.a lib/libavcodec.a lib/libswresample.a lib/libavutil.a /usr/lib/arm-linux-gnueabihf/libsoxr.a $HOME/source/picoreplayer/tcz/lirc/liblirc_client.a /usr/lib/gcc/arm-linux-gnueabihf/4.9/libgomp.a lib/libwiringPi.a /usr/lib/arm-linux-gnueabihf/libz.a -lpthread -ldl -lrt -lm -lasound"
+VERSION=$(./squeezelite -? | grep ^Squeezelite\ v | awk -F'[v,]' '{printf "%s", $2}' | sed -e 's/-/\./g')
+TARFILE=squeezelite-$VERSION-armv6hf.tar.gz
+if [ -f $TARFILE ]; then
+	rm $TARFILE
+fi
+sudo chown root:root squeezelite LIBS.txt LICENSE.txt
+tar -czf $TARFILE squeezelite LIBS.txt LICENSE.txt
+sudo chown $LOGNAME:users squeezelite LIBS.txt LICENSE.txt
+rm squeezelite
 
-strip squeezelite-rpi
-mv squeezelite-rpi squeezelite-armv6hf-ffmpeg
-
+find . -name '*\.o' -exec rm {} \;
