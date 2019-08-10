@@ -25,8 +25,8 @@
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
 #define MAJOR_VERSION "1.9"
-#define MINOR_VERSION "3"
-#define MICRO_VERSION "1180"
+#define MINOR_VERSION "4"
+#define MICRO_VERSION "1181"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -116,6 +116,13 @@
 #define RESAMPLE_MP 1
 #else
 #define RESAMPLE_MP 0
+#endif
+
+#if defined(ALAC)
+#undef ALAC
+#define ALAC    1
+#else
+#define ALAC    0
 #endif
 
 #if defined(FFMPEG)
@@ -730,6 +737,9 @@ struct codec *register_pcm(void);
 struct codec *register_mad(void);
 struct codec *register_mpg(void);
 struct codec *register_vorbis(void);
+#if ALAC
+struct codec *register_alac(void);
+#endif
 struct codec *register_faad(void);
 struct codec *register_dsd(void);
 struct codec *register_ff(const char *codec);

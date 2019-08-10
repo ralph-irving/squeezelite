@@ -1,11 +1,12 @@
-# Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
-CFLAGS  ?= -Wall -fPIC -O2
-LDADD   ?= -lasound -lpthread -lm -lrt
+#Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
+CFLAGS	?= -Wall -fPIC -O2
+LDADD	?= -lasound -lpthread -lm -lrt
 EXECUTABLE ?= squeezelite
 
 # passing one or more of these in $(OPTS) enables optional feature inclusion
 OPT_DSD     = -DDSD
 OPT_FF      = -DFFMPEG
+OPT_ALAC    = -DALAC
 OPT_LINKALL = -DLINKALL
 OPT_RESAMPLE= -DRESAMPLE
 OPT_VIS     = -DVISEXPORT
@@ -14,6 +15,7 @@ OPT_GPIO    = -DGPIO
 OPT_RPI     = -DRPI
 OPT_NO_FAAD = -DNO_FAAD
 OPT_SSL	    = -DUSE_SSL
+OPT_NOSSLSYM= -DNO_SSLSYM
 OPT_OPUS    = -DOPUS
 
 SOURCES = \
@@ -23,6 +25,7 @@ SOURCES = \
 
 SOURCES_DSD      = dsd.c dop.c dsd2pcm/dsd2pcm.c
 SOURCES_FF       = ffmpeg.c
+SOURCES_ALAC     = alac.c alac_wrapper.cpp
 SOURCES_RESAMPLE = process.c resample.c
 SOURCES_VIS      = output_vis.c
 SOURCES_IR       = ir.c
@@ -33,13 +36,14 @@ SOURCES_OPUS     = opus.c
 
 LINK_LINUX       = -ldl
 LINK_RPI         = -lwiringPi
+LINK_SSL         = -lssl -lcrypto
+LINK_ALAC        = -lalac
 
-LINKALL          = -lFLAC -lmad -lvorbisfile -lmpg123
-LINKALL_FF       = -lavcodec -lavformat -lavutil
+LINKALL          = -lmad -lmpg123 -lFLAC -lvorbisfile -lvorbis -logg
+LINKALL_FF       = -lavformat -lavcodec -lavutil
 LINKALL_RESAMPLE = -lsoxr
 LINKALL_IR       = -llirc_client
 LINKALL_FAAD     = -lfaad
-LINKALL_SSL      = -lssl -lcrypto
 LINKALL_OPUS     = -lopusfile -lopus
 
 DEPS             = squeezelite.h slimproto.h
@@ -52,6 +56,10 @@ ifneq (,$(findstring $(OPT_DSD), $(OPTS)))
 endif
 ifneq (,$(findstring $(OPT_FF), $(OPTS)))
 	SOURCES += $(SOURCES_FF)
+endif
+ifneq (,$(findstring $(OPT_ALAC), $(OPTS)))
+	SOURCES += $(SOURCES_ALAC)
+	DEPS += alac_wrapper.h
 endif
 ifneq (,$(findstring $(OPT_OPUS), $(OPTS)))
 	SOURCES += $(SOURCES_OPUS)
@@ -78,6 +86,9 @@ endif
 ifeq (,$(findstring $(OPT_NO_FAAD), $(OPTS)))
 	SOURCES += $(SOURCES_FAAD)
 endif
+ifneq (,$(findstring $(OPT_SSL), $(OPTS)))
+	SOURCES += $(SOURCES_SSL)
+endif
 
 # add optional link options
 ifneq (,$(findstring $(OPT_LINKALL), $(OPTS)))
@@ -94,39 +105,50 @@ endif
 ifneq (,$(findstring $(OPT_IR), $(OPTS)))
 	LDADD += $(LINKALL_IR)
 endif
-ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
-	LDADD += $(LINK_RPI)
-endif
 ifeq (,$(findstring $(OPT_NO_FAAD), $(OPTS)))
 	LDADD += $(LINKALL_FAAD)
 endif	
 ifneq (,$(findstring $(OPT_SSL), $(OPTS)))
-	LDADD += $(LINKALL_SSL)
+	LDADD += $(LINK_SSL)
 endif
 else
 # if not LINKALL and linux add LINK_LINUX
 ifeq ($(UNAME), Linux)
 	LDADD += $(LINK_LINUX)
 endif
-ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
-	LDADD += $(LINK_RPI)
-endif
-ifneq (,$(findstring $(OPT_SSL), $(OPTS)))
-	SOURCES += $(SOURCES_SSL)
+ifneq (,$(findstring $(OPT_NOSSLSYM), $(OPTS)))
+	LDADD += $(LINK_SSL)
 endif
 endif
 
-OBJECTS = $(SOURCES:.c=.o)
+ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
+	LDADD += $(LINK_RPI)
+endif
+ifneq (,$(findstring $(OPT_ALAC), $(OPTS)))
+	LDADD += $(LINK_ALAC)
+endif
+
+OBJECTS = $(addsuffix .o,$(basename $(SOURCES)))
 
 all: $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
+ifneq (,$(findstring $(OPT_ALAC), $(OPTS)))
+	$(CXX) $(OBJECTS) $(LDFLAGS) $(LDADD) -o $@
+else
 	$(CC) $(OBJECTS) $(LDFLAGS) $(LDADD) -o $@
+endif
 
 $(OBJECTS): $(DEPS)
+
+.cpp.o:
+	$(CXX) $(CXXFLAGS) $(CFLAGS) $(CPPFLAGS) $(OPTS) -Wno-multichar $< -c -o $@
 
 .c.o:
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(OPTS) $< -c -o $@
 
 clean:
 	rm -f $(OBJECTS) $(EXECUTABLE)
+
+print-%:
+	@echo $* = $($*)
