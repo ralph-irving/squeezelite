@@ -159,7 +159,10 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 	if (!strstr(exclude_codecs, "dsd")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "dsd"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_dsd());
 #endif
-#if FFMPEG
+#if ALAC
+	if (!strstr(exclude_codecs, "alac") && (!include_codecs || (order_codecs = strstr(include_codecs, "alac"))))
+		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_alac());
+#elif FFMPEG
 	if (!strstr(exclude_codecs, "alac") && (!include_codecs || (order_codecs = strstr(include_codecs, "alac"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_ff("alc"));
 	if (!strstr(exclude_codecs, "wma")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "wma"))))

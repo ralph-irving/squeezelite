@@ -34,7 +34,9 @@
 #else
 #define CODECS_AAC  ",aac"
 #endif
-#if FFMPEG
+#if ALAC
+#define CODECS_FF   "alac"
+#elif FFMPEG
 #define CODECS_FF   ",wma,alac"
 #else
 #define CODECS_FF   ""
@@ -186,7 +188,9 @@ static void usage(const char *argv0) {
 		   " RESAMPLE"
 #endif
 #endif
-#if FFMPEG
+#if ALAC
+		   " ALAC"
+#elif FFMPEG
 		   " FFMPEG"
 #endif
 #if OPUS
@@ -256,6 +260,13 @@ static void license(void) {
 		   "\nThis software uses libraries from the FFmpeg project under\n"
 		   "the LGPLv2.1 and its source can be downloaded from\n"
 		   "<https://sourceforge.net/projects/lmsclients/files/source/>\n"
+#endif
+#if OPUS
+		   "\nOpus decoder support (c) Philippe 2018-2019, philippe_44@outlook.com\n"
+#endif
+#if ALAC	
+		   "\nContains Apple Lossless (ALAC) decoder. Apache License Version 2.0\n"
+		   "Apple ALAC decoder support (c) Philippe 2018-2019, philippe_44@outlook.com\n"
 #endif
 		   "\n"
 		   );

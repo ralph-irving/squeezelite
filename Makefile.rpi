@@ -1,10 +1,10 @@
 # Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
-OPTS = -DRESAMPLE -DFFMPEG -DVISEXPORT -DDSD -DGPIO -DRPI -DIR -I./include
+OPTS = -DRESAMPLE -DFFMPEG -DOPUS -DVISEXPORT -DDSD -DGPIO -DRPI -DIR -DUSE_SSL -DNO_SSLSYM -I./include
 CFLAGS  ?= -Wall -fPIC -s -O3 -march=armv6 -mfloat-abi=hard -mfpu=vfp $(OPTS)
-LDFLAGS ?= -s -lasound -lpthread -lm -ldl -lrt -L./lib -lwiringPi -Wl,-rpath,/usr/local/lib
+LDFLAGS ?= -s -lasound -lssl -lcrypto -lpthread -lm -ldl -lrt -L./lib -lwiringPi -Wl,-rpath,/usr/local/lib
 EXECUTABLE ?= squeezelite-rpi
 
-SOURCES = main.c slimproto.c utils.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c output_alsa.c output.c output_pa.c output_pack.c output_stdout.c output_vis.c dop.c dsd.c dsd2pcm/dsd2pcm.c faad.c mpg.c resample.c process.c ffmpeg.c ir.c gpio.c
+SOURCES = main.c slimproto.c utils.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c output_alsa.c output.c output_pa.c output_pack.c output_stdout.c output_vis.c dop.c dsd.c dsd2pcm/dsd2pcm.c faad.c mpg.c resample.c process.c ffmpeg.c opus.c ir.c gpio.c sslsym.c
 DEPS    = squeezelite.h slimproto.h dsd2pcm/dsd2pcm.h
 
 OBJECTS = $(SOURCES:.c=.o)

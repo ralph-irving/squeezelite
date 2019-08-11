@@ -1,9 +1,9 @@
 # OSX 10.7+ 64-bit only
-CFLAGS ?= -Wall -fPIC -O2 $(OPTS) -I./include64 -DRESAMPLE -DFFMPEG -DDSD -DLINKALL -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch x86_64 -mmacosx-version-min=10.7
-LDFLAGS ?= -Wl,-syslibroot,/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch x86_64 -mmacosx-version-min=10.7 -L./lib64 -lportaudio -lFLAC -lvorbisfile -lvorbis -logg -lmad -lfaad -lmpg123 -lsoxr -lavformat -lavcodec -lavutil -lpthread -ldl -lm -framework CoreVideo -framework VideoDecodeAcceleration -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon
+CFLAGS ?= -Wall -fPIC -O2 $(OPTS) -I./include64 -DRESAMPLE -DFFMPEG -DOPUS -DDSD -DLINKALL -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch x86_64 -mmacosx-version-min=10.7
+LDFLAGS ?= -Wl,-syslibroot,/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch x86_64 -mmacosx-version-min=10.7 -L./lib64 -lportaudio -lFLAC -lvorbisfile -lvorbis -logg -lmad -lfaad -lmpg123 -lsoxr -lopus -lopusfile -lavformat -lavcodec -lavutil -lpthread -ldl -lm -framework CoreVideo -framework VideoDecodeAcceleration -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon
 EXECUTABLE ?= squeezelite-x86_64
 
-SOURCES = main.c slimproto.c buffer.c stream.c utils.c output.c output_alsa.c output_pa.c output_stdout.c output_pack.c output_vis.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c dsd.c dop.c dsd2pcm/dsd2pcm.c ffmpeg.c process.c resample.c
+SOURCES = main.c slimproto.c buffer.c stream.c utils.c output.c output_alsa.c output_pa.c output_stdout.c output_pack.c output_vis.c decode.c flac.c pcm.c mad.c vorbis.c faad.c mpg.c dsd.c dop.c dsd2pcm/dsd2pcm.c ffmpeg.c opus.c process.c resample.c
 
 DEPS    = squeezelite.h slimproto.h dsd2pcm/dsd2pcm.h
 
