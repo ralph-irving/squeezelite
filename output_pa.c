@@ -92,7 +92,7 @@ void list_devices(void) {
 	printf("Output devices:\n");
 #ifndef PA18API
 	for (i = 0; i < Pa_GetDeviceCount(); ++i) {
-		if (Pa_GetDeviceInfo(i)->maxOutputChannels) {
+		if (Pa_GetDeviceInfo(i)->maxOutputChannels > 1) {
 			printf("  %i - %s [%s]\n", i, Pa_GetDeviceInfo(i)->name, Pa_GetHostApiInfo(Pa_GetDeviceInfo(i)->hostApi)->name);
 		}
 #else
