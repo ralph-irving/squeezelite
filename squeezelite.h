@@ -730,7 +730,7 @@ void dsd_init(dsd_format format, unsigned delay);
 #endif
 
 // codecs
-#define MAX_CODECS 9
+#define MAX_CODECS 10
 
 struct codec *register_flac(void);
 struct codec *register_pcm(void);
