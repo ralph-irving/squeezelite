@@ -139,7 +139,7 @@ static decode_state opus_decompress(void) {
 		info = OP(u, head, u->of, -1);
 
 		LOCK_O;
-		output.next_sample_rate = 48000;
+		output.next_sample_rate = decode_newstream(48000, output.supported_rates);
 		IF_DSD(	output.next_fmt = PCM; )
 		output.track_start = outputbuf->writep;
 		if (output.fade_mode) _checkfade(true);
