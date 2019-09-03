@@ -25,8 +25,8 @@
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
 #define MAJOR_VERSION "1.9"
-#define MINOR_VERSION "5"
-#define MICRO_VERSION "1193"
+#define MINOR_VERSION "6"
+#define MICRO_VERSION "1194"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -757,6 +757,15 @@ bool gpio_active;
 char *power_script;
 //  my amp state
 int ampstate;
+#if RPI
+#define PI_INPUT  0
+#define PI_OUTPUT 1
+#define PI_LOW 0
+#define PI_HIGH 1
+void gpioSetMode(unsigned gpio, unsigned mode);
+void gpioWrite(unsigned gpio, unsigned level);
+int gpioInitialise(void);
+#endif
 #endif
 
 // ir.c

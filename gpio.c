@@ -25,9 +25,6 @@
 #if GPIO
 
 #include "squeezelite.h"
-#ifdef RPI
-#include <wiringPi.h>
-#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -41,17 +38,20 @@ void relay( int state) {
     gpio_state = state;
 
   // Set up gpio  using BCM Pin #'s
-  if (initialized == -1){
-	wiringPiSetupGpio();
-	initialized = 1;
-	pinMode (gpio_pin, OUTPUT);
-  }
+	if (initialized == -1){
+		if ( gpioInitialise() == 0 ){
+			initialized = 1;
+		}
+	}
+	if ( initialized == 1){
+		gpioSetMode (gpio_pin, PI_OUTPUT);
+	}
 
-    if(gpio_state == 1)
-        digitalWrite(gpio_pin, HIGH^gpio_active_low);
-    else if(gpio_state == 0)
-        digitalWrite(gpio_pin, LOW^gpio_active_low);
-    // Done!
+	if(gpio_state == 1)
+		gpioWrite(gpio_pin, PI_HIGH^gpio_active_low);
+	else if(gpio_state == 0)
+		gpioWrite(gpio_pin, PI_LOW^gpio_active_low);
+  // Done!
 #endif
 }
 

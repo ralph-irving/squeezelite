@@ -247,14 +247,8 @@ static void license(void) {
 #endif
 		   "\nOption to allow server side upsampling for PCM streams (-W) from\n"
 		   "squeezelite-R2 (c) Marco Curti 2015, marcoc1712@gmail.com.\n"
-#if GPIO
-		   "\nAdditions (c) Paul Hermann, 2015, 2017 under the same license terms\n"
-		   "- Launch a script on power status change\n"
-		   "- Control of Raspberry pi GPIO for amplifier power\n"
-#endif
 #if RPI
-		   "\nContains wiringpi GPIO Interface library Copyright (c) 2012-2017\n"
-		   "Gordon Henderson, which is subject to its own license.\n"
+		   "\nContains minimal GPIO Interface <http://abyz.me.uk/rpi/pigpio/>.\n"
 #endif
 #if FFMPEG
 		   "\nThis software uses libraries from the FFmpeg project under\n"

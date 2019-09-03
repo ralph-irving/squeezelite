@@ -25,12 +25,8 @@ which is subject to its own license.<br>
 Option to allow server side upsampling for PCM streams (-W) from<br>
 squeezelite-R2 (c) Marco Curti 2015, marcoc1712@gmail.com.<br>
 <br>
-Additions (c) Paul Hermann, 2015, 2017 under the same license terms<br>
-- Launch a script on power status change<br>
-- Control of Raspberry pi GPIO for amplifier power<br>
-<br>
-RaspberryPi wiringpi GPIO Interface library Copyright (c) 2012-2017<br>
-Gordon Henderson, which is subject to its own license.<br>
+RaspberryPi minimal GPIO Interface<br>
+http://abyz.me.uk/rpi/pigpio/examples.html#Misc_minimal_gpio.<br>
 <br>
 This software uses libraries from the FFmpeg project under<br>
 the LGPLv2.1 and its source can be downloaded from<br>
