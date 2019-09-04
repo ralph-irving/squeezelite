@@ -116,7 +116,7 @@ void gpioSetPullUpDown(unsigned gpio, unsigned pud)
 {
    int shift = (gpio & 0xf) << 1;
    uint32_t bits;
-   uint32_t pull;
+   uint32_t pull = 0;
 
    if (pi_is_2711)
    {
@@ -215,7 +215,9 @@ unsigned gpioHardwareRevision(void)
       fclose(filp);
    }
 
-   if (filp = fopen("/proc/device-tree/soc/ranges" , "rb"))
+   filp = fopen("/proc/device-tree/soc/ranges" , "rb");
+
+   if (filp != NULL)
    {
       if (fread(buf, 1, sizeof(buf), filp) >= 8)
       {
