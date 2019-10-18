@@ -146,7 +146,7 @@ static decode_state opus_decompress(void) {
 		decode.new_stream = false;
 		UNLOCK_O;
 
-        channels = info->channel_count;
+		channels = info->channel_count;
 
 		LOG_INFO("setting track_start");
 	}
