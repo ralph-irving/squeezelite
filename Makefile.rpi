@@ -1,23 +1,5 @@
-# Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
-OPTS = -DRESAMPLE -DFFMPEG -DOPUS -DVISEXPORT -DDSD -DGPIO -DRPI -DIR -DUSE_SSL -DNO_SSLSYM -I./include
-CFLAGS  ?= -Wall -fPIC -s -O3 -march=armv6 -mfloat-abi=hard -mfpu=vfp $(OPTS)
-LDFLAGS ?= -s -lasound -lssl -lcrypto -lpthread -lm -ldl -lrt -L./lib -lwiringPi -Wl,-rpath,/usr/local/lib
-EXECUTABLE ?= squeezelite-rpi
+OPTS = -DOPUS -DALAC -DRESAMPLE -DVISEXPORT -DDSD -DIR -DGPIO -DRPI -DUSE_SSL -DLINKALL -I./include -I./include/opus -I./include/alac -I/usr/local/include -s -march=armv6 -mfloat-abi=hard -mfpu=vfp
 
-SOURCES = main.c slimproto.c utils.c buffer.c stream.c decode.c flac.c pcm.c mad.c vorbis.c output_alsa.c output.c output_pa.c output_pack.c output_stdout.c output_vis.c dop.c dsd.c dsd2pcm/dsd2pcm.c faad.c mpg.c resample.c process.c ffmpeg.c opus.c ir.c gpio.c sslsym.c
-DEPS    = squeezelite.h slimproto.h dsd2pcm/dsd2pcm.h
+LDFLAGS=-L./lib -L/usr/local/lib -s -lgomp
 
-OBJECTS = $(SOURCES:.c=.o)
-
-all: $(EXECUTABLE)
-
-$(EXECUTABLE): $(OBJECTS)
-	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
-
-$(OBJECTS): $(DEPS)
-
-.c.o:
-	$(CC) $(CFLAGS) $< -c -o $@
-
-clean:
-	rm -f $(OBJECTS) $(EXECUTABLE)
+include Makefile

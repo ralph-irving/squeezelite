@@ -43,6 +43,18 @@ struct flac {
 		FLAC__StreamDecoderErrorCallback error_callback,
 		void *client_data
 	);
+	FLAC__StreamDecoderInitStatus (* FLAC__stream_decoder_init_ogg_stream)(
+		FLAC__StreamDecoder *decoder,
+		FLAC__StreamDecoderReadCallback read_callback,
+		FLAC__StreamDecoderSeekCallback seek_callback,
+		FLAC__StreamDecoderTellCallback tell_callback,
+		FLAC__StreamDecoderLengthCallback length_callback,
+		FLAC__StreamDecoderEofCallback eof_callback,
+		FLAC__StreamDecoderWriteCallback write_callback,
+		FLAC__StreamDecoderMetadataCallback metadata_callback,
+		FLAC__StreamDecoderErrorCallback error_callback,
+		void *client_data
+	);
 	FLAC__bool (* FLAC__stream_decoder_process_single)(FLAC__StreamDecoder *decoder);
 	FLAC__StreamDecoderState (* FLAC__stream_decoder_get_state)(const FLAC__StreamDecoder *decoder);
 #endif
@@ -214,7 +226,14 @@ static void flac_open(u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t en
 	} else {
 		f->decoder = FLAC(f, stream_decoder_new);
 	}
-	FLAC(f, stream_decoder_init_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
+
+	if ( sample_size == 'o' ) {
+		LOG_DEBUG("ogg/flac container - using init_ogg_stream");
+		FLAC(f, stream_decoder_init_ogg_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
+	}
+	else {
+		FLAC(f, stream_decoder_init_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
+	}
 }
 
 static void flac_close(void) {
@@ -255,6 +274,7 @@ static bool load_flac() {
 	f->FLAC__stream_decoder_reset = dlsym(handle, "FLAC__stream_decoder_reset");
 	f->FLAC__stream_decoder_delete = dlsym(handle, "FLAC__stream_decoder_delete");
 	f->FLAC__stream_decoder_init_stream = dlsym(handle, "FLAC__stream_decoder_init_stream");
+	f->FLAC__stream_decoder_init_ogg_stream = dlsym(handle, "FLAC__stream_decoder_init_ogg_stream");
 	f->FLAC__stream_decoder_process_single = dlsym(handle, "FLAC__stream_decoder_process_single");
 	f->FLAC__stream_decoder_get_state = dlsym(handle, "FLAC__stream_decoder_get_state");
 
@@ -272,7 +292,7 @@ static bool load_flac() {
 struct codec *register_flac(void) {
 	static struct codec ret = { 
 		'f',          // id
-		"flc",        // types
+		"ogf,flc",    // types
 		16384,        // min read
 		204800,       // min space
 		flac_open,    // open
@@ -291,6 +311,6 @@ struct codec *register_flac(void) {
 		return NULL;
 	}
 
-	LOG_INFO("using flac to decode flc");
+	LOG_INFO("using flac to decode ogf,flc");
 	return &ret;
 }
