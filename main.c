@@ -35,7 +35,7 @@
 #define CODECS_AAC  ",aac"
 #endif
 #if ALAC
-#define CODECS_FF   "alac"
+#define CODECS_FF   ",alac"
 #elif FFMPEG
 #define CODECS_FF   ",wma,alac"
 #else
