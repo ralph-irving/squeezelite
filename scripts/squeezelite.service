@@ -1,0 +1,37 @@
+# Run squeezelite as a daemon talking to the pulseaudio daemon belonging 
+# to the display manager (gdm) so that you can use it while your computer
+# is not being used.
+#
+# EDITS REQUIRED!
+# ---------------
+# 1. Change @USER@, @GROUP@ and @UID@ to the user, group and uid of the user
+#    you want to run squeezelite (normally your display manager - gdm, gdm, 484
+#    on my system)
+# 2. Change @LMS@ to the fqdn or IP of your Logitech Media Server
+# 3. Change @NAME@ to the name you want squeezelite to appear as in LMS
+# 4. If you are using external amplifier control change @EXTAMP@ to the full
+#    pathname of your control script otherwise remove the -A @EXTAMP@
+
+[Unit]
+Description=Squeezelite
+Documentation=
+
+Requires=display-manager.service
+After=display-manager.service
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+User=@USER@
+Group=@GROUP@
+WorkingDirectory=/tmp
+
+Type=simple
+Environment = ALSA_CONFIG_PATH=/etc/alsa-pulse.conf
+Environment = AUDIODRIVER=pulseaudio
+Environment = PULSE_SERVER=unix:/run/user/@UID@/pulse/native
+ExecStart = /usr/local/bin/squeezelite -U Master -s @LMS@ -n '@NAME@' -A '@EXTAMP@' -C 1
+
+Restart=always
+RestartSec=10

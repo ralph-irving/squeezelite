@@ -485,6 +485,11 @@ int poll(struct pollfd *fds, unsigned long numfds, int timeout);
 #if LINUX || FREEBSD
 void touch_memory(u8_t *buf, size_t size);
 #endif
+double fixed_to_dB(u32_t fixed);
+double dB_to_percent(double dB);
+#if EXT_AMP
+void ext_amp(char *op, char *arg1, char *arg2);
+#endif
 
 // buffer.c
 struct buffer {
@@ -748,6 +753,9 @@ struct codec *register_opus(void);
 #endif
 
 //gpio.c
+#if EXT_AMP
+char *amp_script;
+#endif
 #if GPIO
 void relay( int state);
 void relay_script(int state);

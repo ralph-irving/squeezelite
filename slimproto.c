@@ -432,6 +432,16 @@ static void process_audg(u8_t *pkt, int len) {
 
 	LOG_DEBUG("audg gainL: %u gainR: %u adjust: %u", audg->gainL, audg->gainR, audg->adjust);
 
+#if EXT_AMP
+	if (amp_script && audg->adjust) {
+		char lvol[100], rvol[11];
+		snprintf(lvol, sizeof(lvol), "%3.0f", dB_to_percent(fixed_to_dB(audg->gainL)));
+		snprintf(rvol, sizeof(rvol), "%3.0f", dB_to_percent(fixed_to_dB(audg->gainR)));
+		ext_amp("set_vol", lvol, rvol);
+
+		set_volume(FIXED_ONE, FIXED_ONE);
+	} else
+#endif
 	set_volume(audg->adjust ? audg->gainL : FIXED_ONE, audg->adjust ? audg->gainR : FIXED_ONE);
 }
 

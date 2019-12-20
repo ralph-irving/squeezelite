@@ -57,6 +57,10 @@
 #endif
 
 #include <fcntl.h>
+#include <math.h>
+#if EXT_AMP
+#include <sys/wait.h>
+#endif
 
 // logging functions
 const char *logtime(void) {
@@ -520,5 +524,41 @@ char *strcasestr(const char *haystack, const char *needle) {
 	}
 
 	return NULL;
+}
+#endif
+
+// Convert 16.16 fixed point to dB
+double fixed_to_dB(u32_t fixed)
+{
+	// The LMS SqueezePlay driver we use attempts to avoid loss of precision which
+	// needs to be taken into account when reversing the conversion.
+	if (fixed >= 2200)
+		return 20.0 * log10(((double)(fixed >> 8) - 0.5) / 256.0);
+	else
+		return 20.0 * log10(((double)fixed - 0.5) / 65536.0);
+}
+
+// Convert dB to percent (aka user volume setting)
+double dB_to_percent(double dB)
+{
+	// The LMS SqueezePlay driver we use includes the dual-slope volume adjustment used
+	// to correct for the fact that the Boom is a bit quiet at the low end. We need to
+	// reverse that to get back to the basic 0-100 volume chosen by the user.
+	if (dB > -37)
+		return dB / (74.0*0.5 / (100.0-25.0)) + 100.0;
+	else
+		return (dB + 74.0) / ((-74.0*0.5+74.0)/25);
+}
+
+#if EXT_AMP
+void ext_amp(char *op, char *arg1, char *arg2)
+{
+	pid_t pid = fork();
+
+	if (pid == 0) {
+		execl(amp_script, amp_script, op, arg1, arg2, (char *)NULL);
+		_exit(1);
+	} else if (pid > 0)
+		waitpid(pid, NULL, 0);
 }
 #endif

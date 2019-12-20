@@ -244,8 +244,8 @@ void set_volume(unsigned left, unsigned right) {
 	}
 
 	// convert 16.16 fixed point to dB
-	ldB = 20 * log10( left  / 65536.0F );
-	rdB = 20 * log10( right / 65536.0F );
+	ldB = fixed_to_dB(left);
+	rdB = fixed_to_dB(right);
 
 	set_mixer(false, ldB, rdB);
 }
@@ -679,9 +679,16 @@ static void *output_thread(void *arg) {
 				ampstate = 1;
 				relay(1);
 			}
+#endif
+#if GPIO
 			if (power_script != NULL) {
 				ampstate = 1;
 				relay_script(1);
+			}
+#endif
+#if EXT_AMP
+			if (amp_script != NULL) {
+				ext_amp("save", "", "");
 			}
 #endif
 			LOG_INFO("open output device: %s", output.device);
@@ -815,6 +822,11 @@ static void *output_thread(void *arg) {
 			if (power_script != NULL ){
 				ampstate = 0;
 				relay_script(0);
+			}
+#endif
+#if EXT_AMP
+			if (amp_script != NULL ){
+				ext_amp("restore", "", "");
 			}
 #endif
 			continue;

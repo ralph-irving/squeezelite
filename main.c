@@ -105,6 +105,9 @@ static void usage(const char *argv0) {
 		   "  -P <filename>\t\tStore the process id (PID) in filename\n"
 #endif
 		   "  -r <rates>[:<delay>]\tSample rates supported, allows output to be off when squeezelite is started; rates = <maxrate>|<minrate>-<maxrate>|<rate1>,<rate2>,<rate3>; delay = optional delay switching rates in ms\n"
+#if EXT_AMP
+		   "  -A <Amplifier Script>\tAbsolute path to script to control an external amplifier\n"
+#endif
 #if GPIO
 			"  -S <Power Script>\tAbsolute path to script to launch on power commands from LMS\n"
 #endif
@@ -207,6 +210,9 @@ static void usage(const char *argv0) {
 #endif
 #if GPIO
 		   " GPIO"
+#endif
+#if EXT_AMP
+		   " EXT_AMP"
 #endif
 #if RPI
 		   " RPI"
@@ -373,6 +379,9 @@ int main(int argc, char **argv) {
 #endif
 #if defined(GPIO) && defined(RPI)
 						  "G"
+#endif
+#if EXT_AMP
+						  "A"
 #endif
 #if GPIO
 						  "S"
@@ -641,6 +650,24 @@ int main(int argc, char **argv) {
 				usage(argv[0]);
 				exit(1);
 			}
+			break;
+#endif
+#if EXT_AMP
+		case 'A':
+			if (optind < argc && argv[optind] && argv[optind][0] != '-') {
+				amp_script = argv[optind++];
+				if( access( amp_script, R_OK|X_OK ) == -1 ) {
+				    // file doesn't exist
+					fprintf(stderr, "Script %s, not found\n\n", argv[optind-1]);
+					usage(argv[0]);
+					exit(1);
+				}
+			} else {
+				fprintf(stderr, "No Script Name Given.\n\n");
+				usage(argv[0]);
+				exit(1);
+			}
+			ext_amp("init", "", "");
 			break;
 #endif
 #if GPIO
