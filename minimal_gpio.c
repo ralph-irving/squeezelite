@@ -225,7 +225,7 @@ unsigned gpioHardwareRevision(void)
          if (!piPeriphBase)
             piPeriphBase = buf[8]<<24 | buf[9]<<16 | buf[10]<<8 | buf[11];
 
-         if (piPeriphBase == 0xFE00000) pi_is_2711 = 1;
+         if (piPeriphBase == 0xFE000000) pi_is_2711 = 1;
       }
       fclose(filp);
    }
