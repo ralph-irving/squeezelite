@@ -156,7 +156,7 @@ void get_mac(u8_t mac[]) {
 		for (ifr = ifc.ifc_req; ifr < ifend; ifr++) {
 			if (ifr->ifr_addr.sa_family == AF_INET) {
 
-				strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+				strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name) - 1);
 				if (ioctl (s, SIOCGIFHWADDR, &ifreq) == 0) {
 					memcpy(mac, ifreq.ifr_hwaddr.sa_data, 6);
 					if (mac[0]+mac[1]+mac[2] != 0) {
