@@ -1,0 +1,43 @@
+# Contributor: Carl Chave <online@chave.us>
+# Maintainer:
+pkgname=squeezelite
+pkgver=1.9.6.1210
+pkgrel=1
+pkgdesc="Lightweight headless squeezebox player for Logitech Media Server"
+url="https://github.com/ralph-irving/squeezelite"
+arch="all"
+license="GPL-3.0-or-later3"
+options="!check" # No test suite
+depends="flac alsa-lib faad2 mpg123 libvorbis libmad soxr openssl"
+makedepends="flac-dev alsa-lib-dev faad2-dev mpg123-dev libvorbis-dev libmad-dev soxr-dev openssl-dev"
+install="$pkgname.pre-install"
+subpackages="$pkgname-doc $pkgname-openrc"
+source="$pkgname-$pkgver.zip::https://github.com/ralph-irving/squeezelite/archive/master.zip $pkgname.confd $pkgname.initd"
+builddir="$srcdir/$pkgname-master"
+
+build() {
+    cd "$builddir"
+    make OPTS="-DRESAMPLE -DDSD -DGPIO -DVISEXPORT -DUSE_SSL -DNO_SSLSYM"
+    gcc -Os -fomit-frame-pointer -fcommon -s -o find_servers tools/find_servers.c
+    gcc -Os -fomit-frame-pointer -fcommon -s -o alsacap tools/alsacap.c -lasound
+}
+
+package() {
+    cd "$builddir"
+    install -Dm 755 squeezelite \
+        "$pkgdir"/usr/bin/squeezelite
+    install -Dm 755 alsacap \
+        "$pkgdir"/usr/bin/alsacap
+    install -Dm 755 find_servers \
+        "$pkgdir"/usr/bin/find_servers
+    install -Dm 644 doc/squeezelite.1 \
+        "$pkgdir"/usr/share/man/man1/squeezelite.1
+    install -Dm 644 "$srcdir"/squeezelite.confd \
+        "$pkgdir"/etc/conf.d/squeezelite
+    install -Dm 755 "$srcdir"/squeezelite.initd \
+        "$pkgdir"/etc/init.d/squeezelite
+}
+
+sha512sums="7dfcc52b059d2d1b8f9a2e7c0607633a014a037af62ee1bb52121bdf99736c9c0b5d591e2b597926bec4c74aa8f03f6d55802e46a1d0c20d779649eb398c128d  squeezelite-1.9.6.1210.zip
+ff552fcbbbf2b2291958fa1c61057f54ba0d9b19620666036dd1e19897b5d7bcc543c40699c3ee53b2eec7a38b9cf46cb9205c2048f7d5488c23085d9904f114  squeezelite.confd
+fdc0358c10c56772d5e70178eac88f62729c22965c530ad989ebcc8aa4af8c871085bdeb8b4ccd96d8cf2e87388258180054d908719f81f2745d97654f6d60eb  squeezelite.initd"
