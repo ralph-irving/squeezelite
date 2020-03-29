@@ -1,0 +1,6 @@
+.vscode/
+*.o
+squeezelite
+squeezelite-pulse
+tools/alsacap
+tools/find_servers
