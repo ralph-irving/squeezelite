@@ -1,0 +1,6 @@
+# Make with PulseAudio rather than direct alsa
+OPTS += -DPULSEAUDIO
+LDADD = -lrt -lpulse -lpthread -lm
+EXECUTABLE = squeezelite-pulse
+
+include Makefile

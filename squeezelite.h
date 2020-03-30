@@ -25,8 +25,8 @@
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
 #define MAJOR_VERSION "1.9"
-#define MINOR_VERSION "6"
-#define MICRO_VERSION "1210"
+#define MINOR_VERSION "7"
+#define MICRO_VERSION "1218"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -75,12 +75,10 @@
 #error unknown target
 #endif
 
-#if LINUX && !defined(PORTAUDIO)
-#define ALSA      1
-#define PORTAUDIO 0
+#if LINUX && !defined(PORTAUDIO) && !defined(PULSEAUDIO)
+#define ALSA       1
 #else
-#define ALSA      0
-#define PORTAUDIO 1
+#define ALSA       0
 #endif
 
 #if SUN
@@ -697,6 +695,15 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_pa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_pa(void);
 void _pa_open(void);
+#endif
+
+// output_pulse.c
+#if PULSEAUDIO
+void list_devices(void);
+void set_volume(unsigned left, unsigned right);
+bool test_open(const char *device, unsigned rates[], bool userdef_rates);
+void output_init_pulse(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
+void output_close_pulse(void);
 #endif
 
 // output_stdout.c

@@ -172,6 +172,9 @@ static void usage(const char *argv0) {
 		   "18"
 #endif
 #endif
+#if PULSEAUDIO
+		   " PULSEAUDIO"
+#endif
 #if EVENTFD
 		   " EVENTFD"
 #endif
@@ -767,6 +770,9 @@ int main(int argc, char **argv) {
 #if PORTAUDIO
 		output_init_pa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
 #endif
+#if PULSEAUDIO
+		output_init_pulse(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
+#endif
 	}
 
 #if DSD
@@ -811,6 +817,9 @@ int main(int argc, char **argv) {
 #endif
 #if PORTAUDIO
 		output_close_pa();
+#endif
+#if PULSEAUDIO
+		output_close_pulse();
 #endif
 	}
 
