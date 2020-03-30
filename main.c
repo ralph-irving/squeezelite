@@ -2,7 +2,7 @@
  *  Squeezelite - lightweight headless squeezebox emulator
  *
  *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
- *      Ralph Irving 2015-2017, ralph_irving@hotmail.com
+ *      Ralph Irving 2015-2020, ralph_irving@hotmail.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 
 #include <signal.h>
 
-#define TITLE "Squeezelite " VERSION ", Copyright 2012-2015 Adrian Smith, 2015-2019 Ralph Irving."
+#define TITLE "Squeezelite " VERSION ", Copyright 2012-2015 Adrian Smith, 2015-2020 Ralph Irving."
 
 #define CODECS_BASE "flac,pcm,mp3,ogg"
 #if NO_FAAD
