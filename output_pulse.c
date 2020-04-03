@@ -46,6 +46,7 @@ typedef struct {
 struct pulse {
 	bool running;
 	pa_stream *stream;
+	pa_proplist *proplist;
 	pulse_readiness stream_readiness;
 	pulse_connection conn;
 	pa_sample_spec sample_spec;
@@ -65,6 +66,8 @@ extern struct buffer *outputbuf;
 #define UNLOCK mutex_unlock(outputbuf->mutex)
 
 extern u8_t *silencebuf;
+
+extern struct player_info player_info;
 
 static void pulse_state_cb(pa_context *c, void *userdata) {
 	pa_context_state_t state;
@@ -192,7 +195,7 @@ static bool pulse_stream_create(struct pulse *p) {
 	p->sample_spec.format = PA_SAMPLE_S32LE; // SqueezeLite internally always uses this format, let PulseAudio deal with eventual resampling.
 	p->sample_spec.channels = 2;
 
-	p->stream = pa_stream_new(pulse_connection_get_context(&p->conn), name, &p->sample_spec, (const pa_channel_map *)NULL);
+	p->stream = pa_stream_new_with_proplist(pulse_connection_get_context(&p->conn), name, &p->sample_spec, (const pa_channel_map *)NULL, p->proplist);
 	if (p->stream == NULL)
 		return false;
 
@@ -425,6 +428,14 @@ void output_init_pulse(log_level level, const char *device, unsigned output_buf_
 		exit(1);
 	}
 
+	pulse.proplist = pa_proplist_new();
+	if (pulse.proplist != NULL)
+	{
+		pa_proplist_setf(pulse.proplist, "squeezelite.mac", "%02x:%02x:%02x:%02x:%02x:%02x",
+			player_info.mac[0], player_info.mac[1], player_info.mac[2],
+			player_info.mac[3], player_info.mac[4], player_info.mac[5]);
+	}
+
 	output_init_common(level, device, output_buf_size, rates, idle);
 
 	// start output thread
@@ -447,6 +458,8 @@ void output_close_pulse(void) {
 		free(pulse.sink_name);
 
 	pulse_connection_destroy(&pulse.conn);
+
+	pa_proplist_free(pulse.proplist);
 
 	output_close_common();
 }

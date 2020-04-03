@@ -55,6 +55,8 @@
 
 #define CODECS CODECS_BASE CODECS_AAC CODECS_FF CODECS_OPUS CODECS_DSD CODECS_MP3
 
+struct player_info player_info;
+
 static void usage(const char *argv0) {
 	printf(TITLE " See -t for license terms\n"
 		   "Usage: %s [options]\n"
@@ -287,7 +289,6 @@ int main(int argc, char **argv) {
 	extern bool pcm_check_header;
 	extern bool user_rates;
 	char *logfile = NULL;
-	u8_t mac[6];
 	unsigned stream_buf_size = STREAMBUF_SIZE;
 	unsigned output_buf_size = 0; // set later
 	unsigned rates[MAX_SUPPORTED_SAMPLERATES] = { 0 };
@@ -335,7 +336,7 @@ int main(int argc, char **argv) {
 #define MAXCMDLINE 512
 	char cmdline[MAXCMDLINE] = "";
 
-	get_mac(mac);
+	get_mac(player_info.mac);
 
 	for (i = 0; i < argc && (strlen(argv[i]) + strlen(cmdline) + 2 < MAXCMDLINE); i++) {
 		strcat(cmdline, argv[i]);
@@ -446,18 +447,10 @@ int main(int argc, char **argv) {
 			logfile = optarg;
 			break;
 		case 'm':
-			{
-				int byte = 0;
-				char *tmp;
-				if (!strncmp(optarg, "00:04:20", 8)) {
-					LOG_ERROR("ignoring mac address from hardware player range 00:04:20:**:**:**");
-				} else {
-					char *t = strtok(optarg, ":");
-					while (t && byte < 6) {
-						mac[byte++] = (u8_t)strtoul(t, &tmp, 16);
-						t = strtok(NULL, ":");
-					}
-				}
+			if (!strncmp(optarg, "00:04:20", 8)) {
+				LOG_ERROR("ignoring mac address from hardware player range 00:04:20:**:**:**");
+			} else if (!parse_mac(optarg, player_info.mac)) {
+				LOG_ERROR("ignoring invalid mac address");
 			}
 			break;
 		case 'M':
@@ -781,7 +774,7 @@ int main(int argc, char **argv) {
 
 #if VISEXPORT
 	if (visexport) {
-		output_vis_init(log_output, mac);
+		output_vis_init(log_output, player_info.mac);
 	}
 #endif
 
@@ -804,7 +797,7 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 
-	slimproto(log_slimproto, server, mac, name, namefile, modelname, maxSampleRate);
+	slimproto(log_slimproto, server, player_info.mac, name, namefile, modelname, maxSampleRate);
 
 	decode_close();
 	stream_close();

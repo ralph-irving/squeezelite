@@ -456,6 +456,7 @@ char* strcasestr(const char *haystack, const char *needle);
 
 char *next_param(char *src, char c);
 u32_t gettime_ms(void);
+int parse_mac(const char *s, u8_t *mac);
 void get_mac(u8_t *mac);
 void set_nonblock(sockfd s);
 int connect_timeout(sockfd sock, const struct sockaddr *addr, socklen_t addrlen, int timeout);
@@ -797,3 +798,6 @@ void free_ssl_symbols(void);
 bool ssl_loaded;
 #endif
 
+struct player_info {
+	u8_t mac[6];
+};
