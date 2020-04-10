@@ -21,6 +21,7 @@
 
 // Portaudio output
 
+#define LOG_COMPONENT	LOG_COMPONENT_OUTPUT
 #include "squeezelite.h"
 
 #if PORTAUDIO
@@ -64,8 +65,6 @@ static struct {
 	unsigned rate;
 	PaStream *stream;
 } pa;
-
-static log_level loglevel;
 
 static bool running = true;
 
@@ -544,7 +543,7 @@ static int pa_callback(void *pa_input, void *pa_output, unsigned long pa_frames_
 	return ret;
 }
 
-void output_init_pa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay,
+void output_init_pa(const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay,
 					unsigned idle) {
 	PaError err;
 #ifndef PA18API
@@ -567,8 +566,6 @@ void output_init_pa(log_level level, const char *device, unsigned output_buf_siz
 	if (t) pa_frames  = atoi(t);
 	if (c) pa_nbufs = atoi(c);
 #endif
-
-	loglevel = level;
 
 	LOG_INFO("init output");
 

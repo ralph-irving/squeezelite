@@ -21,14 +21,13 @@
 
 // dsd support
 
+#define LOG_COMPONENT	LOG_COMPONENT_DECODE
 #include "squeezelite.h"
 
 #if DSD
 
 // use dsd2pcm from Sebastian Gesemann for conversion to pcm:
 #include "./dsd2pcm/dsd2pcm.h"
-
-extern log_level loglevel;
 
 extern struct buffer *streambuf;
 extern struct buffer *outputbuf;

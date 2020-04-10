@@ -24,6 +24,7 @@
 
 // Output using PulseAudio
 
+#define LOG_COMPONENT	LOG_COMPONENT_OUTPUT
 #include "squeezelite.h"
 
 #if PULSEAUDIO
@@ -55,8 +56,6 @@ struct pulse {
 };
 
 static struct pulse pulse;
-
-static log_level loglevel;
 
 extern struct outputstate output;
 extern struct buffer *outputbuf;
@@ -277,7 +276,7 @@ static void pulse_set_volume(struct pulse *p, unsigned left, unsigned right) {
 	pa_operation *op = pa_context_set_sink_input_volume(pulse_connection_get_context(&p->conn), sink_input_idx, &volume, NULL, NULL);
 	if (op != NULL) {
 		// This is send and forget operation, dereference it right away.
-		if (loglevel >= lDEBUG) {
+		if (LOG_LEVEL_IS_ENABLED(lDEBUG)) {
 			char s[20];
 			LOG_DEBUG("sink input volume set to %s", pa_cvolume_snprint(s, sizeof(s), &volume));
 		}
@@ -436,9 +435,7 @@ static void * output_thread(void *arg) {
 
 static pthread_t thread;
 
-void output_init_pulse(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
-	loglevel = level;
-
+void output_init_pulse(const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
 	LOG_INFO("init output");
 
 	output.format = 0;
@@ -461,7 +458,7 @@ void output_init_pulse(log_level level, const char *device, unsigned output_buf_
 		pa_proplist_sets(pulse.proplist, PA_PROP_MEDIA_NAME, "squeezelite");
 	}
 
-	output_init_common(level, device, output_buf_size, rates, idle);
+	output_init_common(device, output_buf_size, rates, idle);
 
 	// start output thread
 	pulse.running = true;

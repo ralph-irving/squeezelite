@@ -21,11 +21,10 @@
 
 // sample processing - only included when building with PROCESS set
 
+#define LOG_COMPONENT	LOG_COMPONENT_DECODE
 #include "squeezelite.h"
 
 #if PROCESS
-
-extern log_level loglevel;
 
 extern struct buffer *outputbuf;
 extern struct decodestate decode;

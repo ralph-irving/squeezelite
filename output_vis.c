@@ -21,6 +21,7 @@
 
 // Export audio samples for visualiser process (16 bit only best endevours)
 
+#define LOG_COMPONENT	LOG_COMPONENT_OUTPUT
 #include "squeezelite.h"
 
 #if VISEXPORT
@@ -56,8 +57,6 @@ static struct vis_t {
 
 static char vis_shm_path[40];
 static int vis_fd = -1;
-
-static log_level loglevel;
 
 // attempt to write audio to vis_mmap but do not wait more than VIS_LOCK_NS to get wrlock
 // this can result in missing audio export to the mmap region, but this is preferable dropping audio
@@ -132,9 +131,7 @@ void vis_stop(void) {
 	}
 }
 
-void output_vis_init(log_level level, u8_t *mac) {
-	loglevel = level;
-
+void output_vis_init(u8_t *mac) {
 	sprintf(vis_shm_path, "/squeezelite-%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
 	mode_t old_mask = umask(000); // allow any user to read our shm when created

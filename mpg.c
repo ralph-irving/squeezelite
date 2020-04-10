@@ -19,6 +19,7 @@
  *
  */
 
+#define LOG_COMPONENT	LOG_COMPONENT_DECODE
 #include "squeezelite.h"
 
 #include <mpg123.h>
@@ -46,8 +47,6 @@ struct mpg {
 };
 
 static struct mpg *m;
-
-extern log_level loglevel;
 
 extern struct buffer *streambuf;
 extern struct buffer *outputbuf;

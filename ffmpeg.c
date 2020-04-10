@@ -19,6 +19,7 @@
  *
  */
 
+#define LOG_COMPONENT	LOG_COMPONENT_DECODE
 #include "squeezelite.h"
 
 #if FFMPEG
@@ -93,8 +94,6 @@ struct ff_s {
 };
 
 static struct ff_s *ff;
-
-extern log_level loglevel;
 
 extern struct buffer *streambuf;
 extern struct buffer *outputbuf;
@@ -745,7 +744,7 @@ struct codec *register_ff(const char *codec) {
 			return NULL;
 		}
 
-		switch (loglevel) {
+		switch (LOG_GET_LEVEL()) {
 		case lERROR:
 			ff_log_level = AV_LOG_ERROR; break;
 		case lWARN:

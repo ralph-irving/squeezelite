@@ -33,11 +33,10 @@
 #undef LOG_INFO
 #endif
 
+#define LOG_COMPONENT	LOG_COMPONENT_IR
 #include "squeezelite.h"
 
 #define LIRC_CLIENT_ID "squeezelite"
-
-static log_level loglevel;
 
 struct irstate ir;
 
@@ -210,9 +209,7 @@ static bool load_lirc() {
 }
 #endif
 
-void ir_init(log_level level, char *lircrc) {
-	loglevel = level;
-
+void ir_init(char *lircrc) {
 #if !LINKALL
 	i = malloc(sizeof(struct lirc));
 	if (!i || !load_lirc()) {

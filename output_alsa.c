@@ -24,6 +24,7 @@
 
 // Output using Alsa
 
+#define LOG_COMPONENT	LOG_COMPONENT_OUTPUT
 #include "squeezelite.h"
 
 #if ALSA
@@ -74,8 +75,6 @@ extern u8_t *silencebuf;
 #if DSD
 extern u8_t *silencebuf_dsd;
 #endif
-
-static log_level loglevel;
 
 static bool running = true;
 
@@ -252,7 +251,7 @@ void set_volume(unsigned left, unsigned right) {
 
 static void *alsa_error_handler(const char *file, int line, const char *function, int err, const char *fmt, ...) {
 	va_list args;
-	if ((loglevel >= lINFO && err == 0) || loglevel >= lDEBUG) {
+	if ((LOG_LEVEL_IS_ENABLED(lINFO) && err == 0) || LOG_LEVEL_IS_ENABLED(lDEBUG)) {
 		fprintf(stderr, "%s ALSA %s:%d ", logtime(), function, line);
 		va_start(args, fmt);
 		vfprintf(stderr, fmt, args);
@@ -532,7 +531,7 @@ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buf
 	}
 
 	// dump info
-	if (loglevel == lSDEBUG) {
+	if (LOG_LEVEL_IS_ENABLED(lSDEBUG)) {
 		static snd_output_t *debug_output;
 		snd_output_stdio_attach(&debug_output, stderr, 0);
 		snd_pcm_dump(pcmp, debug_output);
@@ -911,7 +910,7 @@ int mixer_init_alsa(const char *device, const char *mixer, int mixer_index) {
 
 static pthread_t thread;
 
-void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, bool mixer_unmute, bool mixer_linear) {
+void output_init_alsa(const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, bool mixer_unmute, bool mixer_linear) {
 
 	unsigned alsa_buffer = ALSA_BUFFER_TIME;
 	unsigned alsa_period = ALSA_PERIOD_COUNT;
@@ -933,8 +932,6 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 	if (s) alsa_sample_fmt = s;
 	if (m) alsa_mmap = atoi(m);
 	if (r) alsa_reopen = atoi(r);
-
-	loglevel = level;
 
 	LOG_INFO("init output");
 
@@ -980,7 +977,7 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 
 	snd_lib_error_set_handler((snd_lib_error_handler_t)alsa_error_handler);
 
-	output_init_common(level, device, output_buf_size, rates, idle);
+	output_init_common(device, output_buf_size, rates, idle);
 	
 	if (volume_mixer_name) {
 	        if (mixer_init_alsa(alsa.mixer_ctl, alsa.volume_mixer_name, volume_mixer_index ?

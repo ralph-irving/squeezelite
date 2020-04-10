@@ -19,6 +19,7 @@
  *
  */
 
+#define LOG_COMPONENT	LOG_COMPONENT_DECODE
 #include "squeezelite.h"
 
 #include <mad.h>
@@ -55,8 +56,6 @@ struct mad {
 };
 
 static struct mad *m;
-
-extern log_level loglevel;
 
 extern struct buffer *streambuf;
 extern struct buffer *outputbuf;

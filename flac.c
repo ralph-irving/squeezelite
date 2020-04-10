@@ -18,6 +18,7 @@
  *
  */
 
+#define LOG_COMPONENT	LOG_COMPONENT_DECODE
 #include "squeezelite.h"
 
 #include <FLAC/stream_decoder.h>
@@ -61,8 +62,6 @@ struct flac {
 };
 
 static struct flac *f;
-
-extern log_level loglevel;
 
 extern struct buffer *streambuf;
 extern struct buffer *outputbuf;

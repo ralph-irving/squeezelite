@@ -19,6 +19,7 @@
  *
  */
 
+#define LOG_COMPONENT	LOG_COMPONENT_DECODE
 #include "squeezelite.h"
 
 /* 
@@ -67,8 +68,6 @@ struct vorbis {
 };
 
 static struct vorbis *v;
-
-extern log_level loglevel;
 
 extern struct buffer *streambuf;
 extern struct buffer *outputbuf;

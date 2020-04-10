@@ -23,6 +23,7 @@
 
 #define _GNU_SOURCE
 
+#define LOG_COMPONENT	LOG_COMPONENT_STREAM
 #include "squeezelite.h"
 
 #include <fcntl.h>
@@ -35,7 +36,6 @@
 #if SUN
 #include <signal.h>
 #endif
-static log_level loglevel;
 
 static struct buffer buf;
 struct buffer *streambuf = &buf;
@@ -364,9 +364,7 @@ static void *stream_thread() {
 
 static thread_type thread;
 
-void stream_init(log_level level, unsigned stream_buf_size) {
-	loglevel = level;
-
+void stream_init(unsigned stream_buf_size) {
 	LOG_INFO("init stream");
 	LOG_DEBUG("streambuf size: %u", stream_buf_size);
 

@@ -21,9 +21,8 @@
 
 // Common output function
 
+#define LOG_COMPONENT	LOG_COMPONENT_OUTPUT
 #include "squeezelite.h"
-
-static log_level loglevel;
 
 struct outputstate output;
 
@@ -341,10 +340,8 @@ void _checkfade(bool start) {
 	}
 }
 
-void output_init_common(log_level level, const char *device, unsigned output_buf_size, unsigned rates[], unsigned idle) {
+void output_init_common(const char *device, unsigned output_buf_size, unsigned rates[], unsigned idle) {
 	unsigned i;
-
-	loglevel = level;
 
 	output_buf_size = output_buf_size - (output_buf_size % BYTES_PER_FRAME);
 	LOG_DEBUG("outputbuf size: %u", output_buf_size);
@@ -412,7 +409,7 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 	
 	output.current_sample_rate = output.default_sample_rate;
 
-	if (loglevel >= lINFO) {
+	if (LOG_LEVEL_IS_ENABLED(lINFO)) {
 		char rates_buf[10 * MAX_SUPPORTED_SAMPLERATES] = "";
 		for (i = 0; output.supported_rates[i]; ++i) {
 			char s[10];

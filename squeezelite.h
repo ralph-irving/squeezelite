@@ -439,17 +439,40 @@ struct wake {
 // logging
 typedef enum { lERROR = 0, lWARN, lINFO, lDEBUG, lSDEBUG } log_level;
 
+typedef enum {
+	LOG_COMPONENT_SLIMPROTO,
+	LOG_COMPONENT_STREAM,
+	LOG_COMPONENT_DECODE,
+	LOG_COMPONENT_OUTPUT,
+#if IR
+	LOG_COMPONENT_IR,
+#endif
+	// keep this value always the last
+	LOG_COMPONENT_MAX
+}
+log_component;
+
+extern log_level log_levels[LOG_COMPONENT_MAX];
+
 const char *logtime(void);
 void logprint(const char *fmt, ...);
 
-#define LOG_ERROR(fmt, ...) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define LOG_WARN(fmt, ...)  if (loglevel >= lWARN)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define LOG_WARN_LEVEL(lvl, fmt, ...)  if ((lvl) >= lWARN)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define LOG_INFO(fmt, ...)  if (loglevel >= lINFO)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define LOG_DEBUG(fmt, ...) if (loglevel >= lDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define LOG_SDEBUG(fmt, ...) if (loglevel >= lSDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define LOG_INFO(fmt, ...)  if (loglevel >= lINFO)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define LOG_INFO_LEVEL(lvl, fmt, ...)  if ((lvl) >= lINFO)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define LOG_COMPONENT_GET_LEVEL(cmp)				log_levels[cmp]
+#define LOG_LEVEL_COMPONENT_IS_ENABLED(cmp, lvl)	LOG_COMPONENT_GET_LEVEL(cmp) >= (lvl)
+#define LOG_LEVEL_COMPONENT(cmp, lvl, fmt, ...)	if (LOG_LEVEL_COMPONENT_IS_ENABLED(cmp, lvl)) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define LOG_ERROR_COMPONENT(cmp, fmt, ...)		LOG_LEVEL_COMPONENT(cmp, lERROR, fmt, ##__VA_ARGS__)
+#define LOG_WARN_COMPONENT(cmp, fmt, ...)		LOG_LEVEL_COMPONENT(cmp, lWARN, fmt, ##__VA_ARGS__)
+#define LOG_INFO_COMPONENT(cmp, fmt, ...)		LOG_LEVEL_COMPONENT(cmp, lINFO, fmt, ##__VA_ARGS__)
+#define LOG_DEBUG_COMPONENT(cmp, fmt, ...)		LOG_LEVEL_COMPONENT(cmp, lDEBUG, fmt, ##__VA_ARGS__)
+#define LOG_SDEBUG_COMPONENT(cmp, fmt, ...)		LOG_LEVEL_COMPONENT(cmp, lSDEBUG, fmt, ##__VA_ARGS__)
+// for the following the LOG_COMPONENT must be #defined to one of the log_component enumeration value before #including this header file
+#define LOG_GET_LEVEL()							LOG_COMPONENT_GET_LEVEL(LOG_COMPONENT)
+#define LOG_LEVEL_IS_ENABLED(lvl)				LOG_LEVEL_COMPONENT_IS_ENABLED(LOG_COMPONENT, lvl)
+#define LOG_ERROR(fmt, ...)						LOG_ERROR_COMPONENT(LOG_COMPONENT, fmt, ##__VA_ARGS__)
+#define LOG_WARN(fmt, ...)						LOG_WARN_COMPONENT(LOG_COMPONENT, fmt, ##__VA_ARGS__)
+#define LOG_INFO(fmt, ...)						LOG_INFO_COMPONENT(LOG_COMPONENT, fmt, ##__VA_ARGS__)
+#define LOG_DEBUG(fmt, ...)						LOG_DEBUG_COMPONENT(LOG_COMPONENT, fmt, ##__VA_ARGS__)
+#define LOG_SDEBUG(fmt, ...)					LOG_SDEBUG_COMPONENT(LOG_COMPONENT, fmt, ##__VA_ARGS__)
 
 // utils.c (non logging)
 typedef enum { EVENT_TIMEOUT = 0, EVENT_READ, EVENT_WAKE } event_type;
@@ -524,7 +547,7 @@ enum notify_event_type {
 	NOTIFY_META_UPDATE,
 };
 typedef void (* notify_cb)(enum notify_event_type, void *);
-void slimproto(log_level level, char *server, int maxSampleRate, notify_cb cb);
+void slimproto(char *server, int maxSampleRate, notify_cb cb);
 void slimproto_stop(void);
 void wake_controller(void);
 
@@ -548,7 +571,7 @@ struct streamstate {
 	bool  meta_send;
 };
 
-void stream_init(log_level level, unsigned stream_buf_size);
+void stream_init(unsigned stream_buf_size);
 void stream_close(void);
 void stream_file(const char *header, size_t header_len, unsigned threshold);
 void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
@@ -587,7 +610,7 @@ struct codec {
 	decode_state (*decode)(void);
 };
 
-void decode_init(log_level level, const char *include_codecs, const char *exclude_codecs);
+void decode_init(const char *include_codecs, const char *exclude_codecs);
 void decode_close(void);
 void decode_flush(void);
 unsigned decode_newstream(unsigned sample_rate, unsigned supported_rates[]);
@@ -685,7 +708,7 @@ struct outputstate {
 #endif
 };
 
-void output_init_common(log_level level, const char *device, unsigned output_buf_size, unsigned rates[], unsigned idle);
+void output_init_common(const char *device, unsigned output_buf_size, unsigned rates[], unsigned idle);
 void output_close_common(void);
 void output_flush(void);
 // _* called with mutex locked
@@ -698,7 +721,7 @@ void list_devices(void);
 void list_mixers(const char *output_device);
 void set_volume(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
-void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, bool mixer_unmute, bool mixer_linear);
+void output_init_alsa(const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, bool mixer_unmute, bool mixer_linear);
 void output_close_alsa(void);
 #endif
 
@@ -707,7 +730,7 @@ void output_close_alsa(void);
 void list_devices(void);
 void set_volume(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
-void output_init_pa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
+void output_init_pa(const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_pa(void);
 void _pa_open(void);
 #endif
@@ -717,14 +740,14 @@ void _pa_open(void);
 void list_devices(void);
 void set_volume(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
-void output_init_pulse(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
+void output_init_pulse(const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_pulse(void);
 void output_player_name_changed(const char *name);
 void output_media_name_changed(const char *name);
 #endif
 
 // output_stdout.c
-void output_init_stdout(log_level level, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay);
+void output_init_stdout(unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay);
 void output_close_stdout(void);
 
 // output_pack.c
@@ -737,7 +760,7 @@ s32_t to_gain(float f);
 // output_vis.c
 #if VISEXPORT
 void _vis_export(struct buffer *outputbuf, struct outputstate *output, frames_t out_frames, bool silence);
-void output_vis_init(log_level level, u8_t *mac);
+void output_vis_init(u8_t *mac);
 void vis_stop(void);
 #else
 #define _vis_export(...)
@@ -800,7 +823,7 @@ struct irstate {
 	u32_t ts;
 };
 
-void ir_init(log_level level, char *lircrc);
+void ir_init(char *lircrc);
 void ir_close(void);
 #endif
 

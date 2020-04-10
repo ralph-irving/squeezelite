@@ -58,7 +58,7 @@
 struct player_info player_info;
 static char *namefile;
 
-static log_level log_slimproto = lWARN;
+log_level log_levels[LOG_COMPONENT_MAX];
 
 static void usage(const char *argv0) {
 	printf(TITLE " See -t for license terms\n"
@@ -286,9 +286,9 @@ static void slimproto_notify_handler(enum notify_event_type e, void *arg) {
 		case NOTIFY_PLAYER_NAME_CHANGED:
 			if (namefile) {
 				if (write_player_name(namefile, (const char *)arg)) {
-					LOG_INFO_LEVEL(log_slimproto, "storing name in %s", namefile);
+					LOG_INFO_COMPONENT(LOG_COMPONENT_SLIMPROTO, "storing name in %s", namefile);
 				} else {
-					LOG_WARN_LEVEL(log_slimproto, "unable to store new name in %s", namefile);
+					LOG_WARN_COMPONENT(LOG_COMPONENT_SLIMPROTO, "unable to store new name in %s", namefile);
 				}
 			}
 #if PULSEAUDIO
@@ -355,15 +355,9 @@ int main(int argc, char **argv) {
 #if IR
 	char *lircrc = NULL;
 #endif
-	
-	log_level log_output = lWARN;
-	log_level log_stream = lWARN;
-	log_level log_decode = lWARN;
-	// log_slimproto is module static
-	////log_level log_slimproto = lWARN;
-#if IR
-	log_level log_ir     = lWARN;
-#endif
+
+	for (int i = 0; i < LOG_COMPONENT_MAX; i++)
+		log_levels[i] = lWARN;
 
 	int maxSampleRate = 0;
 
@@ -468,12 +462,12 @@ int main(int argc, char **argv) {
 					if (!strcmp(v, "info"))   new = lINFO;
 					if (!strcmp(v, "debug"))  new = lDEBUG;
 					if (!strcmp(v, "sdebug")) new = lSDEBUG;
-					if (!strcmp(l, "all") || !strcmp(l, "slimproto")) log_slimproto = new;
-					if (!strcmp(l, "all") || !strcmp(l, "stream"))    log_stream = new;
-					if (!strcmp(l, "all") || !strcmp(l, "decode"))    log_decode = new;
-					if (!strcmp(l, "all") || !strcmp(l, "output"))    log_output = new;
+					if (!strcmp(l, "all") || !strcmp(l, "slimproto")) log_levels[LOG_COMPONENT_SLIMPROTO] = new;
+					if (!strcmp(l, "all") || !strcmp(l, "stream"))    log_levels[LOG_COMPONENT_STREAM] = new;
+					if (!strcmp(l, "all") || !strcmp(l, "decode"))    log_levels[LOG_COMPONENT_DECODE] = new;
+					if (!strcmp(l, "all") || !strcmp(l, "output"))    log_levels[LOG_COMPONENT_OUTPUT] = new;
 #if IR
-					if (!strcmp(l, "all") || !strcmp(l, "ir"))        log_ir     = new;
+					if (!strcmp(l, "all") || !strcmp(l, "ir"))        log_levels[LOG_COMPONENT_IR] = new;
 #endif
 				} else {
 					fprintf(stderr, "\nDebug settings error: -d %s\n\n", optarg);
@@ -487,9 +481,9 @@ int main(int argc, char **argv) {
 			break;
 		case 'm':
 			if (!strncmp(optarg, "00:04:20", 8)) {
-				LOG_ERROR("ignoring mac address from hardware player range 00:04:20:**:**:**");
+				fprintf(stderr, "ignoring mac address from hardware player range 00:04:20:**:**:**\n");
 			} else if (!parse_mac(optarg, player_info.mac)) {
-				LOG_ERROR("ignoring invalid mac address");
+				fprintf(stderr, "ignoring invalid mac address\n");
 			}
 			break;
 		case 'M':
@@ -759,7 +753,10 @@ int main(int argc, char **argv) {
 		if (!freopen(logfile, "a", stderr)) {
 			fprintf(stderr, "error opening logfile %s: %s\n", logfile, strerror(errno));
 		} else {
-			if (log_output >= lINFO || log_stream >= lINFO || log_decode >= lINFO || log_slimproto >= lINFO) {
+			if (LOG_LEVEL_COMPONENT_IS_ENABLED(LOG_COMPONENT_OUTPUT, lINFO) ||
+			    LOG_LEVEL_COMPONENT_IS_ENABLED(LOG_COMPONENT_STREAM, lINFO) ||
+			    LOG_LEVEL_COMPONENT_IS_ENABLED(LOG_COMPONENT_DECODE, lINFO) ||
+			    LOG_LEVEL_COMPONENT_IS_ENABLED(LOG_COMPONENT_SLIMPROTO, lINFO)) {
 				fprintf(stderr, "\n%s\n", cmdline);
 			}
 		}
@@ -790,7 +787,7 @@ int main(int argc, char **argv) {
 	winsock_init();
 #endif
 
-	stream_init(log_stream, stream_buf_size);
+	stream_init(stream_buf_size);
 
 	if (name && namefile) {
 		fprintf(stderr, "-n and -N option should not be used at same time\n");
@@ -804,22 +801,22 @@ int main(int argc, char **argv) {
 
 	if (namefile) {
 		if (read_player_name(namefile, player_info.name, sizeof(player_info.name))) {
-			LOG_INFO_LEVEL(log_slimproto, "retrieved name %s from %s", player_info.name, namefile);
+			LOG_INFO_COMPONENT(LOG_COMPONENT_SLIMPROTO, "retrieved name %s from %s", player_info.name, namefile);
 		}
 	}
 
 	if (!strcmp(output_device, "-")) {
-		output_init_stdout(log_output, output_buf_size, output_params, rates, rate_delay);
+		output_init_stdout(output_buf_size, output_params, rates, rate_delay);
 	} else {
 #if ALSA
-		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, rt_priority, idle, mixer_device, output_mixer,
+		output_init_alsa(output_device, output_buf_size, output_params, rates, rate_delay, rt_priority, idle, mixer_device, output_mixer,
 						 output_mixer_unmute, linear_volume);
 #endif
 #if PORTAUDIO
-		output_init_pa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
+		output_init_pa(output_device, output_buf_size, output_params, rates, rate_delay, idle);
 #endif
 #if PULSEAUDIO
-		output_init_pulse(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
+		output_init_pulse(output_device, output_buf_size, output_params, rates, rate_delay, idle);
 #endif
 	}
 
@@ -829,11 +826,11 @@ int main(int argc, char **argv) {
 
 #if VISEXPORT
 	if (visexport) {
-		output_vis_init(log_output, player_info.mac);
+		output_vis_init(player_info.mac);
 	}
 #endif
 
-	decode_init(log_decode, include_codecs, exclude_codecs);
+	decode_init(include_codecs, exclude_codecs);
 
 #if RESAMPLE
 	if (resample) {
@@ -843,11 +840,11 @@ int main(int argc, char **argv) {
 
 #if IR
 	if (lircrc) {
-		ir_init(log_ir, lircrc);
+		ir_init(lircrc);
 	}
 #endif
 
-	slimproto(log_slimproto, server, maxSampleRate, slimproto_notify_handler);
+	slimproto(server, maxSampleRate, slimproto_notify_handler);
 
 	decode_close();
 	stream_close();

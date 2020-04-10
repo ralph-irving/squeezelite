@@ -22,10 +22,9 @@
  *   -Launch script on power status change from LMS
  */
 
+#define LOG_COMPONENT	LOG_COMPONENT_SLIMPROTO
 #include "squeezelite.h"
 #include "slimproto.h"
-
-static log_level loglevel;
 
 #define SQUEEZENETWORK "mysqueezebox.com:3483"
 
@@ -188,11 +187,9 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 
 	LOG_DEBUG("STAT: %s", event);
 
-	if (loglevel == lSDEBUG) {
-		LOG_SDEBUG("received bytesL: %u streambuf: %u outputbuf: %u calc elapsed: %u real elapsed: %u (diff: %d) device: %u delay: %d",
-				   (u32_t)status.stream_bytes, status.stream_full, status.output_full, ms_played, now - status.stream_start,
-				   ms_played - now + status.stream_start, status.device_frames * 1000 / status.current_sample_rate, now - status.updated);
-	}
+	LOG_SDEBUG("received bytesL: %u streambuf: %u outputbuf: %u calc elapsed: %u real elapsed: %u (diff: %d) device: %u delay: %d",
+		   (u32_t)status.stream_bytes, status.stream_full, status.output_full, ms_played, now - status.stream_start,
+		   ms_played - now + status.stream_start, status.device_frames * 1000 / status.current_sample_rate, now - status.updated);
 
 	send_packet((u8_t *)&pkt, sizeof(pkt));
 }
@@ -807,7 +804,7 @@ in_addr_t discover_server(char *default_server) {
 #define FIXED_CAP_LEN 256
 #define VAR_CAP_LEN   128
 
-void slimproto(log_level level, char *server, int maxSampleRate, notify_cb cb) {
+void slimproto(char *server, int maxSampleRate, notify_cb cb) {
 	struct sockaddr_in serv_addr;
 	static char fixed_cap[FIXED_CAP_LEN], var_cap[VAR_CAP_LEN] = "";
 	bool reconnect = false;
@@ -820,7 +817,6 @@ void slimproto(log_level level, char *server, int maxSampleRate, notify_cb cb) {
 
 	wake_create(wake_e);
 
-	loglevel = level;
 	notify = cb;
 	running = true;
 

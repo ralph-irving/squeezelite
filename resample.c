@@ -21,14 +21,13 @@
 
 // upsampling using libsoxr - only included if RESAMPLE set
 
+#define LOG_COMPONENT	LOG_COMPONENT_DECODE
 #include "squeezelite.h"
 
 #if RESAMPLE
 
 #include <math.h>
 #include <soxr.h>
-
-extern log_level loglevel;
 
 struct soxr {
 	soxr_t resampler;

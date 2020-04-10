@@ -21,9 +21,8 @@
 
 // decode thread
 
+#define LOG_COMPONENT	LOG_COMPONENT_DECODE
 #include "squeezelite.h"
-
-log_level loglevel;
 
 extern struct buffer *streambuf;
 extern struct buffer *outputbuf;
@@ -145,11 +144,9 @@ static void sort_codecs(int pry, struct codec* ptr) {
 
 static thread_type thread;
 
-void decode_init(log_level level, const char *include_codecs, const char *exclude_codecs) {
+void decode_init(const char *include_codecs, const char *exclude_codecs) {
 	int i;
 	char* order_codecs;
-
-	loglevel = level;
 
 	LOG_INFO("init decode");
 
