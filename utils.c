@@ -519,3 +519,44 @@ char *strcasestr(const char *haystack, const char *needle) {
 	return NULL;
 }
 #endif
+
+char * read_player_name(const char *filename, char *playername, size_t maxlen) {
+	char *ret = NULL;
+	FILE *fp = fopen(filename, "r");
+	if (fp) {
+		if (!fgets(playername, maxlen - 1, fp)) {
+			playername[maxlen - 1] = '\0';
+		} else {
+			// strip any \n from fgets response
+			int len = strlen(playername);
+			if (len > 0 && playername[len - 1] == '\n') {
+				playername[len - 1] = '\0';
+			}
+			ret = playername;
+		}
+		fclose(fp);
+	}
+	return ret;
+}
+
+int write_player_name(const char *filename, const char *playername) {
+	FILE *fp = fopen(filename, "w");
+	if (fp) {
+		fputs(playername, fp);
+		fclose(fp);
+		return 1;
+	}
+	return 0;
+}
+
+const char * icy_parse_stream_title(const char *s, size_t *len) {
+	const char *title = strstr(s, "StreamTitle='");
+	if (!title)
+		return NULL;
+	title += 13;
+	const char *end = strchr(title, '\'');
+	if (!end)
+		return NULL;
+	*len = end - title;
+	return title;
+}

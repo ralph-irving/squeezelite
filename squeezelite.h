@@ -444,9 +444,12 @@ void logprint(const char *fmt, ...);
 
 #define LOG_ERROR(fmt, ...) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_WARN(fmt, ...)  if (loglevel >= lWARN)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define LOG_WARN_LEVEL(lvl, fmt, ...)  if ((lvl) >= lWARN)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_INFO(fmt, ...)  if (loglevel >= lINFO)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_DEBUG(fmt, ...) if (loglevel >= lDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_SDEBUG(fmt, ...) if (loglevel >= lSDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define LOG_INFO(fmt, ...)  if (loglevel >= lINFO)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define LOG_INFO_LEVEL(lvl, fmt, ...)  if ((lvl) >= lINFO)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
 // utils.c (non logging)
 typedef enum { EVENT_TIMEOUT = 0, EVENT_READ, EVENT_WAKE } event_type;
@@ -487,6 +490,9 @@ int poll(struct pollfd *fds, unsigned long numfds, int timeout);
 #if LINUX || FREEBSD
 void touch_memory(u8_t *buf, size_t size);
 #endif
+char * read_player_name(const char *filename, char *playername, size_t maxlen);
+int write_player_name(const char *filename, const char *playername);
+const char * icy_parse_stream_title(const char *s, size_t *len);
 
 // buffer.c
 struct buffer {
@@ -513,7 +519,12 @@ void buf_init(struct buffer *buf, size_t size);
 void buf_destroy(struct buffer *buf);
 
 // slimproto.c
-void slimproto(log_level level, char *server, u8_t mac[6], const char *name, const char *namefile, const char *modelname, int maxSampleRate);
+enum notify_event_type {
+	NOTIFY_PLAYER_NAME_CHANGED,
+	NOTIFY_META_UPDATE,
+};
+typedef void (* notify_cb)(enum notify_event_type, void *);
+void slimproto(log_level level, char *server, int maxSampleRate, notify_cb cb);
 void slimproto_stop(void);
 void wake_controller(void);
 
@@ -708,6 +719,8 @@ void set_volume(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_pulse(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_pulse(void);
+void output_player_name_changed(const char *name);
+void output_media_name_changed(const char *name);
 #endif
 
 // output_stdout.c
@@ -798,6 +811,11 @@ void free_ssl_symbols(void);
 bool ssl_loaded;
 #endif
 
+// maximum player name, not including terminating nul character
+#define PLAYER_NAME_LEN 64
+
 struct player_info {
 	u8_t mac[6];
+	char name[PLAYER_NAME_LEN + 1];
+	const char *model;
 };

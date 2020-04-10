@@ -56,6 +56,9 @@
 #define CODECS CODECS_BASE CODECS_AAC CODECS_FF CODECS_OPUS CODECS_DSD CODECS_MP3
 
 struct player_info player_info;
+static char *namefile;
+
+static log_level log_slimproto = lWARN;
 
 static void usage(const char *argv0) {
 	printf(TITLE " See -t for license terms\n"
@@ -278,14 +281,44 @@ static void sighandler(int signum) {
 	signal(signum, SIG_DFL);
 }
 
+static void slimproto_notify_handler(enum notify_event_type e, void *arg) {
+	switch (e) {
+		case NOTIFY_PLAYER_NAME_CHANGED:
+			if (namefile) {
+				if (write_player_name(namefile, (const char *)arg)) {
+					LOG_INFO_LEVEL(log_slimproto, "storing name in %s", namefile);
+				} else {
+					LOG_WARN_LEVEL(log_slimproto, "unable to store new name in %s", namefile);
+				}
+			}
+#if PULSEAUDIO
+			output_player_name_changed((const char *)arg);
+#endif
+			break;
+
+#if PULSEAUDIO
+		case NOTIFY_META_UPDATE: {
+			size_t len;
+			const char *title = icy_parse_stream_title((const char *)arg, &len);
+			if (title) {
+				char buf[500];
+				if (len >= sizeof(buf)) len = sizeof(buf) - 1;
+				memcpy(buf, title, len);
+				buf[len] = 0;
+				output_media_name_changed(buf);
+			}
+			break;
+		}
+#endif
+	}
+}
+
 int main(int argc, char **argv) {
 	char *server = NULL;
 	char *output_device = "default";
 	char *include_codecs = NULL;
 	char *exclude_codecs = "";
 	char *name = NULL;
-	char *namefile = NULL;
-	char *modelname = NULL;
 	extern bool pcm_check_header;
 	extern bool user_rates;
 	char *logfile = NULL;
@@ -322,7 +355,8 @@ int main(int argc, char **argv) {
 	log_level log_output = lWARN;
 	log_level log_stream = lWARN;
 	log_level log_decode = lWARN;
-	log_level log_slimproto = lWARN;
+	// log_slimproto is module static
+	////log_level log_slimproto = lWARN;
 #if IR
 	log_level log_ir     = lWARN;
 #endif
@@ -337,6 +371,7 @@ int main(int argc, char **argv) {
 	char cmdline[MAXCMDLINE] = "";
 
 	get_mac(player_info.mac);
+	player_info.model = MODEL_NAME_STRING;
 
 	for (i = 0; i < argc && (strlen(argv[i]) + strlen(cmdline) + 2 < MAXCMDLINE); i++) {
 		strcat(cmdline, argv[i]);
@@ -454,7 +489,7 @@ int main(int argc, char **argv) {
 			}
 			break;
 		case 'M':
-			modelname = optarg;
+			player_info.model = optarg;
 			break;
 		case 'r':
 			{ 
@@ -753,6 +788,22 @@ int main(int argc, char **argv) {
 
 	stream_init(log_stream, stream_buf_size);
 
+	if (name && namefile) {
+		fprintf(stderr, "-n and -N option should not be used at same time\n");
+		exit(1);
+	}
+
+	if (name) {
+		strncpy(player_info.name, name, PLAYER_NAME_LEN);
+		player_info.name[PLAYER_NAME_LEN] = '\0';
+	}
+
+	if (namefile) {
+		if (read_player_name(namefile, player_info.name, sizeof(player_info.name))) {
+			LOG_INFO_LEVEL(log_slimproto, "retrieved name %s from %s", player_info.name, namefile);
+		}
+	}
+
 	if (!strcmp(output_device, "-")) {
 		output_init_stdout(log_output, output_buf_size, output_params, rates, rate_delay);
 	} else {
@@ -792,12 +843,7 @@ int main(int argc, char **argv) {
 	}
 #endif
 
-	if (name && namefile) {
-		fprintf(stderr, "-n and -N option should not be used at same time\n");
-		exit(1);
-	}
-
-	slimproto(log_slimproto, server, player_info.mac, name, namefile, modelname, maxSampleRate);
+	slimproto(log_slimproto, server, maxSampleRate, slimproto_notify_handler);
 
 	decode_close();
 	stream_close();

@@ -51,6 +51,7 @@ struct pulse {
 	pulse_connection conn;
 	pa_sample_spec sample_spec;
 	char *sink_name;
+	bool proplist_changed;
 };
 
 static struct pulse pulse;
@@ -68,6 +69,10 @@ extern struct buffer *outputbuf;
 extern u8_t *silencebuf;
 
 extern struct player_info player_info;
+
+#define PA_PROP_SQUEEZELITE_MAC				"squeezelite.mac"
+#define PA_PROP_SQUEEZELITE_MODEL_NAME		"squeezelite.model_name"
+#define PA_PROP_SQUEEZELITE_PLAYER_NAME		"squeezelite.player_name"
 
 static void pulse_state_cb(pa_context *c, void *userdata) {
 	pa_context_state_t state;
@@ -187,15 +192,12 @@ static void pulse_stream_state_cb(pa_stream *stream, void *userdata) {
 }
 
 static bool pulse_stream_create(struct pulse *p) {
-	char name[500];
-	int c = snprintf(name, sizeof(name) - 1, "squeezelite (%s)", "<playername>");
-	name[c] = '\0';
-
 	p->sample_spec.rate = output.current_sample_rate;
 	p->sample_spec.format = PA_SAMPLE_S32LE; // SqueezeLite internally always uses this format, let PulseAudio deal with eventual resampling.
 	p->sample_spec.channels = 2;
 
-	p->stream = pa_stream_new_with_proplist(pulse_connection_get_context(&p->conn), name, &p->sample_spec, (const pa_channel_map *)NULL, p->proplist);
+	p->stream = pa_stream_new_with_proplist(pulse_connection_get_context(&p->conn), p->proplist ? NULL : "squeezelite",
+		&p->sample_spec, (const pa_channel_map *)NULL, p->proplist);
 	if (p->stream == NULL)
 		return false;
 
@@ -346,6 +348,14 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 	return (int)out_frames;
 }
 
+static void stream_proplist_update_success_cb(pa_stream *s, int success, void *userdata) {
+	if (success) {
+		LOG_DEBUG("updated stream property list");
+	} else {
+		LOG_WARN("failed to update stream property list");
+	}
+}
+
 void output_state_timer_cb(pa_mainloop_api *api, pa_time_event *e, const struct timeval *tv_, void *userdata) {
 	struct pulse *p = userdata;
 	pa_context_rttime_restart(pulse_connection_get_context(&p->conn), e, pa_rtclock_now() + OUTPUT_STATE_TIMER_INTERVAL_USEC);
@@ -374,14 +384,16 @@ static void * output_thread(void *arg) {
 			}
 			
 			if (pulse.stream == NULL) {
-				if (pulse_stream_create(&pulse)) {
+				bool stream_opened;
+				unsigned left, right;
+				LOCK;
+				stream_opened = pulse_stream_create(&pulse);
+				left = output.gainL;
+				right = output.gainR;
+				pulse.proplist_changed = false;
+				UNLOCK;
+				if (stream_opened) {
 					LOG_DEBUG("PulseAudio playback stream on sink %s open", pulse.sink_name);
-
-					unsigned left, right;
-					LOCK;
-					left = output.gainL;
-					right = output.gainR;
-					UNLOCK;
 					pulse_set_volume(&pulse, left, right);
 				} else {
 					if (!pulse.running)
@@ -399,6 +411,17 @@ static void * output_thread(void *arg) {
 					UNLOCK;
 				}
 			}
+		}
+
+		if (pulse.proplist_changed) {
+			LOCK;
+			if (pulse.stream) {
+				pa_operation *op = pa_stream_proplist_update(pulse.stream, PA_UPDATE_REPLACE, pulse.proplist,
+					stream_proplist_update_success_cb, NULL);
+				pa_operation_unref(op);
+			}
+			pulse.proplist_changed = false;
+			UNLOCK;
 		}
 
 		pulse_connection_iterate(&pulse.conn);
@@ -429,11 +452,13 @@ void output_init_pulse(log_level level, const char *device, unsigned output_buf_
 	}
 
 	pulse.proplist = pa_proplist_new();
-	if (pulse.proplist != NULL)
-	{
-		pa_proplist_setf(pulse.proplist, "squeezelite.mac", "%02x:%02x:%02x:%02x:%02x:%02x",
+	if (pulse.proplist != NULL) {
+		pa_proplist_setf(pulse.proplist, PA_PROP_SQUEEZELITE_MAC, "%02x:%02x:%02x:%02x:%02x:%02x",
 			player_info.mac[0], player_info.mac[1], player_info.mac[2],
 			player_info.mac[3], player_info.mac[4], player_info.mac[5]);
+		pa_proplist_sets(pulse.proplist, PA_PROP_SQUEEZELITE_MODEL_NAME, player_info.model);
+		pa_proplist_sets(pulse.proplist, PA_PROP_SQUEEZELITE_PLAYER_NAME, player_info.name);
+		pa_proplist_sets(pulse.proplist, PA_PROP_MEDIA_NAME, "squeezelite");
 	}
 
 	output_init_common(level, device, output_buf_size, rates, idle);
@@ -462,6 +487,21 @@ void output_close_pulse(void) {
 	pa_proplist_free(pulse.proplist);
 
 	output_close_common();
+}
+
+static void proplist_update(const char *prop, const char *value) {
+	LOCK;
+	pa_proplist_sets(pulse.proplist, prop, value);
+	pulse.proplist_changed = true;
+	UNLOCK;
+}
+
+void output_player_name_changed(const char *name) {
+	proplist_update(PA_PROP_SQUEEZELITE_PLAYER_NAME, name);
+}
+
+void output_media_name_changed(const char *name) {
+	proplist_update(PA_PROP_MEDIA_NAME, name);
 }
 
 #endif

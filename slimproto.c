@@ -88,9 +88,9 @@ int autostart;
 bool sentSTMu, sentSTMo, sentSTMl;
 u32_t new_server;
 char *new_server_cap;
-#define PLAYER_NAME_LEN 64
-char player_name[PLAYER_NAME_LEN + 1] = "";
-const char *name_file = NULL;
+static notify_cb notify;
+
+extern struct player_info player_info;
 
 void send_packet(u8_t *packet, size_t len) {
 	u8_t *ptr = packet;
@@ -234,6 +234,8 @@ static void sendMETA(const char *meta, size_t len) {
 
 	send_packet((u8_t *)&pkt_header, sizeof(pkt_header));
 	send_packet((u8_t *)meta, len);
+
+	notify(NOTIFY_META_UPDATE, (void *)meta);
 }
 
 static void sendSETDName(const char *name) {
@@ -441,26 +443,18 @@ static void process_setd(u8_t *pkt, int len) {
 	// handle player name query and change
 	if (setd->id == 0) {
 		if (len == 5) {
-			if (strlen(player_name)) {
-				sendSETDName(player_name);
+			if (strlen(player_info.name)) {
+				sendSETDName(player_info.name);
 			}
 		} else if (len > 5) {
-			strncpy(player_name, setd->data, PLAYER_NAME_LEN);
-			player_name[PLAYER_NAME_LEN] = '\0';
+			strncpy(player_info.name, setd->data, PLAYER_NAME_LEN);
+			player_info.name[PLAYER_NAME_LEN] = '\0';
 			LOG_INFO("set name: %s", setd->data);
 			// confirm change to server
 			sendSETDName(setd->data);
-			// write name to name_file if -N option set
-			if (name_file) {
-				FILE *fp = fopen(name_file, "w");
-				if (fp) {
-					LOG_INFO("storing name in %s", name_file);
-					fputs(player_name, fp);
-					fclose(fp);
-				} else {
-					LOG_WARN("unable to store new name in %s", name_file);
-				}
-			}
+			// notify observer about the player name change, it may want
+			// to save it to the file
+			notify(NOTIFY_PLAYER_NAME_CHANGED, setd->data);
 		}
 	}
 }
@@ -813,7 +807,7 @@ in_addr_t discover_server(char *default_server) {
 #define FIXED_CAP_LEN 256
 #define VAR_CAP_LEN   128
 
-void slimproto(log_level level, char *server, u8_t mac[6], const char *name, const char *namefile, const char *modelname, int maxSampleRate) {
+void slimproto(log_level level, char *server, int maxSampleRate, notify_cb cb) {
 	struct sockaddr_in serv_addr;
 	static char fixed_cap[FIXED_CAP_LEN], var_cap[VAR_CAP_LEN] = "";
 	bool reconnect = false;
@@ -827,6 +821,7 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 	wake_create(wake_e);
 
 	loglevel = level;
+	notify = cb;
 	running = true;
 
 	if (server) {
@@ -841,34 +836,10 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 		slimproto_port = PORT;
 	}
 
-	if (name) {
-		strncpy(player_name, name, PLAYER_NAME_LEN);
-		player_name[PLAYER_NAME_LEN] = '\0';
-	}
-
-	if (namefile) {
-		FILE *fp;
-		name_file = namefile;
-		fp = fopen(namefile, "r");
-		if (fp) {
-			if (!fgets(player_name, PLAYER_NAME_LEN, fp)) {
-				player_name[PLAYER_NAME_LEN] = '\0';
-			} else {
-				// strip any \n from fgets response
-				int len = strlen(player_name);
-				if (len > 0 && player_name[len - 1] == '\n') {
-					player_name[len - 1] = '\0';
-				}
-				LOG_INFO("retrieved name %s from %s", player_name, name_file);
-			}
-			fclose(fp);
-		}
-	}
-
 	if (!running) return;
 
 	LOCK_O;
-	snprintf(fixed_cap, FIXED_CAP_LEN, ",ModelName=%s,MaxSampleRate=%u", modelname ? modelname : MODEL_NAME_STRING,
+	snprintf(fixed_cap, FIXED_CAP_LEN, ",ModelName=%s,MaxSampleRate=%u", player_info.model,
 			 ((maxSampleRate > 0) ? maxSampleRate : output.supported_rates[0]));
 	
 	for (i = 0; i < MAX_CODECS; i++) {
@@ -945,7 +916,7 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 				new_server_cap = NULL;
 			}
 
-			sendHELO(reconnect, fixed_cap, var_cap, mac);
+			sendHELO(reconnect, fixed_cap, var_cap, player_info.mac);
 
 			slimproto_run();
 
