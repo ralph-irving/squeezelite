@@ -310,6 +310,10 @@ static void slimproto_notify_handler(enum notify_event_type e, void *arg) {
 			break;
 		}
 #endif
+
+		// make compiler happy
+		default:
+			break;
 	}
 }
 
