@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "7"
-#define MICRO_VERSION "1223"
+#define MICRO_VERSION "1228"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -64,6 +64,7 @@
 #define LINUX     0
 #define OSX       0
 #define WIN       0
+#define PORTAUDIO 1
 #define FREEBSD   1
 #elif defined (__sun)
 #define SUN       1

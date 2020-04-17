@@ -1,7 +1,7 @@
 #Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
 CFLAGS	?= -Wall -fPIC -O2
 CFLAGS	+= -fcommon
-LDADD	?= -lasound -lpthread -lm -lrt
+LDADD	?= -lpthread -lm -lrt
 EXECUTABLE ?= squeezelite
 
 # passing one or more of these in $(OPTS) enables optional feature inclusion
@@ -36,7 +36,7 @@ SOURCES_FAAD     = faad.c
 SOURCES_SSL      = sslsym.c
 SOURCES_OPUS     = opus.c
 
-LINK_LINUX       = -ldl
+LINK_LINUX       = -lasound -ldl
 LINK_SSL         = -lssl -lcrypto
 LINK_ALAC        = -lalac
 
