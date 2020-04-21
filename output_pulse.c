@@ -345,7 +345,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 
 void output_state_timer_cb(pa_mainloop_api *api, pa_time_event *e, const struct timeval *tv_, void *userdata) {
 	struct pulse *p = userdata;
-	pa_context_rttime_restart(pulse_connection_get_context(&p->conn), e, OUTPUT_STATE_TIMER_INTERVAL_USEC);
+	pa_context_rttime_restart(pulse_connection_get_context(&p->conn), e, pa_rtclock_now() + OUTPUT_STATE_TIMER_INTERVAL_USEC);
 }
 
 static void * output_thread(void *arg) {
@@ -360,7 +360,8 @@ static void * output_thread(void *arg) {
 			}
 			
 			if (output_state_timer == NULL) {
-				output_state_timer = pa_context_rttime_new(pulse_connection_get_context(&pulse.conn), OUTPUT_STATE_TIMER_INTERVAL_USEC, output_state_timer_cb, &pulse);
+				output_state_timer = pa_context_rttime_new(pulse_connection_get_context(&pulse.conn),
+					pa_rtclock_now() + OUTPUT_STATE_TIMER_INTERVAL_USEC, output_state_timer_cb, &pulse);
 			}
 		} else {
 			if (output_state_timer != NULL) {
