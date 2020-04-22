@@ -1,14 +1,14 @@
-/* 
+/*
  *  Squeezelite - lightweight headless squeezebox emulator
  *
  *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
  *      Ralph Irving 2015-2017, ralph_irving@hotmail.com
- *  
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -97,9 +97,9 @@ static struct {
 	{ "KEY_VOLUMEDOWN", 0x768900ff, true  },
 	{ "KEY_VOLUMEUP",   0x7689807f, true  },
 	{ "KEY_PREVIOUS",   0x7689c03f, false },
-	{ "KEY_REWIND",     0x7689c03f, false },
+	{ "KEY_REWIND",     0x7689c03f, false }, // false
 	{ "KEY_NEXT",       0x7689a05f, false },
-	{ "KEY_FORWARD",    0x7689a05f, false },
+	{ "KEY_FORWARD",    0x7689a05f, false }, // false
 	{ "KEY_PAUSE",      0x768920df, true  },
 	{ "KEY_PLAY",       0x768910ef, false },
 	{ "KEY_POWER",      0x768940bf, false },
@@ -121,7 +121,8 @@ static u32_t ir_key_map(const char *c, const char *r) {
 	int i;
 	for (i = 0; keymap[i].lirc; i++) {
 		if (!strcmp(c, keymap[i].lirc)) {
-			if (keymap[i].repeat || !strcmp(r, "00")) {
+			// inputlirc issues "0", while LIRC uses "00"
+			if (keymap[i].repeat || !strcmp(r, "0") || !strcmp(r,"00")) {
 				return keymap[i].code;
 			}
 			LOG_DEBUG("repeat suppressed");
