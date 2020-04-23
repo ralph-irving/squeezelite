@@ -121,7 +121,8 @@ static u32_t ir_key_map(const char *c, const char *r) {
 	int i;
 	for (i = 0; keymap[i].lirc; i++) {
 		if (!strcmp(c, keymap[i].lirc)) {
-			if (keymap[i].repeat || !strcmp(r, "00")) {
+			// inputlirc issues "0", while LIRC uses "00"
+			if (keymap[i].repeat || !strcmp(r, "0") || !strcmp(r,"00")) {
 				return keymap[i].code;
 			}
 			LOG_DEBUG("repeat suppressed");
