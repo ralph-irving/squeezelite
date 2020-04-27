@@ -446,15 +446,15 @@ static decode_state alac_decode(void) {
 
 	while (frames > 0) {
 		size_t f, count;
-		s32_t *optr;
+		ISAMPLE_T *optr;
 
 		IF_DIRECT(
 			f = min(frames, _buf_cont_write(outputbuf) / BYTES_PER_FRAME);
-			optr = (s32_t *)outputbuf->writep;
+			optr = (ISAMPLE_T *)outputbuf->writep;
 		);
 		IF_PROCESS(
 			f = min(frames, process.max_in_frames - process.in_frames);
-			optr = (s32_t *)((u8_t *) process.inbuf + process.in_frames * BYTES_PER_FRAME);
+			optr = (ISAMPLE_T *)((u8_t *) process.inbuf + process.in_frames * BYTES_PER_FRAME);
 		);
 
 		f = min(f, frames);
