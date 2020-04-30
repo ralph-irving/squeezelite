@@ -85,6 +85,12 @@ static struct {
 	{ "muting",   0x7689c43b },
 	{ "power_on", 0x76898f70 },
 	{ "power_off",0x76898778 },
+	{ "preset_1", 0x76898a75 },
+	{ "preset_2", 0x76894ab5 },
+	{ "preset_3", 0x7689ca35 },
+	{ "preset_4", 0x76892ad5 },
+	{ "preset_5", 0x7689aa55 },
+	{ "preset_6", 0x76896a95 },
 	{ NULL,       0          },
 };
 
@@ -104,6 +110,33 @@ static struct {
 	{ "KEY_PLAY",       0x768910ef, false },
 	{ "KEY_POWER",      0x768940bf, false },
 	{ "KEY_MUTE",       0x7689c43b, false },
+	{ "KEY_0",          0x76899867, true  },
+	{ "KEY_1",          0x7689f00f, true  },
+	{ "KEY_2",          0x768908f7, true  },
+	{ "KEY_3",          0x76898877, true  },
+	{ "KEY_4",          0x768948b7, true  },
+	{ "KEY_5",          0x7689c837, true  },
+	{ "KEY_6",          0x768928d7, true  },
+	{ "KEY_7",          0x7689a857, true  },
+	{ "KEY_8",          0x76896897, true  },
+	{ "KEY_9",          0x7689e817, true  },
+	{ "KEY_FAVORITES",  0x768918e7, false },
+	{ "KEY_FAVORITES",  0x7689e21d, false },
+	{ "KEY_SEARCH",     0x768958a7, false },
+	{ "KEY_SEARCH",     0x7689629d, false },
+	{ "KEY_SHUFFLE",    0x7689d827, false },
+	{ "KEY_SLEEP",      0x7689b847, false },
+	{ "KEY_INSERT",     0x7689609f, false }, // Add
+	{ "KEY_UP",         0x7689e01f, true  },
+	{ "KEY_LEFT",       0x7689906f, true  },
+	{ "KEY_RIGHT",      0x7689d02f, true  },
+	{ "KEY_DOWN",       0x7689b04f, true  },
+	{ "KEY_HOME",       0x768922dd, false },
+	{ "KEY_MEDIA_REPEAT", 0x768938c7, false },
+//	{ "KEY_TITLE",      0x76897887, false }, // Now Playing
+//	{ "KEY_TITLE",      0x7689a25d, false }, // Now Playing
+//	{ "KEY_TEXT",       0x7689f807, false }, // Size 
+//	{ "KEY_BRIGHTNESS_CYCLE", 0x768904fb, false },
 	{ NULL,             0         , false },
 };
 
