@@ -31,6 +31,19 @@
 #include <pulse/pulseaudio.h>
 #include <math.h>
 
+// To report timing information back to the LMS the latency information needs to be
+// retrieved from the PulseAudio server. However this eats some CPU cycles and a few
+// bytes of RAM. Here you can decide if you want to retrieve precise timing information
+// or save a few CPU cycles. If you are running squeezelite on resource constrained
+// device (e.g. Raspberry Pi) and you want to keep the CPU temperature down then you
+// can set the PULSEAUDIO_TIMING to zero. In this case the sound card latency and
+// PulseAudio buffering won't be accounted for which might give you a slightly skewed
+// playback timing information. Otherwise keep this to default value of 2 and you
+// will get precise timing information.
+#ifndef PULSEAUDIO_TIMING
+#	define PULSEAUDIO_TIMING	2
+#endif
+
 typedef enum {
 	readiness_unknown,
 	readiness_ready,
@@ -183,6 +196,9 @@ static void pulse_stream_state_cb(pa_stream *stream, void *userdata) {
 	}
 }
 
+static void pulse_stream_success_noop_cb(pa_stream *s, int success, void *userdata) {
+}
+
 static bool pulse_stream_create(struct pulse *p) {
 	char name[500];
 	int c = snprintf(name, sizeof(name) - 1, "squeezelite (%s)", "<playername>");
@@ -199,7 +215,12 @@ static bool pulse_stream_create(struct pulse *p) {
 	p->stream_readiness = readiness_unknown;
 	pa_stream_set_state_callback(p->stream, pulse_stream_state_cb, p);
 
-	if (pa_stream_connect_playback(p->stream, p->sink_name, (const pa_buffer_attr *)NULL, PA_STREAM_NOFLAGS,
+	if (pa_stream_connect_playback(p->stream, p->sink_name, (const pa_buffer_attr *)NULL,
+#if PULSEAUDIO_TIMING == 2
+		PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_INTERPOLATE_TIMING,
+#else
+	 	PA_STREAM_NOFLAGS,
+#endif
 		(const pa_cvolume *)NULL, (pa_stream *)NULL) < 0) {
 		pa_stream_unref(p->stream);
 		p->stream = NULL;
@@ -212,6 +233,16 @@ static bool pulse_stream_create(struct pulse *p) {
 	}
 
 	ok = ok && p->stream_readiness == readiness_ready;
+
+	if (ok) {
+		pa_buffer_attr attr = { 0, };
+		attr.maxlength = (uint32_t)(-1);
+		attr.tlength = (uint32_t)(-1);
+		attr.prebuf = (uint32_t)(-1);
+		attr.minreq = (uint32_t)(-1);
+		pa_operation *op = pa_stream_set_buffer_attr(p->stream, &attr, pulse_stream_success_noop_cb, NULL);
+		ok = pulse_operation_wait(&p->conn, op);
+	}
 
 	if (!ok) {
 		pa_stream_disconnect(p->stream);
@@ -348,6 +379,23 @@ void output_state_timer_cb(pa_mainloop_api *api, pa_time_event *e, const struct 
 	pa_context_rttime_restart(pulse_connection_get_context(&p->conn), e, pa_rtclock_now() + OUTPUT_STATE_TIMER_INTERVAL_USEC);
 }
 
+#if PULSEAUDIO_TIMING == 0
+#	define DECLARE_LATENCY(n)			(void)0
+#	define pulse_retrieve_latency(n)	true
+#	define pulse_get_latency(n)			0
+#elif PULSEAUDIO_TIMING == 2
+#	define DECLARE_LATENCY(n)			pa_usec_t n
+	static inline bool pulse_retrieve_latency(pa_usec_t *usec) {
+		return pa_stream_get_latency(pulse.stream, usec, NULL) == 0;
+	}
+#endif
+
+#if PULSEAUDIO_TIMING > 0
+static inline unsigned pulse_get_latency(pa_usec_t usec) {
+	return (unsigned)((usec * output.current_sample_rate) / PA_USEC_PER_SEC);
+}
+#endif
+
 static void * output_thread(void *arg) {
 	bool output_off = (output.state == OUTPUT_OFF);
 	pa_time_event *output_state_timer = NULL;
@@ -390,9 +438,22 @@ static void * output_thread(void *arg) {
 			if (pulse.stream != NULL) {
 				size_t writable = pa_stream_writable_size(pulse.stream);
 				if (writable > 0) {
+
+					DECLARE_LATENCY(latency);
+					bool latency_ok = pulse_retrieve_latency(&latency);
+
 					frames_t frame_count = writable / pa_sample_size(pa_stream_get_sample_spec(pulse.stream));
+
 					LOCK;
+
+					if (latency_ok) {
+						output.device_frames = pulse_get_latency(latency);
+						output.updated = gettime_ms();
+						output.frames_played_dmp = output.frames_played;
+					}
+
 					_output_frames(frame_count);
+
 					UNLOCK;
 				}
 			}
