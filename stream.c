@@ -159,7 +159,7 @@ static void *stream_thread() {
 
 		if (fd < 0 || !space || stream.state <= STREAMING_WAIT) {
 			UNLOCK;
-			usleep(100000);
+			usleep(space ? 100000 : 25000);
 			continue;
 		}
 
