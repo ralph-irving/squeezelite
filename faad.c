@@ -23,6 +23,12 @@
 
 #include <neaacdec.h>
 
+#if BYTES_PER_FRAME == 4		
+#define ALIGN(n) 	(n)
+#else
+#define ALIGN(n) 	(n << 8)		
+#endif
+
 #define WRAPBUF_LEN 2048
 
 struct chunk_table {
@@ -314,8 +320,8 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 static decode_state faad_decode(void) {
 	size_t bytes_total;
 	size_t bytes_wrap;
-	NeAACDecFrameInfo info;
-	s32_t *iptr;
+	static NeAACDecFrameInfo info;
+	ISAMPLE_T *iptr;
 	bool endstream;
 	frames_t frames;
 
@@ -400,7 +406,7 @@ static decode_state faad_decode(void) {
 	if (bytes_wrap < WRAPBUF_LEN && bytes_total > WRAPBUF_LEN) {
 
 		// make a local copy of frames which may have wrapped round the end of streambuf
-		u8_t buf[WRAPBUF_LEN];
+		static u8_t buf[WRAPBUF_LEN];
 		memcpy(buf, streambuf->readp, bytes_wrap);
 		memcpy(buf + bytes_wrap, streambuf->buf, WRAPBUF_LEN - bytes_wrap);
 
@@ -491,29 +497,34 @@ static decode_state faad_decode(void) {
 	while (frames > 0) {
 		frames_t f;
 		frames_t count;
-		s32_t *optr;
+		ISAMPLE_T *optr;
 
 		IF_DIRECT(
 			f = _buf_cont_write(outputbuf) / BYTES_PER_FRAME;
-			optr = (s32_t *)outputbuf->writep;
+			optr = (ISAMPLE_T *)outputbuf->writep;
 		);
 		IF_PROCESS(
 			f = process.max_in_frames;
-			optr = (s32_t *)process.inbuf;
+			optr = (ISAMPLE_T *)process.inbuf;
 		);
 
 		f = min(f, frames);
 		count = f;
 		
 		if (info.channels == 2) {
+#if BYTES_PER_FRAME == 4			
+			memcpy(optr, iptr, count * BYTES_PER_FRAME);
+			iptr += count * 2;
+#else 			
 			while (count--) {
-				*optr++ = *iptr++ << 8;
-				*optr++ = *iptr++ << 8;
+				*optr++ = ALIGN(*iptr++);
+				*optr++ = ALIGN(*iptr++);
 			}
+#endif			
 		} else if (info.channels == 1) {
 			while (count--) {
-				*optr++ = *iptr << 8;
-				*optr++ = *iptr++ << 8;
+				*optr++ = ALIGN(*iptr);
+				*optr++ = ALIGN(*iptr++);
 			}
 		} else {
 			LOG_WARN("unsupported number of channels");
@@ -563,7 +574,12 @@ static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 
 	conf = NEAAC(a, GetCurrentConfiguration, a->hAac);
 
+#if BYTES_PER_FRAME == 4
+	conf->outputFormat = FAAD_FMT_16BIT;
+#else
 	conf->outputFormat = FAAD_FMT_24BIT;
+#endif
+	conf->defSampleRate = 44100;
 	conf->downMatrix = 1;
 
 	if (!NEAAC(a, SetConfiguration, a->hAac, conf)) {
