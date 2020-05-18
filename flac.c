@@ -22,6 +22,18 @@
 
 #include <FLAC/stream_decoder.h>
 
+#if BYTES_PER_FRAME == 4		
+#define ALIGN8(n) 	(n << 8)		
+#define ALIGN16(n) 	(n)
+#define ALIGN24(n)	(n >> 8) 
+#define ALIGN32(n)	(n >> 16)
+#else
+#define ALIGN8(n) 	(n << 24)		
+#define ALIGN16(n) 	(n << 16)
+#define ALIGN24(n)	(n << 8) 
+#define ALIGN32(n)	(n)
+#endif
+
 struct flac {
 	FLAC__StreamDecoder *decoder;
 #if !LINKALL
@@ -161,14 +173,14 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 	while (frames > 0) {
 		frames_t f;
 		frames_t count;
-		s32_t *optr;
+		ISAMPLE_T *optr;
 
 		IF_DIRECT( 
-			optr = (s32_t *)outputbuf->writep; 
+			optr = (ISAMPLE_T *)outputbuf->writep; 
 			f = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME; 
 		);
 		IF_PROCESS(
-			optr = (s32_t *)process.inbuf;
+			optr = (ISAMPLE_T *)process.inbuf;
 			f = process.max_in_frames;
 		);
 
@@ -178,23 +190,23 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 
 		if (bits_per_sample == 8) {
 			while (count--) {
-				*optr++ = *lptr++ << 24;
-				*optr++ = *rptr++ << 24;
+				*optr++ = ALIGN8(*lptr++);
+				*optr++ = ALIGN8(*rptr++);
 			}
 		} else if (bits_per_sample == 16) {
 			while (count--) {
-				*optr++ = *lptr++ << 16;
-				*optr++ = *rptr++ << 16;
+				*optr++ = ALIGN16(*lptr++);
+				*optr++ = ALIGN16(*rptr++);
 			}
 		} else if (bits_per_sample == 24) {
 			while (count--) {
-				*optr++ = *lptr++ << 8;
-				*optr++ = *rptr++ << 8;
+				*optr++ = ALIGN24(*lptr++);
+				*optr++ = ALIGN24(*rptr++);
 			}
 		} else if (bits_per_sample == 32) {
 			while (count--) {
-				*optr++ = *lptr++;
-				*optr++ = *rptr++;
+				*optr++ = ALIGN32(*lptr++);
+				*optr++ = ALIGN32(*rptr++);
 			}
 		} else {
 			LOG_ERROR("unsupported bits per sample: %u", bits_per_sample);
