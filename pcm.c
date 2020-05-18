@@ -21,6 +21,14 @@
 
 #include "squeezelite.h"
 
+#if BYTES_PER_FRAME == 4
+#define SHIFT 16
+#define OPTR_T	u16_t
+#else
+#define OPTR_T	u32_t	
+#define SHIFT 0
+#endif
+
 extern log_level loglevel;
 
 extern struct buffer *streambuf;
@@ -175,9 +183,9 @@ static void _check_header(void) {
 static decode_state pcm_decode(void) {
 	unsigned bytes, in, out;
 	frames_t frames, count;
-	u32_t *optr;
+	OPTR_T *optr;
 	u8_t  *iptr;
-	u8_t tmp[16];
+	u8_t tmp[3*8];
 	
 	LOCK_S;
 
@@ -236,10 +244,10 @@ static decode_state pcm_decode(void) {
 	}
 
 	IF_DIRECT(
-		optr = (u32_t *)outputbuf->writep;
+		optr = (OPTR_T *)outputbuf->writep;
 	);
 	IF_PROCESS(
-		optr = (u32_t *)process.inbuf;
+		optr = (OPTR_T *)process.inbuf;
 	);
 	iptr = (u8_t *)streambuf->readp;
 
@@ -267,41 +275,67 @@ static decode_state pcm_decode(void) {
 	if (channels == 2) {
 		if (sample_size == 1) {
 			while (count--) {
-				*optr++ = *iptr++ << 24;
+				*optr++ = *iptr++ << (24-SHIFT);
 			}
 		} else if (sample_size == 2) {
 			if (bigendian) {
+#if BYTES_PER_FRAME == 4 && !SL_LITTLE_ENDIAN			
+				// while loop below works as is, but memcpy is a win for that 16/16 typical case
+				memcpy(optr, iptr, count * BYTES_PER_FRAME / 2);
+#else				
 				while (count--) {
-					*optr++ = *(iptr) << 24 | *(iptr+1) << 16;
+					*optr++ = *(iptr) << (24-SHIFT) | *(iptr+1) << (16-SHIFT);
 					iptr += 2;
 				}
+#endif				
 			} else {
+#if BYTES_PER_FRAME == 4 && SL_LITTLE_ENDIAN			
+				// while loop below works as is, but memcpy is a win for that 16/16 typical case
+				memcpy(optr, iptr, count * BYTES_PER_FRAME / 2);
+#else
 				while (count--) {
-					*optr++ = *(iptr) << 16 | *(iptr+1) << 24;
+					*optr++ = *(iptr) << (16-SHIFT) | *(iptr+1) << (24-SHIFT);
 					iptr += 2;
 				}
+#endif	
 			}
 		} else if (sample_size == 3) {
 			if (bigendian) {
 				while (count--) {
+#if BYTES_PER_FRAME == 4				
+					*optr++ = *(iptr) << 8 | *(iptr+1);
+#else					
 					*optr++ = *(iptr) << 24 | *(iptr+1) << 16 | *(iptr+2) << 8;
+#endif	
 					iptr += 3;
 				}
 			} else {
 				while (count--) {
+#if BYTES_PER_FRAME == 4									
+					*optr++ = *(iptr+1) | *(iptr+2) << 8;
+#else
 					*optr++ = *(iptr) << 8 | *(iptr+1) << 16 | *(iptr+2) << 24;
+#endif	
 					iptr += 3;
 				}
 			}
 		} else if (sample_size == 4) {
 			if (bigendian) {
 				while (count--) {
+#if BYTES_PER_FRAME == 4														
+					*optr++ = *(iptr) << 8 | *(iptr+1);
+#else
 					*optr++ = *(iptr) << 24 | *(iptr+1) << 16 | *(iptr+2) << 8 | *(iptr+3);
+#endif	
 					iptr += 4;
 				}
 			} else {
 				while (count--) {
+#if BYTES_PER_FRAME == 4																			
+					*optr++ = *(iptr+2) | *(iptr+3) << 8;
+#else
 					*optr++ = *(iptr) | *(iptr+1) << 8 | *(iptr+2) << 16 | *(iptr+3) << 24;
+#endif	
 					iptr += 4;
 				}
 			}
@@ -309,21 +343,21 @@ static decode_state pcm_decode(void) {
 	} else if (channels == 1) {
 		if (sample_size == 1) {
 			while (count--) {
-				*optr = *iptr++ << 24;
+				*optr = *iptr++ << (24-SHIFT);
 				*(optr+1) = *optr;
 				optr += 2;
 			}
 		} else if (sample_size == 2) {
 			if (bigendian) {
 				while (count--) {
-					*optr = *(iptr) << 24 | *(iptr+1) << 16;
+					*optr = *(iptr) << (24-SHIFT) | *(iptr+1) << (16-SHIFT);
 					*(optr+1) = *optr;
 					iptr += 2;
 					optr += 2;
 				}
 			} else {
 				while (count--) {
-					*optr = *(iptr) << 16 | *(iptr+1) << 24;
+					*optr = *(iptr) << (16-SHIFT) | *(iptr+1) << (24-SHIFT);
 					*(optr+1) = *optr;
 					iptr += 2;
 					optr += 2;
@@ -332,14 +366,22 @@ static decode_state pcm_decode(void) {
 		} else if (sample_size == 3) {
 			if (bigendian) {
 				while (count--) {
+#if BYTES_PER_FRAME == 4				
+					*optr++ = *(iptr) << 8 | *(iptr+1);
+#else					
 					*optr = *(iptr) << 24 | *(iptr+1) << 16 | *(iptr+2) << 8;
+#endif				
 					*(optr+1) = *optr;
 					iptr += 3;
 					optr += 2;
 				}
 			} else {
 				while (count--) {
+#if BYTES_PER_FRAME == 4														
+					*optr++ = *(iptr+1) | *(iptr+2) << 8;
+#else					
 					*optr = *(iptr) << 8 | *(iptr+1) << 16 | *(iptr+2) << 24;
+#endif				
 					*(optr+1) = *optr;
 					iptr += 3;
 					optr += 2;
@@ -348,14 +390,22 @@ static decode_state pcm_decode(void) {
 		} else if (sample_size == 4) {
 			if (bigendian) {
 				while (count--) {
+#if BYTES_PER_FRAME == 4														
+					*optr++ = *(iptr) << 8 | *(iptr+1);
+#else					
 					*optr++ = *(iptr) << 24 | *(iptr+1) << 16 | *(iptr+2) << 8 | *(iptr+3);
+#endif				
 					*(optr+1) = *optr;
 					iptr += 4;
 					optr += 2;
 				}
 			} else {
 				while (count--) {
+#if BYTES_PER_FRAME == 4																			
+					*optr++ = *(iptr+2) | *(iptr+3) << 8;
+#else					
 					*optr++ = *(iptr) | *(iptr+1) << 8 | *(iptr+2) << 16 | *(iptr+3) << 24;
+#endif				
 					*(optr+1) = *optr;
 					iptr += 4;
 					optr += 2;
