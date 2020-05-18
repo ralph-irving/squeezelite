@@ -88,15 +88,18 @@ extern struct processstate process;
 #endif
 
 // based on libmad minimad.c scale
-static inline u32_t scale(mad_fixed_t sample) {
+static inline ISAMPLE_T scale(mad_fixed_t sample) {
 	sample += (1L << (MAD_F_FRACBITS - 24));
 	
 	if (sample >= MAD_F_ONE)
 		sample = MAD_F_ONE - 1;
 	else if (sample < -MAD_F_ONE)
 		sample = -MAD_F_ONE;
-	
-	return (s32_t)(sample >> (MAD_F_FRACBITS + 1 - 24)) << 8;
+#if BYTES_PER_FRAME == 4	
+	return (ISAMPLE_T)((sample >> (MAD_F_FRACBITS + 1 - 24)) >> 8);
+#else	
+	return (ISAMPLE_T)((sample >> (MAD_F_FRACBITS + 1 - 24)) << 8);
+#endif	
 }
 
 // check for id3.2 tag at start of file - http://id3.org/id3v2.4.0-structure, return length
@@ -300,15 +303,15 @@ static decode_state mad_decode(void) {
 
 		while (frames > 0) {
 			size_t f, count;
-			s32_t *optr;
+			ISAMPLE_T *optr;
 
 			IF_DIRECT(
 				f = min(frames, _buf_cont_write(outputbuf) / BYTES_PER_FRAME);
-				optr = (s32_t *)outputbuf->writep;
+				optr = (ISAMPLE_T *)outputbuf->writep;
 			);
 			IF_PROCESS(
 				f = min(frames, process.max_in_frames - process.in_frames);
-				optr = (s32_t *)((u8_t *)process.inbuf + process.in_frames * BYTES_PER_FRAME);
+				optr = (ISAMPLE_T *)((u8_t *)process.inbuf + process.in_frames * BYTES_PER_FRAME);
 			);
 
 			count = f;
