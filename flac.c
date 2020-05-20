@@ -73,6 +73,7 @@ struct flac {
 };
 
 static struct flac *f;
+static u8_t flac_container = '?';
 
 extern log_level loglevel;
 
@@ -232,25 +233,35 @@ static void error_cb(const FLAC__StreamDecoder *decoder, FLAC__StreamDecoderErro
 	LOG_INFO("flac error: %s", FLAC_A(f, StreamDecoderErrorStatusString)[status]);
 }
 
+static void flac_close(void) {
+	if (f->decoder) {
+		FLAC(f, stream_decoder_delete, f->decoder);
+	}
+
+	f->decoder = NULL;
+}
+
 static void flac_open(u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t endianness) {
+	/* sample_size identifies container type: '?' (flac), 'o' (ogg/flac) */
+	if ( flac_container != sample_size ) {
+		flac_container = sample_size;
+		flac_close();
+	}
+		
 	if (f->decoder) {
 		FLAC(f, stream_decoder_reset, f->decoder);
 	} else {
 		f->decoder = FLAC(f, stream_decoder_new);
 	}
 
-	if ( sample_size == 'o' ) {
+	if ( flac_container == 'o' ) {
 		LOG_DEBUG("ogg/flac container - using init_ogg_stream");
 		FLAC(f, stream_decoder_init_ogg_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
 	}
 	else {
+		LOG_DEBUG("flac container - using init_stream");
 		FLAC(f, stream_decoder_init_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
 	}
-}
-
-static void flac_close(void) {
-	FLAC(f, stream_decoder_delete, f->decoder);
-	f->decoder = NULL;
 }
 
 static decode_state flac_decode(void) {

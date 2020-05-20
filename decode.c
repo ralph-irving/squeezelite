@@ -34,7 +34,6 @@ extern struct processstate process;
 struct decodestate decode;
 struct codec *codecs[MAX_CODECS];
 struct codec *codec;
-static u8_t flac_container = '?';
 static bool running = true;
 
 #define LOCK_S   mutex_lock(streambuf->mutex)
@@ -278,16 +277,12 @@ void codec_open(u8_t format, u8_t sample_size, u8_t sample_rate, u8_t channels, 
 
 		if (codecs[i] && codecs[i]->id == format) {
 
-			// close codec if format or flac container changed
-			if (codec && (codec != codecs[i] || (codecs[i]->id == 'f' && (flac_container != sample_size)))) {
+			if (codec && codec != codecs[i]) {
 				LOG_INFO("closing codec: '%c'", codec->id);
 				codec->close();
 			}
 			
 			codec = codecs[i];
-			if ( codec->id == 'f' ) {
-				flac_container = sample_size;
-			}
 			
 			codec->open(sample_size, sample_rate, channels, endianness);
 
