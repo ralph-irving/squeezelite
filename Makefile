@@ -18,6 +18,8 @@ OPT_NO_FAAD = -DNO_FAAD
 OPT_SSL	    = -DUSE_SSL
 OPT_NOSSLSYM= -DNO_SSLSYM
 OPT_OPUS    = -DOPUS
+OPT_PORTAUDIO = -DPORTAUDIO
+OPT_PULSEAUDIO = -DPULSEAUDIO
 
 SOURCES = \
 	main.c slimproto.c buffer.c stream.c utils.c \
@@ -36,7 +38,10 @@ SOURCES_FAAD     = faad.c
 SOURCES_SSL      = sslsym.c
 SOURCES_OPUS     = opus.c
 
-LINK_LINUX       = -lasound -ldl
+LINK_LINUX       = -ldl
+LINK_ALSA        = -lasound
+LINK_PORTAUDIO   = -lportaudio
+LINK_PULSEAUDIO  = -lpulse
 LINK_SSL         = -lssl -lcrypto
 LINK_ALAC        = -lalac
 
@@ -114,6 +119,13 @@ ifeq (,$(findstring $(OPT_NO_FAAD), $(OPTS)))
 endif	
 ifneq (,$(findstring $(OPT_SSL), $(OPTS)))
 	LDADD += $(LINK_SSL)
+endif
+ifneq (,$(findstring $(OPT_PULSEAUDIO), $(OPTS)))
+	LDADD += $(LINK_PULSEAUDIO)
+else ifneq (,$(findstring $(OPT_PORTAUDIO), $(OPTS)))
+	LDADD += $(LINK_PORTAUDIO)
+else
+	LDADD += $(LINK_ALSA)
 endif
 else
 # if not LINKALL and linux add LINK_LINUX
