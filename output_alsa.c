@@ -717,6 +717,7 @@ static void *output_thread(void *arg) {
 			LOG_INFO("XRUN");
 			if ((err = snd_pcm_recover(pcmp, -EPIPE, 1)) < 0) {
 				LOG_INFO("XRUN recover failed: %s", snd_strerror(err));
+				usleep(10000);
 			}
 			start = true;
 			continue;
