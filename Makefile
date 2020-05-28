@@ -120,13 +120,6 @@ endif
 ifneq (,$(findstring $(OPT_SSL), $(OPTS)))
 	LDADD += $(LINK_SSL)
 endif
-ifneq (,$(findstring $(OPT_PULSEAUDIO), $(OPTS)))
-	LDADD += $(LINK_PULSEAUDIO)
-else ifneq (,$(findstring $(OPT_PORTAUDIO), $(OPTS)))
-	LDADD += $(LINK_PORTAUDIO)
-else
-	LDADD += $(LINK_ALSA)
-endif
 else
 # if not LINKALL and linux add LINK_LINUX
 ifeq ($(UNAME), Linux)
@@ -135,6 +128,14 @@ endif
 ifneq (,$(findstring $(OPT_NOSSLSYM), $(OPTS)))
 	LDADD += $(LINK_SSL)
 endif
+endif
+
+ifneq (,$(findstring $(OPT_PULSEAUDIO), $(OPTS)))
+	LDADD += $(LINK_PULSEAUDIO)
+else ifneq (,$(findstring $(OPT_PORTAUDIO), $(OPTS)))
+	LDADD += $(LINK_PORTAUDIO)
+else
+	LDADD += $(LINK_ALSA)
 endif
 
 ifneq (,$(findstring $(OPT_ALAC), $(OPTS)))
