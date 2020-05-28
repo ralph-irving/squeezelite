@@ -333,6 +333,7 @@ static decode_state alac_decode(void) {
 			LOCK_O;
 
 			output.next_sample_rate = decode_newstream(l->sample_rate, output.supported_rates);
+			IF_DSD( output.next_fmt = PCM; )
 			output.track_start = outputbuf->writep;
 			if (output.fade_mode) _checkfade(true);
 			decode.new_stream = false;
@@ -359,7 +360,7 @@ static decode_state alac_decode(void) {
 		return DECODE_COMPLETE;
 	}
 
-	// enough data for coding
+	// is there enough data for decoding
 	if (bytes < block_size) {
 		UNLOCK_S;
 		return DECODE_RUNNING;
