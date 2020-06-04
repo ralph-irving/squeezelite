@@ -21,6 +21,7 @@
  */
 
 #include "squeezelite.h"
+#if OPUS
 
 /* 
 *  with some low-end CPU, the decode call takes a fair bit of time and if the outputbuf is locked during that
@@ -320,4 +321,5 @@ struct codec *register_opus(void) {
 	LOG_INFO("using opus to decode ops");
 	return &ret;
 }
+#endif /* OPUS */
 
