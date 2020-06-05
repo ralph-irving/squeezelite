@@ -19,7 +19,7 @@
  *
  */
 
-// Export audio samples for visualiser process (16 bit only best endevours)
+// Export audio samples for visualizer process (16 bit only best endevours)
 
 #include "squeezelite.h"
 
