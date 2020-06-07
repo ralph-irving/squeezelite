@@ -204,7 +204,7 @@ static decode_state pcm_decode(void) {
 		out = process.max_in_frames;
 	);
 
-	if ((stream.state <= DISCONNECT && bytes == 0) || (limit && audio_left == 0)) {
+	if ((stream.state <= DISCONNECT && bytes < bytes_per_frame) || (limit && audio_left == 0)) {
 		UNLOCK_O_direct;
 		UNLOCK_S;
 		return DECODE_COMPLETE;
