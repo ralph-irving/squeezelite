@@ -127,7 +127,7 @@ static void usage(const char *argv0) {
 #endif
 #endif
 #if VISEXPORT
-		   "  -v \t\t\tVisualiser support\n"
+		   "  -v \t\t\tVisualizer support\n"
 #endif
 # if ALSA
 		   "  -O <mixer device>\tSpecify mixer device, defaults to 'output device'\n"
