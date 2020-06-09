@@ -110,8 +110,8 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalIncludeDirectories="include"
-				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;RESAMPLE;DSD;USE_SSL"
+				AdditionalIncludeDirectories="&quot;include-dll\opus&quot;;&quot;include-dll&quot;"
+				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;RESAMPLE;OPUS;DSD;USE_SSL;NO_SSLSYM"
 				RuntimeLibrary="2"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
@@ -129,7 +129,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="ws2_32.lib lib\portaudio.lib lib\ssleay32.lib lib\libeay32.lib"
+				AdditionalDependencies="ws2_32.lib lib-dll\portaudio.lib lib-dll\ssleay32.lib lib-dll\libeay32.lib lib-dll\opus.lib lib-dll\opusfile.lib"
 				OutputFile="$(OutDir)\$(ProjectName).exe"
 				LinkIncremental="1"
 				ModuleDefinitionFile=""
@@ -316,6 +316,10 @@
 			</File>
 			<File
 				RelativePath=".\mpg.c"
+				>
+			</File>
+			<File
+				RelativePath=".\opus.c"
 				>
 			</File>
 			<File
