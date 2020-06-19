@@ -94,6 +94,56 @@ void _buf_resize(struct buffer *buf, size_t size) {
 	buf->base_size = size;
 }
 
+void _buf_unwrap(struct buffer *buf, size_t cont) {
+	ssize_t len, by = cont - (buf->wrap - buf->readp);
+	size_t size;
+	u8_t *scratch;
+
+	// do nothing if we have enough space
+	if (by <= 0 || cont >= buf->size) return;
+
+	// buffer already unwrapped, just move it up
+	if (buf->writep >= buf->readp) {
+		memmove(buf->readp - by, buf->readp, buf->writep - buf->readp);
+		buf->readp -= by;
+		buf->writep -= by;
+		return;
+	 }
+
+	// how much is overlapping
+	size = by - (buf->readp - buf->writep);
+	len = buf->writep - buf->buf;
+
+	// buffer is wrapped and enough free space to move data up directly
+	if (size <= 0) {
+		memmove(buf->readp - by, buf->readp, buf->wrap - buf->readp);
+		buf->readp -= by;
+		memcpy(buf->wrap - by, buf->buf, min(len, by));
+		if (len > by) {
+			memmove(buf->buf, buf->buf + by, len - by);
+			buf->writep -= by;
+		} else buf->writep += buf->size - by;
+		return;
+	}
+
+	scratch = malloc(size);
+
+	// buffer is wrapped but not enough free room => use scratch zone
+	if (scratch) {
+		memcpy(scratch, buf->writep - size, size);
+		memmove(buf->readp - by, buf->readp, buf->wrap - buf->readp);
+		buf->readp -= by;
+		memcpy(buf->wrap - by, buf->buf, by);
+		memmove(buf->buf, buf->buf + by, len - by - size);
+		buf->writep -= by;
+		memcpy(buf->writep - size, scratch, size);
+		free(scratch);
+	} else {
+		_buf_unwrap(buf, cont / 2);
+        _buf_unwrap(buf, cont - cont / 2);
+	}
+}
+
 void buf_init(struct buffer *buf, size_t size) {
 	buf->buf    = malloc(size);
 	buf->readp  = buf->buf;

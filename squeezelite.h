@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "7"
-#define MICRO_VERSION "1256"
+#define MICRO_VERSION "1259"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -506,6 +506,7 @@ unsigned _buf_cont_write(struct buffer *buf);
 void _buf_inc_readp(struct buffer *buf, unsigned by);
 void _buf_inc_writep(struct buffer *buf, unsigned by);
 void buf_flush(struct buffer *buf);
+void _buf_unwrap(struct buffer *buf, size_t cont);
 void buf_adjust(struct buffer *buf, size_t mod);
 void _buf_resize(struct buffer *buf, size_t size);
 void buf_init(struct buffer *buf, size_t size);
