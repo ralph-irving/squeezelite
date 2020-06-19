@@ -309,7 +309,13 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 			a->pos += bytes;
 			a->consume = consume - bytes;
 			break;
+		} else if (len > streambuf->size) {
+			// can't process an atom larger than streambuf!
+			LOG_ERROR("atom %s too large for buffer %u %u", type, len, streambuf->size);
+			return -1;
 		} else {
+			// make sure there is 'len' contiguous space
+			_buf_unwrap(streambuf, len);
 			break;
 		}
 	}
