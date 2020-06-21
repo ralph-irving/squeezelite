@@ -1,0 +1,127 @@
+############################
+## KEY_POWER (0x768940bf) ##
+############################
+
+begin
+	remote = Slim_Devices_Squeezebox3
+	button = KEY_POWER
+	repeat = 0
+	prog = squeezelite
+	config = power
+end
+
+#################################
+## KEY_VOLUMEDOWN (0x768900ff) ##
+#################################
+
+begin
+	remote = Slim_Devices_Squeezebox3
+	button = KEY_VOLUMEDOWN
+	repeat = 0
+	prog = squeezelite
+	config = voldown
+end
+
+###############################
+## KEY_VOLUMEUP (0x7689807f) ##
+###############################
+
+begin
+	remote = Slim_Devices_Squeezebox3
+	button = KEY_VOLUMEUP
+	repeat = 0
+	prog = squeezelite
+	config = volup
+end
+
+###########################
+## KEY_MUTE (0x7689c43b) ##
+###########################
+
+begin
+        remote = Slim_Devices_Squeezebox3
+        button = Brightness
+        repeat = 0
+        prog = squeezelite
+        config = muting
+end
+
+###########################
+## KEY_PLAY (0x768910ef) ##
+###########################
+
+begin
+	remote = Slim_Devices_Squeezebox3
+	button = KEY_PLAY
+	repeat = 0
+	prog = squeezelite
+	config = play
+end
+
+############################
+## KEY_PAUSE (0x768920df) ##
+############################
+
+begin
+	remote = Slim_Devices_Squeezebox3
+	button = KEY_PAUSE
+	repeat = 0
+	prog = squeezelite
+	config = pause
+end
+
+###########################
+## KEY_NEXT (0x7689a05f) ##
+###########################
+
+begin
+	remote = Slim_Devices_Squeezebox3
+	button = KEY_FORWARD
+	repeat = 0
+	prog = squeezelite
+	config = fwd
+end
+
+###############################
+## KEY_PREVIOUS (0x7689c03f) ##
+###############################
+
+begin
+	remote = Slim_Devices_Squeezebox3
+	button = KEY_REWIND
+	repeat = 0
+	prog = squeezelite
+	config = rew
+end
+
+###########################
+## power_on (0x76898f70) ##
+###########################
+
+############################
+## power_off (0x76898778) ##
+############################
+
+###########################
+## preset_1 (0x76898a75) ##
+###########################
+
+###########################
+## preset_2 (0x76894ab5) ##
+###########################
+
+###########################
+## preset_3 (0x7689ca35) ##
+###########################
+
+###########################
+## preset_4 (0x76892ad5) ##
+###########################
+
+###########################
+## preset_5 (0x7689aa55) ##
+###########################
+
+###########################
+## preset_6 (0x76896a95) ##
+###########################
