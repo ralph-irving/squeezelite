@@ -538,20 +538,20 @@ struct codec *register_alac(void) {
 	static struct codec ret = {
 		'l',            // id
 		"alc",          // types
-		MIN_READ,	    // min read
-		MIN_SPACE,	 	// min space assuming a ratio of 2
+		MIN_READ,	// min read
+		MIN_SPACE,	// min space assuming a ratio of 2
 		alac_open,      // open
 		alac_close,     // close
 		alac_decode,    // decode
 	};
-	
+
 	l =  malloc(sizeof(struct alac));
 	if (!l) {
 		return NULL;
 	}	
-	
+
 	l->decoder = l->chunkinfo = l->stsc = l->block_size = NULL;
-	
+
 	LOG_INFO("using alac to decode alc");
 	return &ret;
 }
