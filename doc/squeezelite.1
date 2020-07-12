@@ -4,7 +4,7 @@
 .\" First parameter, NAME, should be all caps
 .\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
 .\" other parameters are allowed: see man(7), man(1)
-.TH SQUEEZELITE 1 "2018-05-23" "Debian Project"
+.TH SQUEEZELITE 1 "2020-06-30" "Debian Project"
 .\" Please adjust this date whenever revising the manpage.
 .\"
 .\" Some roff macros, for reference:
@@ -59,8 +59,10 @@ playback.
 .TP
 .B \-a <params>
 Specify parameters used when opening an audio output device.
+.PP
+.RS
 For ALSA, the format
-.B <b>:<p>:<f>:<m>
+.B <b>:<p>:<f>:<m>:<d>
 is used where
 .B <b>
 is the buffer time in milliseconds (values less than 500) or size in bytes (default
@@ -74,10 +76,42 @@ is the sample format (possible values:
 .B <m>
 is whether to use mmap (possible values:
 .IR 0 " or " 1 ).
-For PortAudio, the value is simply the target latency in milliseconds. When the
-output is sent to standard output, the value can be
+.B <d>
+open ALSA output device twice. (possible values:
+.IR 0 " or " 1 ).
+.RE
+.RS
+.PP
+For Linux PortAudio, the value
+.B <l>
+is simply the target latency in milliseconds.
+.RE
+.RS
+.PP
+For MacOS,
+.B <l>:<r>
+.B <l>
+is target latency in milliseconds.
+.B <r>
+open device in Pro Mode or Play Nice (respective values:
+.IR 0 " or " 1 ).
+.RE
+.RS
+.PP
+For Windows,
+.B <l>:<e>
+.B <l>
+is target latency in milliseconds.
+.B <e>
+use exclusive mode for WASAPI (possible values:
+.IR 0 " or " 1 ).
+.RE
+.RS
+.PP
+When the output is sent to standard output, the value can be
 .IR 16 ", " 24 " or " 32 ,
-which denotes the sample size in bits.
+which denotes the sample size in bits. Little Endian only.
+.RE
 .TP
 .B \-b <stream>:<output>
 Specify internal stream and output buffer sizes in kilobytes. Default is 2048:3446.
