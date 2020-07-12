@@ -301,7 +301,7 @@ static void process_strm(u8_t *pkt, int len) {
 			output.pause_frames = interval * status.current_sample_rate / 1000;
 			if (interval) {
 				output.state = OUTPUT_PAUSE_FRAMES;
-			} else {
+			} else if (output.state != OUTPUT_OFF) {
 				output.state = OUTPUT_STOPPED;
 				output.stop_time = gettime_ms();
 			}
