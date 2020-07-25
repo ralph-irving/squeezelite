@@ -31,7 +31,7 @@
 *  thread has a higher priority. Using an interim buffer where opus decoder writes the output is not great from
 *  an efficiency (one extra memory copy) point of view, but it allows the lock to not be kept for too long
 */
-#define FRAME_BUF 2048
+#define FRAME_BUF 0
 
 #if BYTES_PER_FRAME == 4		
 #define ALIGN(n) 	(n)
@@ -192,14 +192,18 @@ static decode_state opus_decompress(void) {
 		count = frames * channels;
 
 		iptr = (s16_t *)write_buf + count;
-		optr = (ISAMPLE_T *) outputbuf->writep + frames * 2;
+#if FRAME_BUF
+		optr = (ISAMPLE_T *)outputbuf->writep + frames * 2;
+#else
+		optr = (ISAMPLE_T *)write_buf + frames * 2;
+#endif
 
 		if (channels == 2) {
 #if BYTES_PER_FRAME == 4
 			memcpy(outputbuf->writep, write_buf, frames * BYTES_PER_FRAME);
 #else
 			while (count--) {
-				*--optr = *--iptr << 16;
+				*--optr = ALIGN(*--iptr);
 			}
 #endif
 		} else if (channels == 1) {
@@ -312,8 +316,9 @@ struct codec *register_opus(void) {
 	}
 
 	u->of = NULL;
+#if FRAME_BUF
 	u->write_buf = NULL;
-
+#endif
 	if (!load_opus()) {
 		return NULL;
 	}
