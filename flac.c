@@ -252,7 +252,7 @@ static void flac_open(u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t en
 	}
 	
 	if ( f->container == 'o' ) {
-		LOG_DEBUG("ogg/flac container - using init_ogg_stream");
+		LOG_INFO("ogg/flac container - using init_ogg_stream");
 		FLAC(f, stream_decoder_init_ogg_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
 	} else {
 		FLAC(f, stream_decoder_init_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
