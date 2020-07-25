@@ -2,7 +2,7 @@
  *  Squeezelite - lightweight headless squeezebox emulator
  *
  *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
- *      Ralph Irving 2015-2017, ralph_irving@hotmail.com
+ *      Ralph Irving 2015-2020, ralph_irving@hotmail.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@
 *  thread has a higher priority. Using an interim buffer where vorbis decoder writes the output is not great from
 *  an efficiency (one extra memory copy) point of view, but it allows the lock to not be kept for too long
 */
-#define FRAME_BUF 2048
+#define FRAME_BUF 0
 
 #if BYTES_PER_FRAME == 4		
 #define ALIGN(n) 	(n)
@@ -238,14 +238,18 @@ static decode_state vorbis_decode(void) {
 		count = frames * channels;
 
 		iptr = (s16_t *)write_buf + count;
-		optr = (ISAMPLE_T *) outputbuf->writep + frames * 2;
+#if FRAME_BUF
+		optr = (ISAMPLE_T *)outputbuf->writep + frames * 2;
+#else
+		optr = (ISAMPLE_T *)write_buf + frames * 2;
+#endif
 
 		if (channels == 2) {
 #if BYTES_PER_FRAME == 4
 			memcpy(outputbuf->writep, write_buf, frames * BYTES_PER_FRAME);
 #else
 			while (count--) {
-				*--optr = *--iptr << 16;
+				*--optr = ALIGN(*--iptr);
 			}
 #endif
 		} else if (channels == 1) {
