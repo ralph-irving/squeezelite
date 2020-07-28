@@ -31,7 +31,9 @@
 *  thread has a higher priority. Using an interim buffer where opus decoder writes the output is not great from
 *  an efficiency (one extra memory copy) point of view, but it allows the lock to not be kept for too long
 */
-#define FRAME_BUF 0
+#if EMBEDDED
+#define FRAME_BUF 2048
+#endif
 
 #if BYTES_PER_FRAME == 4		
 #define ALIGN(n) 	(n)
@@ -152,16 +154,14 @@ static decode_state opus_decompress(void) {
 		LOG_INFO("setting track_start");
 	}
 
-#if !FRAME_BUF
-	LOCK_O_direct;
-#endif
-
 #if FRAME_BUF
 	IF_DIRECT(
 		frames = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
+		frames = min(frames, FRAME_BUF);
 		write_buf = u->write_buf;
 	);
 #else
+	LOCK_O_direct;
 	IF_DIRECT(
 		frames = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
 		write_buf = outputbuf->writep;
@@ -172,10 +172,6 @@ static decode_state opus_decompress(void) {
 		write_buf = process.inbuf;
 	);
 
-#if FRAME_BUF
-	frames = min(frames, FRAME_BUF);
-#endif
-	
 	// write the decoded frames into outputbuf then unpack them (they are 16 bits)
 	n = OP(u, read, u->of, (opus_int16*) write_buf, frames * channels, NULL);
 			
@@ -191,16 +187,18 @@ static decode_state opus_decompress(void) {
 		frames = n;
 		count = frames * channels;
 
-		iptr = (s16_t *)write_buf + count;
-#if FRAME_BUF
-		optr = (ISAMPLE_T *)outputbuf->writep + frames * 2;
-#else
-		optr = (ISAMPLE_T *)write_buf + frames * 2;
-#endif
-
+		// work backward to unpack samples (if needed)
+		iptr = (s16_t *) write_buf + count;
+		optr = (ISAMPLE_T *) write_buf + frames * 2;
+		
 		if (channels == 2) {
 #if BYTES_PER_FRAME == 4
-			memcpy(outputbuf->writep, write_buf, frames * BYTES_PER_FRAME);
+#if FRAME_BUF
+			// copy needed only when DIRECT and FRAME_BUF
+			IF_DIRECT(
+				memcpy(outputbuf->writep, write_buf, frames * BYTES_PER_FRAME);
+			)	
+#endif			
 #else
 			while (count--) {
 				*--optr = ALIGN(*--iptr);
@@ -303,8 +301,8 @@ struct codec *register_opus(void) {
 	static struct codec ret = {
 		'u',          // id
 		"ops",        // types
-		4096,         // min read
-		20480,        // min space
+		4*1024,       // min read
+		32*1024,       // min space
 		opus_open, 	  // open
 		opus_close,   // close
 		opus_decompress,  // decode
