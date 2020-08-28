@@ -243,6 +243,8 @@ static decode_state mad_decode(void) {
 		MAD(m, synth_frame, &m->synth, &m->frame);
 
 		if (decode.new_stream) {
+			// seems that mad can use some help in term of sync detection
+			if (m->stream.next_frame[0] != 0xff || (m->stream.next_frame[1] & 0xf0) != 0xf0) continue;
 			LOCK_O;
 			LOG_INFO("setting track_start");
 			output.next_sample_rate = decode_newstream(m->synth.pcm.samplerate, output.supported_rates);
