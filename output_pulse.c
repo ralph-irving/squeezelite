@@ -129,7 +129,7 @@ static bool pulse_connection_init(pulse_connection *conn) {
 	pa_mainloop_api *api = pa_mainloop_get_api(conn->loop);
 	pa_proplist *proplist = pa_proplist_new();
 	pa_proplist_sets(proplist, PA_PROP_APPLICATION_VERSION, VERSION);
-	conn->ctx = pa_context_new_with_proplist(api, "squeezelite", proplist);
+	conn->ctx = pa_context_new_with_proplist(api, MODEL_NAME_STRING, proplist);
 	pa_proplist_free(proplist);
 
 	conn->readiness = readiness_unknown;
@@ -212,7 +212,7 @@ static bool pulse_stream_create(struct pulse *p) {
 	pa_proplist_sets(proplist, PA_PROP_MEDIA_ROLE, "music");
 	pa_proplist_sets(proplist, PA_PROP_MEDIA_SOFTWARE, "Logitech Media Server");
 
-	p->stream = pa_stream_new_with_proplist(pulse_connection_get_context(&p->conn), "squeezelite", &p->sample_spec, (const pa_channel_map *)NULL, proplist);
+	p->stream = pa_stream_new_with_proplist(pulse_connection_get_context(&p->conn), "Logitech Media Server stream", &p->sample_spec, (const pa_channel_map *)NULL, proplist);
 	pa_proplist_free(proplist);
 	if (p->stream == NULL)
 		return false;
