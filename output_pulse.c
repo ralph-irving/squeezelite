@@ -127,7 +127,11 @@ static bool pulse_connection_init(pulse_connection *conn) {
 	
 	conn->loop = pa_mainloop_new();
 	pa_mainloop_api *api = pa_mainloop_get_api(conn->loop);
-	conn->ctx = pa_context_new(api, "squeezelite");
+	pa_proplist *proplist = pa_proplist_new();
+	pa_proplist_sets(proplist, PA_PROP_APPLICATION_VERSION, VERSION);
+	conn->ctx = pa_context_new_with_proplist(api, MODEL_NAME_STRING, proplist);
+	pa_proplist_free(proplist);
+
 	conn->readiness = readiness_unknown;
 
 	bool connected = false;
@@ -200,15 +204,16 @@ static void pulse_stream_success_noop_cb(pa_stream *s, int success, void *userda
 }
 
 static bool pulse_stream_create(struct pulse *p) {
-	char name[500];
-	int c = snprintf(name, sizeof(name) - 1, "squeezelite (%s)", "<playername>");
-	name[c] = '\0';
-
 	p->sample_spec.rate = output.current_sample_rate;
 	p->sample_spec.format = PA_SAMPLE_S32LE; // SqueezeLite internally always uses this format, let PulseAudio deal with eventual resampling.
 	p->sample_spec.channels = 2;
 
-	p->stream = pa_stream_new(pulse_connection_get_context(&p->conn), name, &p->sample_spec, (const pa_channel_map *)NULL);
+	pa_proplist *proplist = pa_proplist_new();
+	pa_proplist_sets(proplist, PA_PROP_MEDIA_ROLE, "music");
+	pa_proplist_sets(proplist, PA_PROP_MEDIA_SOFTWARE, "Logitech Media Server");
+
+	p->stream = pa_stream_new_with_proplist(pulse_connection_get_context(&p->conn), "Logitech Media Server stream", &p->sample_spec, (const pa_channel_map *)NULL, proplist);
+	pa_proplist_free(proplist);
 	if (p->stream == NULL)
 		return false;
 
