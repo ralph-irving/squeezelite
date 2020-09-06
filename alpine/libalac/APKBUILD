@@ -1,0 +1,49 @@
+# Maintainer: Ralph Irving <ralph.irving@gmail.com>
+pkgname=libalac
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Apple Lossless Audio Codec (ALAC) library"
+url="https://github.com/TimothyGu/alac"
+arch="all"
+subpackages="$pkgname-doc $pkgname-dev"
+license="Apache 2.0"
+makedepends="git autoconf automake make tar"
+source="fix-arm-segfault.patch \
+	alac-version.patch"
+
+prepare() {
+	cd "$builddir/../"
+
+	git clone $url $pkgname-$pkgver
+
+	cd $pkgname-$pkgver
+
+	for patchfile in $source; do
+		patch -p1 -i ../$patchfile
+	done
+}
+
+build() {
+	cd "$builddir"
+	autoreconf -if 
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+		
+	make -j1
+}
+
+check() {
+	cd "$builddir"
+	make check
+}
+
+package() {
+	cd "$builddir"
+	make DESTDIR="$pkgdir" install
+	install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/COPYING	
+}
+
+sha512sums="e72b13714476170108844b84c0043dc06d2ff2e8c9b651a7ad1571d148fc5567aca48048646d16fb82630d6972a31b9328f04e522972b297d1cf8e804785867f  fix-arm-segfault.patch
+093379f79b5dc9f5b8aa45826d61738b088d78305a7d514df33851ae34d02ee9034a8ecddf2558fcb1bf4daaf64c620ea4411521908cfc748e31fd0a2d50bbf7  alac-version.patch"

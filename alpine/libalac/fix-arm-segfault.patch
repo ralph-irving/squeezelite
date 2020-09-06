@@ -1,0 +1,13 @@
+diff --git a/codec/EndianPortable.c b/codec/EndianPortable.c
+index 5a7d5b8..01a113f 100644
+--- a/codec/EndianPortable.c
++++ b/codec/EndianPortable.c
+@@ -42,6 +42,8 @@
+ #define TARGET_RT_LITTLE_ENDIAN 1
+ #endif
+ 
++#define TARGET_RT_LITTLE_ENDIAN 1
++
+ uint16_t Swap16NtoB(uint16_t inUInt16)
+ {
+ #if TARGET_RT_LITTLE_ENDIAN

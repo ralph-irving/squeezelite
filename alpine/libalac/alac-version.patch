@@ -1,0 +1,11 @@
+--- libalac-1.0.0/configure.ac.orig	2020-09-06 10:55:00.450562777 -0400
++++ libalac-1.0.0/configure.ac	2020-09-06 10:56:39.308930134 -0400
+@@ -14,7 +14,7 @@
+ dnl See the License for the specific language governing permissions and
+ dnl limitations under the License.
+ 
+-AC_INIT([alac], [0.0r4+tg1], [nobody])
++AC_INIT([alac], [1.0.0], [nobody])
+ AC_CONFIG_AUX_DIR(.)
+ AC_CONFIG_MACRO_DIR([m4])
+ AM_INIT_AUTOMAKE([tar-ustar foreign])
