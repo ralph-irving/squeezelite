@@ -507,7 +507,6 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	}
 
 #if USE_SSL
-	if (ntohs(port) == 443) {
 		char *server = strcasestr(header, "Host:");
 
 		ssl = SSL_new(SSLctx);
@@ -557,9 +556,6 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 			}
 			break;
 		}
-	} else {
-		ssl = NULL;
-	}
 #endif
 
 	buf_flush(streambuf);
