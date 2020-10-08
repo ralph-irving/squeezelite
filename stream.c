@@ -535,7 +535,10 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 			// error or non-blocking requires more time
 			if (status < 0) {
 				err = SSL_get_error(ssl, status);
-				if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) continue;
+				if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+					usleep(1000);
+					continue;
+				}
 			}
 
 			LOG_WARN("unable to open SSL socket %d (%d)", status, err);
