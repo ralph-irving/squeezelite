@@ -130,7 +130,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalOptions="/NODEFAULTLIB:LIBCMT"
-				AdditionalDependencies="ws2_32.lib lib\portaudio.lib lib\libogg.lib lib\libvorbisfile.lib lib\libvorbis.lib lib\libmad.lib lib\libFLAC.lib lib\libfaad.lib lib\libmpg123.lib lib\libsoxr.lib lib\libalac.lib lib\ssleay32.lib lib\libeay32.lib lib\opus.lib lib\opusfile.lib"
+				AdditionalDependencies="ws2_32.lib crypt32.lib lib\portaudio.lib lib\libogg.lib lib\libvorbisfile.lib lib\libvorbis.lib lib\libmad.lib lib\libFLAC.lib lib\libfaad.lib lib\libmpg123.lib lib\libsoxr.lib lib\libalac.lib lib\ssleay32.lib lib\libeay32.lib lib\opus.lib lib\opusfile.lib"
 				OutputFile="$(OutDir)\$(ProjectName).exe"
 				LinkIncremental="1"
 				ModuleDefinitionFile=""
