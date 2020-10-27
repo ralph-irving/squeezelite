@@ -148,7 +148,7 @@ static void _disconnect(stream_state state, disconnect_code disconnect) {
 }
 
 static int connect_socket(bool use_ssl) {
-   	int sock = socket(AF_INET, SOCK_STREAM, 0);
+	int sock = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (sock < 0) {
 		LOG_ERROR("failed to create socket");
@@ -167,9 +167,9 @@ static int connect_socket(bool use_ssl) {
 	}
     
 #if USE_SSL
-    if (use_ssl) {
-        ssl = SSL_new(SSLctx);
-        SSL_set_fd(ssl, sock);
+	if (use_ssl) {
+		ssl = SSL_new(SSLctx);
+		SSL_set_fd(ssl, sock);
 
 		// add SNI
 		if (*server) SSL_set_tlsext_host_name(ssl, server);
@@ -202,7 +202,7 @@ static int connect_socket(bool use_ssl) {
     }        
 #endif
 
-    return sock;
+	return sock;
 }
 
 static void *stream_thread() {
@@ -265,7 +265,7 @@ static void *stream_thread() {
 
 			if ((pollinfo.revents & POLLOUT) && stream.state == SEND_HEADERS) {
 				if (send_header()) stream.state = RECV_HEADERS;
-                header_mlen = stream.header_len;
+				header_mlen = stream.header_len;
 				stream.header_len = 0;
 				UNLOCK;
 				continue;
@@ -293,16 +293,16 @@ static void *stream_thread() {
 							stream.header_len = header_mlen;
 							LOG_INFO("now attempting with SSL");
                         
-                            // must be performed locked to avoid slimproto conflict        
-                        	int sock = connect_socket(true);
+							// must be performed locked to avoid slimproto conflict        
+							int sock = connect_socket(true);
 						
 							if (sock >= 0) {
-                                fd = sock;
-                                stream.state = SEND_HEADERS;
-                                UNLOCK;
-                                continue;
+								fd = sock;
+								stream.state = SEND_HEADERS;
+								UNLOCK;
+								continue;
 							}
-                        }    
+						}    
 #endif
                         _disconnect(STOPPED, LOCAL_DISCONNECT);
                         UNLOCK;
@@ -551,18 +551,17 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	addr.sin_addr.s_addr = ip;
 	addr.sin_port = port;
     
-    // see how to remove leading spaces
 	*server = '\0';
-    char *p = strcasestr(header,"Host:");
+	char *p = strcasestr(header,"Host:");
 	if (p) sscanf(p, "Host:%255[^:]", server);
 
-    port = ntohs(port);
+	port = ntohs(port);
 	int sock = connect_socket(port == 443);
     
-    // try one more time with plain socket
-    if (sock < 0 && port == 443) sock = connect_socket(false);
+	// try one more time with plain socket
+	if (sock < 0 && port == 443) sock = connect_socket(false);
     
-    if (sock < 0) {
+	if (sock < 0) {
 		LOCK;
 		stream.state = DISCONNECT;
 		stream.disconnect = UNREACHABLE;
@@ -570,7 +569,7 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 		return;
 	}
     
-    buf_flush(streambuf);
+	buf_flush(streambuf);
 
 	LOCK;
 
