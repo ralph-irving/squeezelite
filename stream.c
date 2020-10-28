@@ -45,7 +45,7 @@ struct buffer *streambuf = &buf;
 
 static sockfd fd;
 static struct sockaddr_in addr;
-static char server[256];
+static char host[256];
 static int header_mlen;
 
 struct streamstate stream;
@@ -172,7 +172,7 @@ static int connect_socket(bool use_ssl) {
 		SSL_set_fd(ssl, sock);
 
 		// add SNI
-		if (*server) SSL_set_tlsext_host_name(ssl, server);
+		if (*host) SSL_set_tlsext_host_name(ssl, host);
 
 		while (1) {
 			int status, err = 0;
@@ -552,9 +552,9 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	addr.sin_addr.s_addr = ip;
 	addr.sin_port = port;
     
-	*server = '\0';
+	*host = '\0';
 	char *p = strcasestr(header,"Host:");
-	if (p) sscanf(p, "Host:%255[^:]", server);
+	if (p) sscanf(p, "Host:%255[^:]", host);
 
 	port = ntohs(port);
 	int sock = connect_socket(port == 443);
