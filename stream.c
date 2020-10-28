@@ -289,11 +289,12 @@ static void *stream_thread() {
 						LOG_INFO("error reading headers: %s", n ? strerror(last_error()) : "closed");
 #if USE_SSL
 						if (!ssl && !stream.header_len) {
+							closesocket(fd);
 						    fd = -1;
 							stream.header_len = header_mlen;
 							LOG_INFO("now attempting with SSL");
                         
-							// must be performed locked to avoid slimproto conflict        
+							// must be performed locked in case slimproto sends a disconnects
 							int sock = connect_socket(true);
 						
 							if (sock >= 0) {
