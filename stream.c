@@ -206,6 +206,7 @@ static int connect_socket(bool use_ssl) {
 }
 
 static void *stream_thread() {
+	int sock;
 
 	while (running) {
 
@@ -295,7 +296,7 @@ static void *stream_thread() {
 							LOG_INFO("now attempting with SSL");
 
 							// must be performed locked in case slimproto sends a disconnects
-							int sock = connect_socket(true);
+							sock = connect_socket(true);
 						
 							if (sock >= 0) {
 								fd = sock;
@@ -547,17 +548,20 @@ void stream_file(const char *header, size_t header_len, unsigned threshold) {
 }
 
 void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold, bool cont_wait) {
+	char *p;
+	int sock;
+
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = ip;
 	addr.sin_port = port;
 
 	*host = '\0';
-	char *p = strcasestr(header,"Host:");
+	p = strcasestr(header,"Host:");
 	if (p) sscanf(p, "Host:%255[^:]", host);
 
 	port = ntohs(port);
-	int sock = connect_socket(port == 443);
+	sock = connect_socket(port == 443);
 
 	// try one more time with plain socket
 	if (sock < 0 && port == 443) sock = connect_socket(false);
