@@ -77,6 +77,7 @@ ifneq (,$(findstring $(OPT_OPUS), $(OPTS)))
 endif
 ifneq (,$(findstring $(OPT_HDCD), $(OPTS)))
 	SOURCES += $(SOURCES_HDCD)
+	DEPS += hdcd/hdcd_decode.h
 endif
 ifneq (,$(findstring $(OPT_RESAMPLE), $(OPTS)))
 	SOURCES += $(SOURCES_RESAMPLE)
