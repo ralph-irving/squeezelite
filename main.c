@@ -118,6 +118,9 @@ static void usage(const char *argv0) {
 		   "  \t\t\t stopband_start = number in percent (Aliasing/imaging control. > passband_end),\n"
 		   "  \t\t\t phase_response = 0-100 (0 = minimum / 50 = linear / 100 = maximum)\n"
 #endif
+#if HDCD
+		   "  -H\t\t\t Enable HDCD decoding\n"
+#endif
 #if DSD
 #if ALSA
 		   "  -D [delay][:format]\tOutput device supports DSD, delay = optional delay switching between PCM and DSD in ms\n"
@@ -190,6 +193,9 @@ static void usage(const char *argv0) {
 #if RESAMPLE
 		   " RESAMPLE"
 #endif
+#endif
+#if HDCD
+		   " HDCD"
 #endif
 #if ALAC
 		   " ALAC"
@@ -311,6 +317,9 @@ int main(int argc, char **argv) {
 	unsigned dsd_delay = 0;
 	dsd_format dsd_outfmt = PCM;
 #endif
+#if HDCD
+	extern bool hdcd_enabled;
+#endif
 #if VISEXPORT
 	bool visexport = false;
 #endif
@@ -364,6 +373,9 @@ int main(int argc, char **argv) {
 #endif
 #if RESAMPLE
 						  "uR"
+#endif
+#if HDCD
+						  "H"
 #endif
 #if DSD
 						  "D"
@@ -553,6 +565,11 @@ int main(int argc, char **argv) {
 			break;
 		case 'Z':
 			maxSampleRate = atoi(optarg);
+			break;
+#endif
+#if HDCD
+		case 'H':
+			hdcd_enabled = true;
 			break;
 #endif
 #if DSD
