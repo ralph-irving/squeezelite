@@ -30,20 +30,34 @@
 
 extern log_level loglevel;
 
-static hdcd_state_stereo hdcd_ctx;
+bool hdcd_enabled = false;
+
+static hdcd_state_stereo *hdcd_ctx = NULL;
 
 void hdcd_samples(struct processstate *process) {
-	_hdcd_process_stereo(&hdcd_ctx,(ISAMPLE_T *)(process->inbuf), process->in_frames);
+	if(hdcd_ctx) 
+		_hdcd_process_stereo(hdcd_ctx,(ISAMPLE_T *)(process->inbuf), process->in_frames);
 }
 
 bool hdcd_newstream(struct processstate *process, unsigned raw_sample_rate, unsigned supported_rates[]) {
-	if(raw_sample_rate!=44100) return false;
-	LOG_INFO("hdcd - reset");
-	_hdcd_reset_stereo(&hdcd_ctx, raw_sample_rate, 16, 0, HDCD_FLAG_TGM_LOG_OFF);
+	if(raw_sample_rate != 44100 || !hdcd_enabled ) {
+		if(hdcd_ctx) free(hdcd_ctx);
+		hdcd_ctx = NULL;
+		return false;
+	}
+
+	hdcd_ctx = malloc(sizeof(hdcd_state_stereo));
+	if(hdcd_ctx == NULL) return false ;
+
+	_hdcd_reset_stereo(hdcd_ctx, raw_sample_rate, 16, 0, HDCD_FLAG_TGM_LOG_OFF);
 	return true;
 }
 
 void hdcd_flush(void) {
-	LOG_INFO("hdcd - flush %d",_hdcd_detected(&hdcd_ctx));
+	if(hdcd_ctx) {
+		LOG_INFO("%s",_hdcd_stats(hdcd_ctx));
+		free(hdcd_ctx);
+		hdcd_ctx = NULL;
+	}
 }
 #endif // #if HDCD
