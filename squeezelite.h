@@ -107,7 +107,7 @@
 #if defined(RESAMPLE) || defined(RESAMPLE_MP)
 #undef  RESAMPLE
 #define RESAMPLE  1 // resampling
-#define PROCESS   1 // any sample processing (only resampling at present)
+#define PROCESS   1 
 #else
 #define RESAMPLE  0
 #define PROCESS   0
@@ -117,6 +117,13 @@
 #define RESAMPLE_MP 1
 #else
 #define RESAMPLE_MP 0
+#endif
+
+#if defined(HDCD)
+#if defined(PROCESS)
+#undef PROCESS 
+#define PROCESS   1 
+#endif
 #endif
 
 #if defined(ALAC)
@@ -598,6 +605,15 @@ bool resample_drain(struct processstate *process);
 bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, unsigned supported_rates[]);
 void resample_flush(void);
 bool resample_init(char *opt);
+#endif
+
+#if HDCD
+// hdcd.c
+void hdcd_samples(struct processstate *process);
+bool hdcd_drain(struct processstate *process);
+bool hdcd_newstream(struct processstate *process, unsigned raw_sample_rate, unsigned supported_rates[]);
+void hdcd_flush(void);
+bool hdcd_init(char *opt);
 #endif
 
 // output.c output_alsa.c output_pa.c output_pack.c

@@ -787,10 +787,8 @@ int main(int argc, char **argv) {
 
 	decode_init(log_decode, include_codecs, exclude_codecs);
 
-#if RESAMPLE
-	if (resample) {
-		process_init(resample);
-	}
+#if PROCESS
+	process_init(resample);
 #endif
 
 #if IR

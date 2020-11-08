@@ -1,7 +1,7 @@
 #Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
-CFLAGS	?= -Wall -fPIC -O2
+CFLAGS	?= -Wall -fPIC -g
 CFLAGS	+= -fcommon
-LDADD	?= -lpthread -lm -lrt
+LDADD	?= -lpthread -lm -lrt -g
 EXECUTABLE ?= squeezelite
 
 # passing one or more of these in $(OPTS) enables optional feature inclusion
@@ -20,16 +20,20 @@ OPT_NOSSLSYM= -DNO_SSLSYM
 OPT_OPUS    = -DOPUS
 OPT_PORTAUDIO = -DPORTAUDIO
 OPT_PULSEAUDIO = -DPULSEAUDIO
+OPT_HDCD = -DHDCD
+
+OPTS=-DHDCD -DLINKALL
+LDFLAGS = -L /usr/local/lib
 
 SOURCES = \
-	main.c slimproto.c buffer.c stream.c utils.c \
+	main.c slimproto.c buffer.c stream.c utils.c process.c\
 	output.c output_alsa.c output_pa.c output_stdout.c output_pack.c output_pulse.c decode.c \
 	flac.c pcm.c mad.c vorbis.c mpg.c
 
 SOURCES_DSD      = dsd.c dop.c dsd2pcm/dsd2pcm.c
 SOURCES_FF       = ffmpeg.c
 SOURCES_ALAC     = alac.c alac_wrapper.cpp
-SOURCES_RESAMPLE = process.c resample.c
+SOURCES_RESAMPLE = resample.c
 SOURCES_VIS      = output_vis.c
 SOURCES_IR       = ir.c
 SOURCES_GPIO     = gpio.c
@@ -37,6 +41,7 @@ SOURCES_RPI      = minimal_gpio.c
 SOURCES_FAAD     = faad.c
 SOURCES_SSL      = sslsym.c
 SOURCES_OPUS     = opus.c
+SOURCES_HDCD     = hdcd.c hdcd/hdcd_decode.c 
 
 LINK_LINUX       = -ldl
 LINK_ALSA        = -lasound
@@ -69,6 +74,9 @@ ifneq (,$(findstring $(OPT_ALAC), $(OPTS)))
 endif
 ifneq (,$(findstring $(OPT_OPUS), $(OPTS)))
 	SOURCES += $(SOURCES_OPUS)
+endif
+ifneq (,$(findstring $(OPT_HDCD), $(OPTS)))
+	SOURCES += $(SOURCES_HDCD)
 endif
 ifneq (,$(findstring $(OPT_RESAMPLE), $(OPTS)))
 	SOURCES += $(SOURCES_RESAMPLE)

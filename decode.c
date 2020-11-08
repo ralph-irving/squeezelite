@@ -250,6 +250,7 @@ unsigned decode_newstream(unsigned sample_rate, unsigned supported_rates[]) {
 	MAY_PROCESS(
 		if (decode.process) {
 			UNLOCK_O;
+			LOG_INFO("newstream");
 			sample_rate = process_newstream(&decode.direct, sample_rate, supported_rates);
 			LOCK_O;
 		}
