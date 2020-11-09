@@ -101,6 +101,7 @@ typedef struct {
 /* stereo versions */
 void _hdcd_reset_stereo(hdcd_state_stereo *state, unsigned rate, unsigned bits, int sustain_period_ms, int flags);
 void _hdcd_process_stereo(hdcd_state_stereo *state, int *samples, int count);
+int _hdcd_detected(hdcd_state_stereo *state);
 char *_hdcd_stats(hdcd_state_stereo *state);
 
 #endif

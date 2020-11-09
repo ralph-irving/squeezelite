@@ -392,18 +392,24 @@ void _hdcd_process_stereo(hdcd_state_stereo *state, int32_t *samples, int count)
 
 }
 
+int _hdcd_detected(hdcd_state_stereo *state)
+{
+  if(
+	state->channel[0].code_counterB || state->channel[0].code_counterA || state->channel[0].code_counterA_almost ||
+	state->channel[1].code_counterB || state->channel[1].code_counterA || state->channel[1].code_counterA_almost 
+  	)
+	return 1 ; 
+
+  return 0;
+}
+
 char *_hdcd_stats(hdcd_state_stereo *state)
 {
   static char str[256];
-  if(
-	state->channel[0].code_counterA_almost || state->channel[0].code_counterA || state->channel[0].code_counterB ||
-	state->channel[1].code_counterA_almost || state->channel[1].code_counterA || state->channel[1].code_counterB ) {
-		sprintf(str,"HDCD Detected Code A:%d/B:%d PE:%d Transient Filter:%d Max gain:%g",
+  sprintf(str,"HDCD Code A:%d/B:%d PE:%d Transient Filter:%d Max gain:%g",
 		state->channel[0].code_counterA ,state->channel[0].code_counterB,
 		state->channel[0].count_peak_extend, state->channel[0].count_transient_filter, GAINTOFLOAT(state->channel[0].max_gain)
 	);
-        } else
-		sprintf(str,"HDCD not detected");
   return str;
 }
 
