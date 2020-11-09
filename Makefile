@@ -1,7 +1,7 @@
 #Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
-CFLAGS	?= -Wall -fPIC -g
+CFLAGS	?= -Wall -fPIC -O2
 CFLAGS	+= -fcommon
-LDADD	?= -lpthread -lm -lrt -g
+LDADD	?= -lpthread -lm -lrt 
 EXECUTABLE ?= squeezelite
 
 # passing one or more of these in $(OPTS) enables optional feature inclusion
