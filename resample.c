@@ -67,15 +67,18 @@ static struct soxr *r;
 #endif
 
 
-void resample_samples(struct processstate *process) {
+bool resample_samples(struct processstate *process) {
 	size_t idone, odone;
 	size_t clip_cnt;
-	
+
+	if(r->resampler == NULL) 
+		return false;	
+
 	soxr_error_t error =
 		SOXR(r, process, r->resampler, process->inbuf, process->in_frames, &idone, process->outbuf, process->max_out_frames, &odone);
 	if (error) {
 		LOG_INFO("soxr_process error: %s", soxr_strerror(error));
-		return;
+		return false;
 	}
 	
 	if (idone != process->in_frames) {
@@ -93,12 +96,17 @@ void resample_samples(struct processstate *process) {
 		LOG_SDEBUG("resampling clips: %u", (unsigned)(clip_cnt - r->old_clips));
 		r->old_clips = clip_cnt;
 	}
+
+	return true;
 }
 
 bool resample_drain(struct processstate *process) {
 	size_t odone;
 	size_t clip_cnt;
 		
+	if(r->resampler == NULL) 
+		return true;	
+
 	soxr_error_t error = SOXR(r, process, r->resampler, NULL, 0, NULL, process->outbuf, process->max_out_frames, &odone);
 	if (error) {
 		LOG_INFO("soxr_process error: %s", soxr_strerror(error));

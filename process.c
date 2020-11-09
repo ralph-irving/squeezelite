@@ -65,17 +65,20 @@ static inline bool DRAIN_FUNC(struct processstate *process){
 
 static inline void SAMPLES_FUNC(struct processstate *process) {
 #if HDCD
+	/* in place decoding (ie: inbuf to inbuf) */
 	hdcd_samples(process);
 #endif
 #if RESAMPLE
-	resample_samples(process);
-#else
-	memcpy(process->outbuf,process->inbuf,process->in_frames * BYTES_PER_FRAME );
-        process->out_frames = process->in_frames;
-        process->total_in  += process->in_frames;
-        process->total_out += process->out_frames;
-
+	if(resample_samples(process) == 0)
 #endif
+	{
+		/* no resampling copy in to out */
+		memcpy(process->outbuf,process->inbuf,process->in_frames * BYTES_PER_FRAME );
+        	process->out_frames = process->in_frames;
+        	process->total_in  += process->in_frames;
+        	process->total_out += process->out_frames;
+	}
+
 }
 
 static inline void FLUSH_FUNC(void) {
@@ -172,8 +175,6 @@ void process_drain(void) {
 unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned supported_rates[]) {
 
 	bool active = NEWSTREAM_FUNC(&process, raw_sample_rate, supported_rates);
-
-	LOG_INFO("processing: %d %d", process.in_sample_rate , process.out_sample_rate );
 
 	*direct = !active;
 

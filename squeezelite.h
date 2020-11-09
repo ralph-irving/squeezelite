@@ -600,7 +600,7 @@ void process_init(char *opt);
 
 #if RESAMPLE
 // resample.c
-void resample_samples(struct processstate *process);
+bool resample_samples(struct processstate *process);
 bool resample_drain(struct processstate *process);
 bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, unsigned supported_rates[]);
 void resample_flush(void);

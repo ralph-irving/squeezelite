@@ -22,9 +22,6 @@ OPT_PORTAUDIO = -DPORTAUDIO
 OPT_PULSEAUDIO = -DPULSEAUDIO
 OPT_HDCD = -DHDCD
 
-OPTS=-DHDCD -DLINKALL
-LDFLAGS = -L /usr/local/lib
-
 SOURCES = \
 	main.c slimproto.c buffer.c stream.c utils.c process.c\
 	output.c output_alsa.c output_pa.c output_stdout.c output_pack.c output_pulse.c decode.c \
