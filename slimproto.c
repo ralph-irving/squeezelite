@@ -364,7 +364,7 @@ static void process_strm(u8_t *pkt, int len) {
 				stream_file(header, header_len, strm->threshold * 1024);
 				autostart -= 2;
 			} else {
-				stream_sock(ip, port, header, header_len, strm->threshold * 1024, autostart >= 2);
+				stream_sock(ip, port, strm->flags & 0x20, header, header_len, strm->threshold * 1024, autostart >= 2);
 			}
 			sendSTAT("STMc", 0);
 			sentSTMu = sentSTMo = sentSTMl = false;

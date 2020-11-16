@@ -206,8 +206,6 @@ static int connect_socket(bool use_ssl) {
 }
 
 static void *stream_thread() {
-	int sock;
-
 	while (running) {
 
 		struct pollfd pollinfo;
@@ -290,6 +288,7 @@ static void *stream_thread() {
 						LOG_INFO("error reading headers: %s", n ? strerror(last_error()) : "closed");
 #if USE_SSL
 						if (!ssl && !stream.header_len) {
+							int sock;
 							closesocket(fd);
 							fd = -1;
 							stream.header_len = header_mlen;
@@ -547,7 +546,7 @@ void stream_file(const char *header, size_t header_len, unsigned threshold) {
 	UNLOCK;
 }
 
-void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold, bool cont_wait) {
+void stream_sock(u32_t ip, u16_t port, bool use_ssl, const char *header, size_t header_len, unsigned threshold, bool cont_wait) {
 	char *p;
 	int sock;
 
@@ -561,10 +560,10 @@ void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, un
 	if (p) sscanf(p, "Host:%255[^:]", host);
 
 	port = ntohs(port);
-	sock = connect_socket(port == 443);
+	sock = connect_socket(use_ssl || port == 443);
 
 	// try one more time with plain socket
-	if (sock < 0 && port == 443) sock = connect_socket(false);
+	if (sock < 0 && port == 443 && !use_ssl) sock = connect_socket(false);
 
 	if (sock < 0) {
 		LOCK;

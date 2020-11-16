@@ -25,8 +25,8 @@
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
 #define MAJOR_VERSION "1.9"
-#define MINOR_VERSION "7"
-#define MICRO_VERSION "1283"
+#define MINOR_VERSION "8"
+#define MICRO_VERSION "1287"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -540,7 +540,7 @@ struct streamstate {
 void stream_init(log_level level, unsigned stream_buf_size);
 void stream_close(void);
 void stream_file(const char *header, size_t header_len, unsigned threshold);
-void stream_sock(u32_t ip, u16_t port, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
+void stream_sock(u32_t ip, u16_t port, bool use_ssl, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
 bool stream_disconnect(void);
 
 // decode.c
