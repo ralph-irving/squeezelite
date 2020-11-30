@@ -1,3 +1,0 @@
-#!/bin/bash
-make -f Makefile.armel clean
-make -f Makefile.armel OPTS="-DLINKALL -DFFMPEG -DDSD -DVISEXPORT -DRESAMPLE -DIR -DGPIO -I/usr/local/include" LDFLAGS="-L/usr/local/lib /usr/lib/libFLAC.a /usr/local/lib/libvorbisidec.a /usr/lib/libogg.a /usr/lib/libmad.a /usr/local/lib/libfaad.a /usr/local/lib/libmpg123.a /usr/local/lib/libswscale.a /usr/local/lib/libavdevice.a /usr/local/lib/libavformat.a /usr/local/lib/libavcodec.a /usr/local/lib/libswresample.a /usr/local/lib/libavutil.a /usr/lib/libsoxr.a /usr/lib/liblirc_client.a /usr/lib/gcc/arm-linux-gnueabi/4.4/libgomp.a /usr/lib/libz.a -lpthread -ldl -lrt -lm -lasound" || return 1

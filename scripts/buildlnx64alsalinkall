@@ -1,6 +1,0 @@
-#!/bin/bash
-startdir=`pwd`
-make -f Makefile.resample clean
-make -f Makefile.resample OPTS="-DLINKALL -DFFMPEG -DDSD -DVISEXPORT -DRESAMPLE -DIR -I/usr/local/include" LDFLAGS="-L/usr/local/lib /usr/lib/x86_64-linux-gnu/libFLAC.a /usr/lib/x86_64-linux-gnu/libvorbisfile.a /usr/lib/x86_64-linux-gnu/libvorbis.a /usr/lib/x86_64-linux-gnu/libogg.a /usr/lib/x86_64-linux-gnu/libmad.a /usr/lib/x86_64-linux-gnu/libfaad.a /usr/lib/x86_64-linux-gnu/libmpg123.a /usr/local/lib/libswscale.a /usr/local/lib/libavdevice.a /usr/local/lib/libavformat.a /usr/local/lib/libavcodec.a /usr/local/lib/libswresample.a /usr/local/lib/libavutil.a /usr/lib/x86_64-linux-gnu/libsoxr.a /usr/lib/gcc/x86_64-linux-gnu/4.9/libgomp.a /usr/lib/x86_64-linux-gnu/libz.a /usr/lib/liblirc_client.a -lasound -lpthread -ldl -lrt -lm"
-strip squeezelite
-
