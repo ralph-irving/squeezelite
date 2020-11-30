@@ -242,6 +242,12 @@ static void license(void) {
 		   "GNU General Public License for more details.\n\n"
 		   "You should have received a copy of the GNU General Public License\n"
 		   "along with this program.  If not, see <http://www.gnu.org/licenses/>.\n"
+
+		   "\nThe Squeezelite source code is available on github.\n"
+		   "<https://github.com/ralph-irving/squeezelite>\n"
+
+		   "\nThe source and patches for bundled 3rd party libraries can be found on\n"
+		   "SourceForge. <https://sourceforge.net/projects/lmsclients/files/source/>\n"
 #if DSD		   
 		   "\nContains dsd2pcm library Copyright 2009, 2011 Sebastian Gesemann which\n"
 		   "is subject to its own license.\n"
