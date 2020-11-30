@@ -406,7 +406,7 @@ static decode_state ff_decode(void) {
 		len = AVCODEC(ff, decode_audio4, ff->codecC, ff->frame, &got_frame, &pkt_c);
 		if (len < 0) {
 			LOG_ERROR("avcodec_decode_audio4 error: %i %s", len, av__err2str(len));
-			return DECODE_RUNNING;
+			break; // exit loop, free the packet, and continue decoding
 		}
 
 		pkt_c.data += len;
@@ -552,7 +552,14 @@ static void _free_ff_data(void) {
 	}
 
 	if (ff->formatC) {
-		if (ff->formatC->pb) AV(ff, freep, &ff->formatC->pb);
+		if (ff->formatC->pb) {
+			// per ffmpeg docs, the buffer originally pointed to by ff->readbuf may be dynamically freed and reallocated behind the scenes, so this is the one that must be freed
+			// otherwise, a double free can occur (seen by valgrind), resulting in e.g. SIGILL
+			AV(ff, freep, &ff->formatC->pb->buffer);
+			ff->readbuf = NULL;
+			AV(ff, freep, &ff->formatC->pb);
+		}
+
 		AVFORMAT(ff, free_context, ff->formatC);
 		ff->formatC = NULL;
 	}
@@ -620,11 +627,6 @@ static void ff_open_alac(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 
 static void ff_close(void) {
 	_free_ff_data();
-
-	if (ff->readbuf) {
-		AV(ff, freep, &ff->readbuf); 
-		ff->readbuf = NULL;
-	}
 }
 
 static bool load_ff() {
