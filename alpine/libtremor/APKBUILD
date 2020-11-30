@@ -1,0 +1,40 @@
+# Maintainer: Ralph Irving <ralph.irving@gmail.com>
+pkgname=libtremor
+pkgver=0.19681
+pkgrel=0
+pkgdesc="Fixed Point Ogg Vorbis compliant software decoder library"
+url="https://svn.xiph.org/trunk/Tremor"
+arch="all"
+license="GPL-3.0-only"
+subpackages="$pkgname-doc $pkgname-dev"
+makedepends="libogg-dev subversion autoconf automake"
+depends="libogg"
+options="!check"
+
+build() {
+	cd "$builddir/../"
+
+	svn checkout https://svn.xiph.org/trunk/Tremor $pkgname-$pkgver
+
+	cd $pkgname-$pkgver
+
+	# Patch for error:
+	#     ./configure: line 9215: syntax error near unexpected token `,'
+	#     ./configure: line 9215: `    XIPH_PATH_OGG(, as_fn_error $? "must have Ogg installed!" "$LINENO" 5)'
+	sed -i "s/\(XIPH_PATH_OGG(, AC_MSG_ERROR(must have Ogg installed!))\)/#\1/" configure.in
+
+	./autogen.sh \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--enable-static=no
+
+	make
+}
+
+package() {
+	cd "$builddir"
+
+	make DESTDIR="$pkgdir" install
+	install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING	
+}
