@@ -127,6 +127,9 @@ frames_t _output_frames(frames_t avail) {
 				unsigned delay = 0;
 				if (output.current_sample_rate != output.next_sample_rate) {
 					delay = output.rate_delay;
+#if PULSEAUDIO
+					set_sample_rate(output.next_sample_rate);
+#endif
 				}
 				IF_DSD(
 				   if (output.outfmt != output.next_fmt) {
