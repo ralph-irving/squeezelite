@@ -705,6 +705,7 @@ void _pa_open(void);
 #if PULSEAUDIO
 void list_devices(void);
 void set_volume(unsigned left, unsigned right);
+void set_sample_rate(uint32_t sample_rate);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_pulse(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_pulse(void);

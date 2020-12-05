@@ -222,9 +222,9 @@ static bool pulse_stream_create(struct pulse *p) {
 
 	if (pa_stream_connect_playback(p->stream, p->sink_name, (const pa_buffer_attr *)NULL,
 #if PULSEAUDIO_TIMING == 2
-		PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_INTERPOLATE_TIMING,
+		PA_STREAM_VARIABLE_RATE | PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_INTERPOLATE_TIMING,
 #else
-	 	PA_STREAM_NOFLAGS,
+		PA_STREAM_VARIABLE_RATE,
 #endif
 		(const pa_cvolume *)NULL, (pa_stream *)NULL) < 0) {
 		pa_stream_unref(p->stream);
@@ -327,6 +327,19 @@ void set_volume(unsigned left, unsigned right) {
 
 	if (adjust_sink_input && pulse.stream != NULL) {
 		pulse_set_volume(&pulse, left, right);
+	}
+}
+
+void set_sample_rate(uint32_t sample_rate) {
+	pa_operation *op = pa_stream_update_sample_rate(pulse.stream, sample_rate, NULL, NULL);
+	if (op != NULL) {
+		if (loglevel >= lDEBUG) {
+			LOG_DEBUG("stream sample rate set to %d Hz", sample_rate);
+		}
+		pa_operation_unref(op);
+	}
+	else {
+		LOG_WARN("failed to set stream sample rate to %d Hz", sample_rate);
 	}
 }
 
