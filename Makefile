@@ -1,5 +1,5 @@
 #Cross compile support - create a Makefile which defines these three variables and then includes this Makefile...
-CFLAGS	?= -Wall -fPIC -O2
+CFLAGS	?= -Wall -fPIC -O3
 CFLAGS	+= -fcommon
 LDADD	?= -lpthread -lm -lrt
 EXECUTABLE ?= squeezelite

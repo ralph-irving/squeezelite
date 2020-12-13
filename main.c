@@ -316,6 +316,7 @@ int main(int argc, char **argv) {
 #if DSD
 	unsigned dsd_delay = 0;
 	dsd_format dsd_outfmt = PCM;
+	unsigned dsd_pin = 0;
 #endif
 #if VISEXPORT
 	bool visexport = false;
@@ -577,7 +578,11 @@ int main(int argc, char **argv) {
 					if (!strcmp(fstr, "u32be")) dsd_outfmt = DSD_U32_BE;
 					if (!strcmp(fstr, "dop24")) dsd_outfmt = DOP_S24_LE;
 					if (!strcmp(fstr, "dop24_3")) dsd_outfmt = DOP_S24_3LE;
+					
+					char *pstr = next_param(NULL, ':');
+					dsd_pin = pstr ? atoi(pstr) : 0;
 				}
+
 			}
 			break;
 #endif
@@ -782,7 +787,7 @@ int main(int argc, char **argv) {
 	}
 
 #if DSD
-	dsd_init(dsd_outfmt, dsd_delay);
+	dsd_init(dsd_outfmt, dsd_delay, dsd_pin);
 #endif
 
 #if VISEXPORT

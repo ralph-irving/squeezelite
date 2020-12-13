@@ -847,14 +847,23 @@ static decode_state dsd_decode(void) {
 	return ret;
 }
 
-void dsd_init(dsd_format format, unsigned delay) {
+void dsd_init(dsd_format format, unsigned delay, unsigned dsd_pin) {
 	LOCK_O;
 	output.dsdfmt = format;
 	output.dsd_delay = delay;
+	fprintf(stderr, "\nDSD Pin set to: %u\n", dsd_pin );
+	output.dsd_pin = dsd_pin;
+
 	UNLOCK_O;
 }
 
 static void dsd_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
+	// Set dsd_pin to high if dsd_pin is defined
+	if(output.dsd_pin != 0){
+		fprintf(stderr, "\nCalling start_dsd\n");
+		start_dsd(output.dsd_pin);
+	}
+
 	d->type = UNKNOWN;
 
 	if (!d->dsd2pcm_ctx[0]) {
@@ -871,6 +880,10 @@ static void dsd_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 }
 
 static void dsd_close(void) {
+	// Set dsd_pin to low if dsd_pin is defined
+	if(output.dsd_pin != 0){
+		stop_dsd(output.dsd_pin);
+	}
 	if (d->dsd2pcm_ctx[0]) {
 		dsd2pcm_destroy(d->dsd2pcm_ctx[0]);
 		dsd2pcm_destroy(d->dsd2pcm_ctx[1]);

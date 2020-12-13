@@ -671,6 +671,7 @@ struct outputstate {
 	dsd_format outfmt;
 	dsd_format dsdfmt;	       // set in dsd_init - output for DSD: DOP, DSD_U8, ...
 	unsigned dsd_delay;		   // set in dsd_init - delay in ms switching to/from dop
+	unsigned dsd_pin;			   // pin set high if playing DSD 
 #endif
 };
 
@@ -738,7 +739,7 @@ bool is_stream_dop(u8_t *lptr, u8_t *rptr, int step, frames_t frames);
 void update_dop(u32_t *ptr, frames_t frames, bool invert);
 void dsd_silence_frames(u32_t *ptr, frames_t frames);
 void dsd_invert(u32_t *ptr, frames_t frames);
-void dsd_init(dsd_format format, unsigned delay);
+void dsd_init(dsd_format format, unsigned delay, unsigned dsd_pin);
 #endif
 
 // codecs
@@ -763,6 +764,8 @@ struct codec *register_opus(void);
 #if GPIO
 void relay( int state);
 void relay_script(int state);
+void start_dsd(unsigned dsd_pin);
+void stop_dsd(unsigned dsd_pin);
 int gpio_pin;
 bool gpio_active_low;
 bool gpio_active;

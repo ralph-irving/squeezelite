@@ -55,6 +55,31 @@ void relay( int state) {
 #endif
 }
 
+void start_dsd(unsigned dsd_pin){
+	if (initialized == -1){
+		if ( gpioInitialise() == 0 ){
+			initialized = 1;
+		}
+	}
+	if ( initialized == 1){
+		gpioSetMode (dsd_pin, PI_OUTPUT);
+		gpioWrite(dsd_pin, PI_HIGH);
+	}
+}
+	
+
+void stop_dsd(unsigned dsd_pin){
+	if (initialized == -1){
+		if ( gpioInitialise() == 0 ){
+			initialized = 1;
+		}
+	}
+	if ( initialized == 1){
+		gpioSetMode (dsd_pin, PI_OUTPUT);
+		gpioWrite(dsd_pin, PI_LOW);
+	}
+}
+
 char *cmdline;
 int argloc;
 
