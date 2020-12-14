@@ -120,8 +120,9 @@ static void usage(const char *argv0) {
 #endif
 #if DSD
 #if ALSA
-		   "  -D [delay][:format]\tOutput device supports DSD, delay = optional delay switching between PCM and DSD in ms\n"
+		   "  -D [delay][:format][:gpio]\tOutput device supports DSD, delay = optional delay switching between PCM and DSD in ms\n"
 		   "  \t\t\t format = dop (default if not specified), u8, u16le, u16be, u32le or u32be.\n"
+		   "  \t\t\t gpio = specify the BCM GPIO# to use for DSD_EN signal. This GPIO# will be driven high when DSD is played.\n"
 #else
 		   "  -D [delay]\t\tOutput device supports DSD over PCM (DoP), delay = optional delay switching between PCM and DoP in ms\n"
 #endif
