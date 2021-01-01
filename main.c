@@ -26,7 +26,7 @@
 
 #include <signal.h>
 
-#define TITLE "Squeezelite " VERSION ", Copyright 2012-2015 Adrian Smith, 2015-2020 Ralph Irving."
+#define TITLE "Squeezelite " VERSION ", Copyright 2012-2015 Adrian Smith, 2015-2021 Ralph Irving."
 
 #define CODECS_BASE "flac,pcm,mp3,ogg"
 #if NO_FAAD
