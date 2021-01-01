@@ -96,16 +96,22 @@ void send_packet(u8_t *packet, size_t len) {
 	u8_t *ptr = packet;
 	unsigned try = 0;
 	ssize_t n;
+	int error;
 
 	while (len) {
 		n = send(sock, ptr, len, MSG_NOSIGNAL);
 		if (n <= 0) {
-			if (n < 0 && last_error() == ERROR_WOULDBLOCK && try < 10) {
+			error = last_error();
+#if WIN
+			if (n < 0 && (error == ERROR_WOULDBLOCK || error == WSAENOTCONN) && try < 10) {
+#else
+			if (n < 0 && error == ERROR_WOULDBLOCK && try < 10) {
+#endif
 				LOG_DEBUG("retrying (%d) writing to socket", ++try);
 				usleep(1000);
 				continue;
 			}
-			LOG_INFO("failed writing to socket: %s", strerror(last_error()));
+			LOG_WARN("failed writing to socket: %s", strerror(last_error()));
 			return;
 		}
 		ptr += n;
