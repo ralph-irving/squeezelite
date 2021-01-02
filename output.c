@@ -441,6 +441,7 @@ void output_flush(void) {
 	output.fade = FADE_INACTIVE;
 	if (output.state != OUTPUT_OFF) {
 		output.state = OUTPUT_STOPPED;
+		output.stop_time = gettime_ms();
 		if (output.error_opening) {
 			output.current_sample_rate = output.default_sample_rate;
 		}
