@@ -16,7 +16,7 @@ GNU General Public License for more details.<br>
 You should have received a copy of the GNU General Public License<br>
 along with this program.  If not, see <http://www.gnu.org/licenses/>.<br>
 <br>
-Additional permission under GNU GPL version 3 section 7
+Additional permission under GNU GPL version 3 section 7<br>
 <br>
 If you modify this program, or any covered work, by linking or
 combining it with OpenSSL (or a modified version of that library),
@@ -24,7 +24,7 @@ containing parts covered by the terms of The OpenSSL Project, the
 licensors of this program grant you additional permission to convey
 the resulting work. {Corresponding source for a non-source form of
 such a combination shall include the source code for the parts of
-OpenSSL used as well as that of the covered work.}
+OpenSSL used as well as that of the covered work.}<br>
 <br>
 Contains dsd2pcm library Copyright 2009, 2011 Sebastian Gesemann which<br>
 is subject to its own license.<br>
