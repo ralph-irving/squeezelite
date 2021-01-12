@@ -120,8 +120,15 @@ static int read_mp4_header(void) {
 		// extract audio config from within alac
 		if (!strcmp(type, "alac") && bytes > len) {
 			u8_t *ptr = streambuf->readp + 36;
-			l->decoder = alac_create_decoder(len - 36, ptr, &l->sample_size, &l->sample_rate, &l->channels);
-			l->play = l->trak;
+			unsigned int block_size;
+			l->play = l->trak;						
+			l->decoder = alac_create_decoder(len - 36, ptr, &l->sample_size, &l->sample_rate, &l->channels, &block_size);
+			l->writebuf = malloc(block_size + 256);
+			LOG_INFO("allocated write buffer of %u bytes", block_size);
+			if (!l->writebuf) {
+				LOG_ERROR("allocation failed");
+				return -1;
+			}
 		}
 
 		// extract the total number of samples from stts
@@ -376,10 +383,9 @@ static decode_state alac_decode(void) {
 
 	// need to create a buffer with contiguous data
 	if (bytes < block_size) {
-		u8_t *buffer = malloc(block_size);
-		memcpy(buffer, streambuf->readp, bytes);
-		memcpy(buffer + bytes, streambuf->buf, block_size - bytes);
-		iptr = buffer;
+		iptr = malloc(block_size);
+		memcpy(iptr, streambuf->readp, bytes);
+		memcpy(iptr + bytes, streambuf->buf, block_size - bytes);
 	} else iptr = streambuf->readp;
 
 	if (!alac_to_pcm(l->decoder, iptr, l->writebuf, 2, &frames)) {
@@ -474,6 +480,7 @@ static decode_state alac_decode(void) {
 			}
 		} else if (l->sample_size == 16) {
 			u16_t *_iptr = (u16_t*) iptr;
+			iptr += count * 4;
 			while (count--) {
 				*optr++ = ALIGN16(*_iptr++);
 				*optr++ = ALIGN16(*_iptr++);
@@ -486,6 +493,7 @@ static decode_state alac_decode(void) {
 			}
 		} else if (l->sample_size == 32) {
 			u32_t *_iptr = (u32_t*) iptr;
+			iptr += count * 8;
 			while (count--) {
 				*optr++ = ALIGN32(*_iptr++);
 				*optr++ = ALIGN32(*_iptr++);
@@ -511,27 +519,17 @@ static decode_state alac_decode(void) {
 	return DECODE_RUNNING;
 }
 
-static void alac_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
-	if (l->decoder)	alac_delete_decoder(l->decoder);
-	else l->writebuf = malloc(BLOCK_SIZE * 2);
-	
-	if (l->chunkinfo) free(l->chunkinfo);
-	if (l->block_size) free(l->block_size);
-	if (l->stsc) free(l->stsc);
-	l->decoder = l->chunkinfo = l->stsc = l->block_size = NULL;
-	l->skip = 0;
-	l->samples = l->sttssamples = 0;
-	l->empty = false;
-	l->pos = l->consume = l->sample = l->nextchunk = 0;
-}
-
 static void alac_close(void) {
 	if (l->decoder) alac_delete_decoder(l->decoder);
+	if (l->writebuf) free(l->writebuf);	
 	if (l->chunkinfo) free(l->chunkinfo);
 	if (l->block_size) free(l->block_size);
 	if (l->stsc) free(l->stsc);
-	l->decoder = l->chunkinfo = l->stsc = l->block_size = NULL;
-	free(l->writebuf);
+	memset(l, 0, sizeof(struct alac));	
+}
+
+static void alac_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
+	alac_close();
 }
 
 struct codec *register_alac(void) {
@@ -544,14 +542,10 @@ struct codec *register_alac(void) {
 		alac_close,     // close
 		alac_decode,    // decode
 	};
-
-	l =  malloc(sizeof(struct alac));
-	if (!l) {
-		return NULL;
-	}	
-
-	l->decoder = l->chunkinfo = l->stsc = l->block_size = NULL;
-
+	
+	l =  calloc(1, sizeof(struct alac));
+	if (!l) return NULL;
+		
 	LOG_INFO("using alac to decode alc");
 	return &ret;
 }
