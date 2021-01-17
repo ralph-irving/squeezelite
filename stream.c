@@ -401,7 +401,7 @@ static void *stream_thread() {
 					
 					n = _recv(ssl, fd, streambuf->writep, space, 0);
 					if (n == 0) {
-						LOG_INFO("end of stream");
+						LOG_INFO("end of stream (%u bytes)", stream.bytes);
 						_disconnect(DISCONNECT, DISCONNECT_OK);
 					}
 					if (n < 0 && _last_error() != ERROR_WOULDBLOCK) {
