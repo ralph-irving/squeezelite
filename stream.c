@@ -563,7 +563,10 @@ void stream_sock(u32_t ip, u16_t port, bool use_ssl, const char *header, size_t 
 
 	*host = '\0';
 	p = strcasestr(header,"Host:");
-	if (p) sscanf(p, "Host:%255[^:]", host);
+	if (p) {
+		sscanf(p, "Host:%255s", host);
+		if ((p = strchr(host, ':')) != NULL) *p = '\0';
+	}	
 
 	port = ntohs(port);
 	sock = connect_socket(use_ssl || port == 443);
