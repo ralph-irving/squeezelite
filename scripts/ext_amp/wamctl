@@ -1,0 +1,154 @@
+#!/bin/bash
+#
+# Controller for Samsung Wireless Multi-room speakers/soundbars
+
+#echo "$0 $@" 1>&2
+#set -x
+
+# The IP and control port of the speaker.
+IP=192.168.4.210
+PORT=55001
+
+# Default input and volume to set if they aren't given as arguments to "on"
+# Inputs are wifi, bt, aux, hdmi and optical.
+INPUT='aux'
+VOLUME=
+
+
+force=
+statefile='/tmp/wamctl.state'
+
+while [[ $# -gt 0 ]]; do
+	case $1 in
+		-f|--force)
+			force=1
+			;;
+		*)
+			break
+			;;
+	esac
+done
+
+
+declare -i MINVOL=0 MAXVOL=100
+
+
+cmd() {
+	for x in "$@"; do
+		curl -qs "http://$IP:$PORT/UIC?cmd=$x"
+	done
+}
+
+
+get_input() {
+	x=$( cmd "<name>GetFunc</name>" )
+	x="${x#*<function>}"
+	echo "${x%</function>*}"
+}
+
+
+set_input() {
+	# Setting the same input as current does not get a response so we avoid doing that
+	if [[ $( get_input ) != "$1" ]]; then
+		cmd "<pwron>on</pwron><name>SetFunc</name><p%20type=\"str\"%20name=\"function\"%20val=\"$1\"/>" > /dev/null
+	fi
+}
+
+
+get_mute() {
+	x=$( cmd "<name>GetMute</name>" )
+	x="${x#*<mute>}"
+	echo "${x%</mute>*}"
+}
+
+
+set_mute() {
+	cmd "<name>SetMute</name><p%20type=\"str\"%20name=\"mute\"%20val=\"$1\"/>" > /dev/null
+}
+
+
+get_volume() {
+	x=$( cmd "<name>GetVolume</name>" )
+	x="${x#*<volume>}"
+	echo "${x%</volume>*}"
+}
+
+
+set_volume() {
+	declare -i vol="$1"
+	if [[ $vol -gt $MAXVOL ]]; then
+		vol=$MAXVOL
+	elif [[ $vol -lt $MINVOL ]]; then
+		vol=$MINVOL
+	fi
+	cmd "<name>SetVolume</name><p%20type=\"dec\"%20name=\"volume\"%20val=\"$vol\"/>" > /dev/null
+}
+
+
+case $1 in
+	get_input)
+		get_input
+		;;
+
+	set_input)
+		[[ -e "$statefile" || -n "$force" ]] && set_input "$2"
+		;;
+
+	get_mute)
+		get_mute
+		;;
+
+	set_mute)
+		[[ -e "$statefile" || -n "$force" ]] && set_mute "$2"
+		;;
+
+	get_vol*)
+		get_volume
+		;;
+
+	set_vol*)
+		[[ -e "$statefile" || -n "$force" ]] && set_volume "$2"
+		;;
+
+
+	init*)
+		rm -f "$statefile"
+		;;
+
+	save|start)
+		# Save current state and switch to ours
+		our_input="${2:-$INPUT}"
+		our_volume="${3:-$VOLUME}"
+		input=$( get_input )
+		volume=$( get_volume )
+		mute=$( get_mute )
+		echo "$input $volume $mute" > "$statefile"
+		if [[ -n "$our_input" && "$input" != "$our_input" ]]; then
+			set_input "$our_input"
+		fi
+		if [[ -n "$our_volume" && "$volume" != "$our_volume" ]]; then
+			set_volume "$our_volume"
+		fi
+		set_mute 'off'
+		;;
+
+	restore|end|finish|stop)
+		# Restore previous input
+		if [[ -r "$statefile" ]]; then
+			read input volume mute < "$statefile"
+			if [[ -n "$mute" ]]; then
+				set_mute "$mute"
+			fi
+			if [[ -n "$volume" ]]; then
+				set_volume "$volume"
+			fi
+			if [[ -n "$input" ]]; then
+				curinput=$( get_input )
+				if [[ "$curinput" != "$input" ]]; then
+					set_input "$input"
+				fi
+			fi
+			rm -f "$statefile"
+		fi
+		;;
+esac
