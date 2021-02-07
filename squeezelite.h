@@ -424,7 +424,8 @@ struct wake {
 
 #define MAX_SILENCE_FRAMES 2048
 
-#define FIXED_ONE 0x10000
+#define FIXED_ONE 	0x10000
+#define COPY_MONO	(FIXED_ONE + 1)
 
 #define BYTES_PER_FRAME 8
 
@@ -621,7 +622,8 @@ typedef enum { FADE_NONE = 0, FADE_CROSSFADE, FADE_IN, FADE_OUT, FADE_INOUT } fa
 struct outputstate {
 	output_state state;
 	output_format format;
-	const char *device;
+	u8_t channels;
+	const char *device;	
 #if ALSA
 	unsigned buffer;
 	unsigned period;

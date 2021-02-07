@@ -380,7 +380,8 @@ static void process_strm(u8_t *pkt, int len) {
 			output.fade_mode = strm->transition_type - '0';
 			output.fade_secs = strm->transition_period;
 			output.invert    = (strm->flags & 0x03) == 0x03;
-			LOG_DEBUG("set fade mode: %u", output.fade_mode);
+			output.channels  = (strm->flags & 0x0c) >> 2;
+			LOG_DEBUG("set fade: %u, channels: %u, invert: %u", output.fade_mode, output.channels, output.invert);
 			UNLOCK_O;
 		}
 		break;

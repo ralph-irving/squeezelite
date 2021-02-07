@@ -354,12 +354,26 @@ void _apply_cross(struct buffer *outputbuf, frames_t out_frames, s32_t cross_gai
 inline 
 #endif
 void _apply_gain(struct buffer *outputbuf, frames_t count, s32_t gainL, s32_t gainR) {
-	s32_t *ptrL = (s32_t *)(void *)outputbuf->readp;
-	s32_t *ptrR = (s32_t *)(void *)outputbuf->readp + 1;
-	while (count--) {
-		*ptrL = gain(gainL, *ptrL);
-		*ptrR = gain(gainR, *ptrR);
-		ptrL += 2;
-		ptrR += 2;
-	}
+	if (gainL == COPY_MONO) {
+		ISAMPLE_T *ptr = (ISAMPLE_T *)(void *)outputbuf->readp + 1;
+		while (count--) {
+			*(ptr - 1) = *ptr = gain(gainR, *ptr);
+			ptr += 2;
+		}
+	} else if (gainR == COPY_MONO) {
+		ISAMPLE_T *ptr = (ISAMPLE_T *)(void *)outputbuf->readp;
+		while (count--) {
+			*(ptr + 1) = *ptr = gain(gainL, *ptr);
+			ptr += 2;
+		}
+   } else {
+   		ISAMPLE_T *ptrL = (ISAMPLE_T *)(void *)outputbuf->readp;
+		ISAMPLE_T *ptrR = (ISAMPLE_T *)(void *)outputbuf->readp + 1;
+		while (count--) {
+			*ptrL = gain(gainL, *ptrL);
+			*ptrR = gain(gainR, *ptrR);
+			ptrL += 2; ptrR += 2;
+		}
+   }	
 }
+
