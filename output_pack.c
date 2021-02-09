@@ -44,6 +44,23 @@ s32_t to_gain(float f) {
 }
 
 void _scale_and_pack_frames(void *outputptr, s32_t *inputptr, frames_t cnt, s32_t gainL, s32_t gainR, output_format format) {
+	// in-place copy input samples if mono is used (never happens with DSD active)
+	if (gainL == COPY_MONO) {
+		s32_t *ptr = inputptr + 1;
+		frames_t count = cnt;
+		while (count--) {
+			*(ptr - 1) = *ptr;
+			ptr += 2;
+		}
+	} else if (gainR == COPY_MONO) {
+		s32_t *ptr = inputptr;
+		frames_t count = cnt;
+		while (count--) {
+			*(ptr + 1) = *ptr;
+			ptr += 2;
+		}
+   }
+   
 	switch(format) {
 #if DSD
 	case U32_LE:
@@ -376,4 +393,3 @@ void _apply_gain(struct buffer *outputbuf, frames_t count, s32_t gainL, s32_t ga
 		}
    }	
 }
-

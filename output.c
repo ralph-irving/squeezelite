@@ -257,8 +257,11 @@ frames_t _output_frames(frames_t avail) {
 		
 		out_frames = !silence ? min(size, cont_frames) : size;
 		
-		if (output.channels & 0x01) gainR = COPY_MONO;
-		else if (output.channels & 0x02) gainL = COPY_MONO;
+		IF_DSD( if (output.outfmt == PCM) )
+		{
+			if (output.channels & 0x01) gainR = COPY_MONO;
+			else if (output.channels & 0x02) gainL = COPY_MONO;
+		}	
 
 		wrote = output.write_cb(out_frames, silence, gainL, gainR, cross_gain_in, cross_gain_out, &cross_ptr);
 
