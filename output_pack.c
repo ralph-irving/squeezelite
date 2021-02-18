@@ -44,6 +44,23 @@ s32_t to_gain(float f) {
 }
 
 void _scale_and_pack_frames(void *outputptr, s32_t *inputptr, frames_t cnt, s32_t gainL, s32_t gainR, output_format format) {
+	// in-place copy input samples if mono is used (never happens with DSD active)
+	if (gainL == COPY_MONO) {
+		s32_t *ptr = inputptr + 1;
+		frames_t count = cnt;
+		while (count--) {
+			*(ptr - 1) = *ptr;
+			ptr += 2;
+		}
+	} else if (gainR == COPY_MONO) {
+		s32_t *ptr = inputptr;
+		frames_t count = cnt;
+		while (count--) {
+			*(ptr + 1) = *ptr;
+			ptr += 2;
+		}
+   }
+
 	switch(format) {
 #if DSD
 	case U32_LE:
@@ -354,12 +371,25 @@ void _apply_cross(struct buffer *outputbuf, frames_t out_frames, s32_t cross_gai
 inline 
 #endif
 void _apply_gain(struct buffer *outputbuf, frames_t count, s32_t gainL, s32_t gainR) {
-	s32_t *ptrL = (s32_t *)(void *)outputbuf->readp;
-	s32_t *ptrR = (s32_t *)(void *)outputbuf->readp + 1;
-	while (count--) {
-		*ptrL = gain(gainL, *ptrL);
-		*ptrR = gain(gainR, *ptrR);
-		ptrL += 2;
-		ptrR += 2;
-	}
+	if (gainL == COPY_MONO) {
+		ISAMPLE_T *ptr = (ISAMPLE_T *)(void *)outputbuf->readp + 1;
+		while (count--) {
+			*(ptr - 1) = *ptr = gain(gainR, *ptr);
+			ptr += 2;
+		}
+	} else if (gainR == COPY_MONO) {
+		ISAMPLE_T *ptr = (ISAMPLE_T *)(void *)outputbuf->readp;
+		while (count--) {
+			*(ptr + 1) = *ptr = gain(gainL, *ptr);
+			ptr += 2;
+		}
+   } else {
+   		ISAMPLE_T *ptrL = (ISAMPLE_T *)(void *)outputbuf->readp;
+		ISAMPLE_T *ptrR = (ISAMPLE_T *)(void *)outputbuf->readp + 1;
+		while (count--) {
+			*ptrL = gain(gainL, *ptrL);
+			*ptrR = gain(gainR, *ptrR);
+			ptrL += 2; ptrR += 2;
+		}
+   }
 }

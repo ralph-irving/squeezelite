@@ -25,8 +25,8 @@
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
 #define MAJOR_VERSION "1.9"
-#define MINOR_VERSION "8"
-#define MICRO_VERSION "1344"
+#define MINOR_VERSION "9"
+#define MICRO_VERSION "1353"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -425,6 +425,7 @@ struct wake {
 #define MAX_SILENCE_FRAMES 2048
 
 #define FIXED_ONE 0x10000
+#define COPY_MONO (FIXED_ONE + 1)
 
 #define BYTES_PER_FRAME 8
 
@@ -621,6 +622,7 @@ typedef enum { FADE_NONE = 0, FADE_CROSSFADE, FADE_IN, FADE_OUT, FADE_INOUT } fa
 struct outputstate {
 	output_state state;
 	output_format format;
+	u8_t channels;
 	const char *device;
 #if ALSA
 	unsigned buffer;
