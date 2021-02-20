@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "9"
-#define MICRO_VERSION "1353"
+#define MICRO_VERSION "1354"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -761,16 +761,15 @@ struct codec *register_ff(const char *codec);
 struct codec *register_opus(void);
 #endif
 
-//gpio.c
+// gpio.c
 #if GPIO
-void relay( int state);
+void relay(int state);
 void relay_script(int state);
 int gpio_pin;
 bool gpio_active_low;
 bool gpio_active;
 char *power_script;
-//  my amp state
-int ampstate;
+
 #if RPI
 #define PI_INPUT  0
 #define PI_OUTPUT 1
