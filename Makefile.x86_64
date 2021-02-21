@@ -1,5 +1,5 @@
 # OSX 10.7+ 64-bit only
-OPTS = -DPORTAUDIO -DALAC -DOPUS -DRESAMPLE -DGPIO -DLINKALL -DVISEXPORT -DDSD -DUSE_SSL -I./include64 -I./include64/opus -I./include64/alac -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch x86_64 -mmacosx-version-min=10.7
+OPTS = -DPORTAUDIO -DALAC -DOPUS -DRESAMPLE -DLINKALL -DVISEXPORT -DDSD -DUSE_SSL -I./include64 -I./include64/opus -I./include64/alac -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch x86_64 -mmacosx-version-min=10.7
 
 LDFLAGS = -Wl,-syslibroot,/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch x86_64 -mmacosx-version-min=10.7 -L./lib64
 
