@@ -54,16 +54,18 @@ void _scale_and_pack_frames(void *outputptr, s32_t *inputptr, frames_t cnt, s32_
 			*ptr = *(ptr + 1) = ((s64_t) gain(gainL, *ptr) + (s64_t) gain(gainR, *(ptr + 1))) / 2;
 			ptr += 2;
 		}
-	} else if (gainL == MONO_FLAG) {
+	} else if (gainL & MONO_FLAG) {
 		s32_t *ptr = inputptr + 1;
 		frames_t count = cnt;
+		gainL &= ~MONO_FLAG;
 		while (count--) {
 			*(ptr - 1) = *ptr;
 			ptr += 2;
 		}
-	} else if (gainR == MONO_FLAG) {
+	} else if (gainR & MONO_FLAG) {
 		s32_t *ptr = inputptr;
 		frames_t count = cnt;
+		gainR &= ~MONO_FLAG;
 		while (count--) {
 			*(ptr + 1) = *ptr;
 			ptr += 2;
