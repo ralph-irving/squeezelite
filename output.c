@@ -261,8 +261,8 @@ frames_t _output_frames(frames_t avail) {
 		if (output.outfmt == PCM)
 		{
 #endif
-			if (output.channels & 0x01) gainR = COPY_MONO;
-			else if (output.channels & 0x02) gainL = COPY_MONO;
+			if (output.channels & 0x01) gainR |= MONO_FLAG;
+			if (output.channels & 0x02) gainL |= MONO_FLAG;
 #if DSD
 		}
 #endif
