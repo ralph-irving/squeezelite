@@ -27,7 +27,10 @@
 
 // _* called with muxtex locked
 
-inline unsigned _buf_used(struct buffer *buf) {
+#if !WIN
+inline
+#endif
+unsigned _buf_used(struct buffer *buf) {
 	return buf->writep >= buf->readp ? buf->writep - buf->readp : buf->size - (buf->readp - buf->writep);
 }
 
