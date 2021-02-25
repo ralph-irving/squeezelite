@@ -51,7 +51,7 @@ void _scale_and_pack_frames(void *outputptr, s32_t *inputptr, frames_t cnt, s32_
 		gainL &= ~MONO_FLAG; gainR &= ~MONO_FLAG;
 		while (count--) {
 			// use 64 bits integer for purists but should really not care
-			*ptr = *(ptr + 1) = ((s64_t) gain(gainL, *ptr) + (s64_t) gain(gainR, *(ptr + 1))) / 2;
+			*ptr = *(ptr + 1) = ((s64_t) *ptr  + (s64_t) *(ptr + 1)) / 2;
 			ptr += 2;
 		}
 	} else if (gainL & MONO_FLAG) {
