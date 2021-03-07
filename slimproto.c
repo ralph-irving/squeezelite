@@ -876,7 +876,11 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 
 	LOCK_O;
 	snprintf(fixed_cap, FIXED_CAP_LEN, ",ModelName=%s,MaxSampleRate=%u", modelname ? modelname : MODEL_NAME_STRING,
+#if RESAMPLE
 			 ((maxSampleRate > 0) ? maxSampleRate : output.supported_rates[0]));
+#else
+			 ((maxSampleRate > 0 && maxSampleRate < output.supported_rates[0]) ? maxSampleRate : output.supported_rates[0]));
+#endif
 	
 	for (i = 0; i < MAX_CODECS; i++) {
 		if (codecs[i] && codecs[i]->id && strlen(fixed_cap) < FIXED_CAP_LEN - 10) {
