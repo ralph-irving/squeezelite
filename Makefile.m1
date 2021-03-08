@@ -1,0 +1,8 @@
+# OSX 11.0+ arm64 only
+OPTS = -DPORTAUDIO -DALAC -DOPUS -DRESAMPLE -DLINKALL -DVISEXPORT -DDSD -DUSE_SSL -I./includem1 -I./includem1/opus -I./includem1/alac -arch arm64 -O3 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.1.sdk -mmacosx-version-min=11.0
+
+LDFLAGS = -arch arm64 -Wl,-syslibroot,/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.1.sdk -mmacosx-version-min=11.0 -L./libm1
+
+LDADD = -lportaudio -lpthread -ldl -lm -framework CoreVideo -framework VideoDecodeAcceleration -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon
+
+include Makefile

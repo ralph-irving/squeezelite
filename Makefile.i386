@@ -1,7 +1,7 @@
-# OSX 10.5 Intel 32-bit
-OPTS = -DPORTAUDIO -DALAC -DOPUS -DRESAMPLE -DGPIO -DLINKALL -DVISEXPORT -DDSD -DUSE_SSL -I./include -I./include/opus -I./include/alac -O2 -I./include -isysroot /Developer/SDKs/MacOSX10.5.sdk -arch i386
+# OSX 10.7 Intel 32-bit
+OPTS = -DPORTAUDIO -DALAC -DOPUS -DRESAMPLE -DLINKALL -DVISEXPORT -DDSD -DUSE_SSL -I./include -I./include/opus -I./include/alac -I./include -O3 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch i386 -mmacosx-version-min=10.7
 
-LDFLAGS = -Wl,-syslibroot,/Developer/SDKs/MacOSX10.5.sdk -arch i386 -mmacosx-version-min=10.5 -L./lib
+LDFLAGS = -Wl,-syslibroot,/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk -arch i386 -mmacosx-version-min=10.7 -L./lib
 
 LDADD = -lportaudio -lpthread -ldl -lm -framework CoreVideo -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon
 

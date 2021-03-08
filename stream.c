@@ -2,7 +2,7 @@
  *  Squeezelite - lightweight headless squeezebox emulator
  *
  *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
- *      Ralph Irving 2015-2017, ralph_irving@hotmail.com
+ *      Ralph Irving 2015-2021, ralph_irving@hotmail.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -107,16 +107,22 @@ static bool send_header(void) {
 
 	unsigned try = 0;
 	ssize_t n;
+	int error;
 	
 	while (len) {
 		n = _send(ssl, fd, ptr, len, MSG_NOSIGNAL);
 		if (n <= 0) {
-			if (n < 0 && _last_error() == ERROR_WOULDBLOCK && try < 10) {
-				LOG_SDEBUG("retrying (%d) writing to socket", ++try);
+			error = _last_error();
+#if WIN
+			if (n < 0 && (error == ERROR_WOULDBLOCK || error == WSAENOTCONN) && try < 10) {
+#else
+			if (n < 0 && error == ERROR_WOULDBLOCK && try < 10) {
+#endif
+				LOG_DEBUG("retrying (%d) writing to socket", ++try);
 				usleep(1000);
 				continue;
 			}
-			LOG_INFO("failed writing to socket: %s", strerror(last_error()));
+			LOG_WARN("failed writing to socket: %s", strerror(last_error()));
 			stream.disconnect = LOCAL_DISCONNECT;
 			stream.state = DISCONNECT;
 			wake_controller();
@@ -395,7 +401,7 @@ static void *stream_thread() {
 					
 					n = _recv(ssl, fd, streambuf->writep, space, 0);
 					if (n == 0) {
-						LOG_INFO("end of stream");
+						LOG_INFO("end of stream (%u bytes)", stream.bytes);
 						_disconnect(DISCONNECT, DISCONNECT_OK);
 					}
 					if (n < 0 && _last_error() != ERROR_WOULDBLOCK) {
@@ -557,7 +563,10 @@ void stream_sock(u32_t ip, u16_t port, bool use_ssl, const char *header, size_t 
 
 	*host = '\0';
 	p = strcasestr(header,"Host:");
-	if (p) sscanf(p, "Host:%255[^:]", host);
+	if (p) {
+		sscanf(p, "Host:%255s", host);
+		if ((p = strchr(host, ':')) != NULL) *p = '\0';
+	}	
 
 	port = ntohs(port);
 	sock = connect_socket(use_ssl || port == 443);

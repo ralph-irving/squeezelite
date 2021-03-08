@@ -2,7 +2,7 @@
  *  Squeezelite - lightweight headless squeezebox emulator
  *
  *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
- *      Ralph Irving 2015-2017, ralph_irving@hotmail.com
+ *      Ralph Irving 2015-2021, ralph_irving@hotmail.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Additions (c) Paul Hermann, 2015-2017 under the same license terms
+ * Additions (c) Paul Hermann, 2015-2021 under the same license terms
  *   -Control of Raspberry pi GPIO for amplifier power
  *   -Launch script on power status change from LMS
  */
@@ -25,8 +25,8 @@
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
 #define MAJOR_VERSION "1.9"
-#define MINOR_VERSION "8"
-#define MICRO_VERSION "1307"
+#define MINOR_VERSION "9"
+#define MICRO_VERSION "1370"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -425,6 +425,7 @@ struct wake {
 #define MAX_SILENCE_FRAMES 2048
 
 #define FIXED_ONE 0x10000
+#define MONO_FLAG 0x20000
 
 #define BYTES_PER_FRAME 8
 
@@ -621,6 +622,7 @@ typedef enum { FADE_NONE = 0, FADE_CROSSFADE, FADE_IN, FADE_OUT, FADE_INOUT } fa
 struct outputstate {
 	output_state state;
 	output_format format;
+	u8_t channels;
 	const char *device;
 #if ALSA
 	unsigned buffer;
@@ -760,9 +762,9 @@ struct codec *register_ff(const char *codec);
 struct codec *register_opus(void);
 #endif
 
-//gpio.c
+// gpio.c
 #if GPIO
-void relay( int state);
+void relay(int state);
 void relay_script(int state);
 void start_dsd(unsigned dsd_pin);
 void stop_dsd(unsigned dsd_pin);
@@ -770,8 +772,7 @@ int gpio_pin;
 bool gpio_active_low;
 bool gpio_active;
 char *power_script;
-//  my amp state
-int ampstate;
+
 #if RPI
 #define PI_INPUT  0
 #define PI_OUTPUT 1

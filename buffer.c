@@ -2,7 +2,7 @@
  *  Squeezelite - lightweight headless squeezebox emulator
  *
  *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
- *      Ralph Irving 2015-2017, ralph_irving@hotmail.com
+ *      Ralph Irving 2015-2021, ralph_irving@hotmail.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,10 @@
 
 // _* called with muxtex locked
 
-inline unsigned _buf_used(struct buffer *buf) {
+#if !WIN
+inline
+#endif
+unsigned _buf_used(struct buffer *buf) {
 	return buf->writep >= buf->readp ? buf->writep - buf->readp : buf->size - (buf->readp - buf->writep);
 }
 
