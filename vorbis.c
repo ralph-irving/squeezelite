@@ -236,7 +236,12 @@ static decode_state vorbis_decode(void) {
 
 		// work backward to unpack samples (if needed)
 		iptr = (s16_t *) write_buf + count;
-		optr = (ISAMPLE_T *) write_buf + frames * 2;
+		IF_DIRECT(
+			optr = (ISAMPLE_T *) outputbuf->writep + frames * 2;
+		)
+		IF_PROCESS(
+			optr = (ISAMPLE_T *) write_buf + frames * 2;
+		)
 
 		if (channels == 2) {
 #if BYTES_PER_FRAME == 4
