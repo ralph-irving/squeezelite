@@ -547,7 +547,7 @@ static int alsa_open(const char *device, unsigned sample_rate, unsigned alsa_buf
 	return 0;
 }
 
-static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
+static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR, u8_t flags,
 						 s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr) {
 
 	const snd_pcm_channel_area_t *areas;
@@ -594,17 +594,14 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 
 		outputptr = alsa.mmap ? (areas[0].addr + (areas[0].first + offset * areas[0].step) / 8) : alsa.write_buf;
 
-		_scale_and_pack_frames(outputptr, inputptr, out_frames, gainL, gainR, output.format);
+		_scale_and_pack_frames(outputptr, inputptr, out_frames, gainL, gainR, flags, output.format);
 
 	} else {
 
 		outputptr = (void *)inputptr;
 
 		if (!silence) {
-
-			if (gainL != FIXED_ONE || gainR!= FIXED_ONE) {
-				_apply_gain(outputbuf, out_frames, gainL, gainR);
-			}
+			_apply_gain(outputbuf, out_frames, gainL, gainR, flags);
 		}
 	}
 
