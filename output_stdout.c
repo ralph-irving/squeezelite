@@ -45,7 +45,7 @@ static u8_t *buf;
 static unsigned buffill;
 static int bytes_per_frame;
 
-static int _stdout_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
+static int _stdout_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR, u8_t flags,
 								s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr) {
 
 	u8_t *obuf;
@@ -75,7 +75,7 @@ static int _stdout_write_frames(frames_t out_frames, bool silence, s32_t gainL, 
 		   }
 	)
 
-	_scale_and_pack_frames(buf + buffill * bytes_per_frame, (s32_t *)(void *)obuf, out_frames, gainL, gainR, output.format);
+	_scale_and_pack_frames(buf + buffill * bytes_per_frame, (s32_t *)(void *)obuf, out_frames, gainL, gainR, flags, output.format);
 
 	buffill += out_frames;
 

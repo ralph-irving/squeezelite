@@ -43,34 +43,31 @@ s32_t to_gain(float f) {
 	return (s32_t)(f * 65536.0F);
 }
 
-void _scale_and_pack_frames(void *outputptr, s32_t *inputptr, frames_t cnt, s32_t gainL, s32_t gainR, output_format format) {
+void _scale_and_pack_frames(void *outputptr, s32_t *inputptr, frames_t cnt, s32_t gainL, s32_t gainR, u8_t flags, output_format format) {
 	// in-place copy input samples if mono/combined is used (never happens with DSD active)
-	if ((gainR & MONO_FLAG) && (gainL & MONO_FLAG)) {
+	if ((flags & MONO_LEFT) && (flags & MONO_RIGHT)) {
 		s32_t *ptr = inputptr;
 		frames_t count = cnt;
-		gainL &= ~MONO_FLAG; gainR &= ~MONO_FLAG;
 		while (count--) {
 			// use 64 bits integer for purists but should really not care
-			*ptr = *(ptr + 1) = ((s64_t) *ptr  + (s64_t) *(ptr + 1)) / 2;
+			*ptr = *(ptr + 1) = ((s64_t) *ptr + (s64_t) *(ptr + 1)) / 2;
 			ptr += 2;
 		}
-	} else if (gainL & MONO_FLAG) {
+	} else if (flags & MONO_RIGHT) {
 		s32_t *ptr = inputptr + 1;
 		frames_t count = cnt;
-		gainL &= ~MONO_FLAG;
 		while (count--) {
 			*(ptr - 1) = *ptr;
 			ptr += 2;
 		}
-	} else if (gainR & MONO_FLAG) {
+	} else if (flags & MONO_LEFT) {	
 		s32_t *ptr = inputptr;
 		frames_t count = cnt;
-		gainR &= ~MONO_FLAG;
 		while (count--) {
 			*(ptr + 1) = *ptr;
 			ptr += 2;
 		}
-   }
+	}
 
 	switch(format) {
 #if DSD
@@ -381,34 +378,36 @@ void _apply_cross(struct buffer *outputbuf, frames_t out_frames, s32_t cross_gai
 #if !WIN
 inline 
 #endif
-void _apply_gain(struct buffer *outputbuf, frames_t count, s32_t gainL, s32_t gainR) {
-	if ((gainR & MONO_FLAG) && (gainL & MONO_FLAG)) {
+void _apply_gain(struct buffer *outputbuf, frames_t count, s32_t gainL, s32_t gainR, u8_t flags) {
+	if (gainL == FIXED_ONE && gainR == FIXED_ONE && !(flags & (MONO_LEFT | MONO_RIGHT))) {
+		return;
+	} else if ((flags & MONO_LEFT) && (flags & MONO_RIGHT)) {
 		ISAMPLE_T *ptrL = (ISAMPLE_T *)(void *)outputbuf->readp;
 		ISAMPLE_T *ptrR = (ISAMPLE_T *)(void *)outputbuf->readp + 1;
-		gainL &= ~MONO_FLAG; gainR &= ~MONO_FLAG;
 		while (count--) {
 			*ptrL = *ptrR = (gain(gainL, *ptrL) + gain(gainR, *ptrR)) / 2;
 			ptrL += 2; ptrR += 2;
 		}
-	} else if (gainL & MONO_FLAG) {
+
+	} else if (flags & MONO_RIGHT) {
 		ISAMPLE_T *ptr = (ISAMPLE_T *)(void *)outputbuf->readp + 1;
 		while (count--) {
 			*(ptr - 1) = *ptr = gain(gainR, *ptr);
 			ptr += 2;
 		}
-	} else if (gainR & MONO_FLAG) {
+	} else if (flags & MONO_LEFT) {
 		ISAMPLE_T *ptr = (ISAMPLE_T *)(void *)outputbuf->readp;
 		while (count--) {
 			*(ptr + 1) = *ptr = gain(gainL, *ptr);
 			ptr += 2;
 		}
-   } else {
-   		ISAMPLE_T *ptrL = (ISAMPLE_T *)(void *)outputbuf->readp;
+	} else {
+	   	ISAMPLE_T *ptrL = (ISAMPLE_T *)(void *)outputbuf->readp;
 		ISAMPLE_T *ptrR = (ISAMPLE_T *)(void *)outputbuf->readp + 1;
 		while (count--) {
 			*ptrL = gain(gainL, *ptrL);
 			*ptrR = gain(gainR, *ptrR);
 			ptrL += 2; ptrR += 2;
 		}
-   }
+	}
 }

@@ -386,7 +386,7 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 	return true;
 }
 
-static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
+static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR, u8_t flags,
 						 s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr) {
 	pa_stream_write(pulse.stream, silence ? silencebuf : outputbuf->readp, out_frames * BYTES_PER_FRAME, (pa_free_cb_t)NULL, 0, PA_SEEK_RELATIVE);
 	return (int)out_frames;

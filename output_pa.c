@@ -448,7 +448,7 @@ void _pa_open(void) {
 
 static u8_t *optr;
 
-static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
+static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR, u8_t flags,
 						 s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr) {
 	
 	if (!silence) {
@@ -458,7 +458,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 		}
 		
 		if (gainL != FIXED_ONE || gainR!= FIXED_ONE) {
-			_apply_gain(outputbuf, out_frames, gainL, gainR);
+			_apply_gain(outputbuf, out_frames, gainL, gainR, flags);
 		}
 
 		IF_DSD(
