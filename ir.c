@@ -133,6 +133,7 @@ static struct {
 	{ "KEY_DOWN",       0x7689b04f, true  },
 	{ "KEY_HOME",       0x768922dd, false },
 	{ "KEY_MEDIA_REPEAT", 0x768938c7, false },
+	{ "KEY_AGAIN",      0x768938c7, false },
 //	{ "KEY_TITLE",      0x76897887, false }, // Now Playing
 //	{ "KEY_TITLE",      0x7689a25d, false }, // Now Playing
 //	{ "KEY_TEXT",       0x7689f807, false }, // Size 
