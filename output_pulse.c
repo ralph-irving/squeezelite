@@ -362,8 +362,9 @@ static void pulse_sinkinfo_cb(pa_context *c, const pa_sink_info *l, int eol, voi
 		d->default_sink_name = strdup(l->name);
 
 	if (!d->userdef_rates) {
-		d->rates[0] = l->sample_spec.rate;
+		d->rates[0] = PA_RATE_MAX;
 	}
+	output.default_sample_rate = l->sample_spec.rate;
 
 	*d->sample_spec = l->sample_spec;
 }
