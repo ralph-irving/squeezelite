@@ -37,15 +37,70 @@ extern struct codec *codec;
 #define LOCK_O   mutex_lock(outputbuf->mutex)
 #define UNLOCK_O mutex_unlock(outputbuf->mutex)
 
-// macros to map to processing functions - currently only resample.c
-// this can be made more generic when multiple processing mechanisms get added
-#if RESAMPLE
-#define SAMPLES_FUNC resample_samples
-#define DRAIN_FUNC   resample_drain
-#define NEWSTREAM_FUNC resample_newstream
-#define FLUSH_FUNC   resample_flush
-#define INIT_FUNC    resample_init
+static inline bool NEWSTREAM_FUNC(struct processstate *process, unsigned raw_sample_rate, unsigned supported_rates[]) {
+	bool active=0;
+#if HDCD
+	active|=hdcd_newstream(process,raw_sample_rate,supported_rates);
 #endif
+#if RESAMPLE
+	active|=resample_newstream(process,raw_sample_rate,supported_rates);
+#else
+        process->in_sample_rate = raw_sample_rate;
+        process->out_sample_rate = raw_sample_rate;
+#endif
+
+	return active;
+}
+
+static inline bool DRAIN_FUNC(struct processstate *process){
+	bool ok=0;
+#if HDCD
+	ok = true;
+#endif
+#if RESAMPLE
+	ok |= resample_drain(process);
+#endif
+	return ok;
+}
+
+static inline void SAMPLES_FUNC(struct processstate *process) {
+#if HDCD
+	/* in place decoding (ie: inbuf to inbuf) */
+	hdcd_samples(process);
+#endif
+#if RESAMPLE
+	if(resample_samples(process) == 0)
+#endif
+	{
+		/* no resampling copy in to out */
+		memcpy(process->outbuf,process->inbuf,process->in_frames * BYTES_PER_FRAME );
+        	process->out_frames = process->in_frames;
+        	process->total_in  += process->in_frames;
+        	process->total_out += process->out_frames;
+	}
+
+}
+
+static inline void FLUSH_FUNC(void) {
+#if HDCD
+	hdcd_flush();
+#endif
+#if RESAMPLE
+	resample_flush();
+#endif
+}
+
+static inline bool INIT_FUNC(char *opt) {
+	bool enabled=0;
+#if HDCD
+	enabled = true;
+#endif
+#if RESAMPLE
+	enabled |= resample_init(opt);
+#endif
+	return enabled;
+}
+
 
 
 // transfer all processed frames to the output buf
@@ -121,8 +176,6 @@ unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned supp
 
 	bool active = NEWSTREAM_FUNC(&process, raw_sample_rate, supported_rates);
 
-	LOG_INFO("processing: %s", active ? "active" : "inactive");
-
 	*direct = !active;
 
 	if (active) {
@@ -134,12 +187,16 @@ unsigned process_newstream(bool *direct, unsigned raw_sample_rate, unsigned supp
 
 		max_in_frames = codec->min_space / BYTES_PER_FRAME ;
 
+#if RESAMPLE
 		// increase size of output buffer by 10% as output rate is not an exact multiple of input rate
 		if (process.out_sample_rate % process.in_sample_rate == 0) {
 			max_out_frames = max_in_frames * (process.out_sample_rate / process.in_sample_rate);
 		} else {
 			max_out_frames = (int)(1.1 * (float)max_in_frames * (float)process.out_sample_rate / (float)process.in_sample_rate);
 		}
+#else
+		max_out_frames = max_in_frames;
+#endif
 
 		if (process.max_in_frames != max_in_frames) {
 			LOG_DEBUG("creating process buf in frames: %u", max_in_frames);
@@ -189,6 +246,7 @@ void process_init(char *opt) {
 		decode.process = true;
 		UNLOCK_D;
 	}
+	LOG_INFO("process init %d",enabled?1:0);
 }
 
 #endif // #if PROCESS
