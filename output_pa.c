@@ -214,6 +214,7 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 #endif
 		switch (err) {
 			case paInvalidSampleRate:
+				LOG_DEBUG("sample rate %u not supported", ref[i]);
 				continue;
 #if WIN
 #ifndef PA18API

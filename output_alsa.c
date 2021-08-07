@@ -297,6 +297,9 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 			if (snd_pcm_hw_params_test_rate(pcm, hw_params, ref[i], 0) == 0) {
 				rates[ind++] = ref[i];
 			}
+			else {
+				LOG_DEBUG("sample rate %u not supported", ref[i]);
+			}
 		}
 	}
 
