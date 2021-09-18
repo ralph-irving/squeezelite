@@ -230,7 +230,6 @@ static decode_state opus_decompress(void) {
 		if (stream.state <= DISCONNECT) {
 			LOG_INFO("partial decode");
 			UNLOCK_O_direct;
-			UNLOCK_S;
 			return DECODE_COMPLETE;
 		} else {
 			LOG_INFO("no frame decoded");
