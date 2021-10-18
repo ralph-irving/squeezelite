@@ -123,6 +123,10 @@ static FLAC__StreamDecoderReadStatus read_cb(const FLAC__StreamDecoder *decoder,
 
 	*want = bytes;
 
+	// if there's nothing in the stream buffer, libFLAC will continuously call this function as quickly as possible. slow it down.
+	if (!bytes && !end)
+		usleep(1000);
+
 	return end ? FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM : FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
 }
 
