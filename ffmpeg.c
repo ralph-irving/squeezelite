@@ -54,14 +54,10 @@ struct ff_s {
 	unsigned (* avcodec_version)(void);
 	AVCodec * (* avcodec_find_decoder)(int);
 	int attribute_align_arg (* avcodec_open2)(AVCodecContext *, const AVCodec *, AVDictionary **);
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55,28,1)
 	AVFrame * (* av_frame_alloc)(void);
 	void (* av_frame_free)(AVFrame **);
-#else
-	AVFrame * (* avcodec_alloc_frame)(void);
-	void (* avcodec_free_frame)(AVFrame **);
-#endif
-	int attribute_align_arg (* avcodec_decode_audio4)(AVCodecContext *, AVFrame *, int *, const AVPacket *);
+	int attribute_align_arg (* avcodec_send_packet)(AVCodecContext *, const AVPacket *);
+	int attribute_align_arg (* avcodec_receive_frame)(AVCodecContext *, AVFrame *);
 	AVCodecContext * (* avcodec_alloc_context3)(const AVCodec *);
 	void (* avcodec_free_context)(AVCodecContext **);
 	int (* avcodec_parameters_to_context)(AVCodecContext *, const AVCodecParameters *);
@@ -73,15 +69,16 @@ struct ff_s {
 	int (* avformat_find_stream_info)(AVFormatContext *, AVDictionary **);
 	AVIOContext * (* avio_alloc_context)(unsigned char *, int, int,	void *,
 		int (*read_packet)(void *, uint8_t *, int), int (*write_packet)(void *, uint8_t *, int), int64_t (*seek)(void *, int64_t, int));
+	AVPacket * (* av_packet_alloc)(void);
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58,133,100)
 	void (* av_init_packet)(AVPacket *);
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57,24,102)
-	void (* av_packet_unref)(AVPacket *);
-#else
-	void (* av_free_packet)(AVPacket *);
 #endif
+	void (* av_packet_unref)(AVPacket *);
 	int (* av_read_frame)(AVFormatContext *, AVPacket *);
 	AVInputFormat * (* av_find_input_format)(const char *);
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(58,9,100)
 	void (* av_register_all)(void);
+#endif
 	// ffmpeg symbols to be dynamically loaded from libavutil
 	unsigned (* avutil_version)(void);
 	void (* av_log_set_callback)(void (*)(void*, int, const char*, va_list));
@@ -263,8 +260,7 @@ static int _read_data(void *opaque, u8_t *buffer, int buf_size) {
 }
 
 static decode_state ff_decode(void) {
-	int r, len, got_frame;
-	AVPacket pkt_c;
+	int r;
 	s32_t *optr = NULL;
 
 	if (decode.new_stream) {
@@ -351,21 +347,16 @@ static decode_state ff_decode(void) {
 
 		AVCODEC(ff, open2, ff->codecC, codec, NULL);
 
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55,28,1)
 		ff->frame = AV(ff, frame_alloc);
-#else
-		ff->frame = AVCODEC(ff, alloc_frame);
-#endif
-
-		ff->avpkt = AV(ff, malloc, sizeof(AVPacket));
+		ff->avpkt = AV(ff, packet_alloc);
 		if (ff->avpkt == NULL) {
 			LOG_ERROR("can't allocate avpkt");
 			return DECODE_ERROR;
 		}
 
-		AV(ff, init_packet, ff->avpkt);
-		ff->avpkt->data = NULL;
-		ff->avpkt->size = 0;
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58,133,100)
+		AV(ff, init_packet, ff->avpkt); // on older ffmpeg, this still is needed to e.g. set ->pos to -1
+#endif
 
 		LOCK_O;
 		LOG_INFO("setting track_start");
@@ -376,8 +367,6 @@ static decode_state ff_decode(void) {
 		decode.new_stream = false;
 		UNLOCK_O;
 	}
-
-	got_frame = 0;
 
 	if ((r = AV(ff, read_frame, ff->formatC, ff->avpkt)) < 0) {
 		if (r == AVERROR_EOF) {
@@ -393,27 +382,30 @@ static decode_state ff_decode(void) {
 		return DECODE_RUNNING;
 	}
 
-	// clone packet as we are adjusting it
-	pkt_c = *ff->avpkt;
-
 	IF_PROCESS(
 		optr = (s32_t *)process.inbuf;
 		process.in_frames = 0;
 	);
 
-	while (pkt_c.size > 0 || got_frame) {
+	if ((r = AVCODEC(ff, send_packet, ff->codecC, ff->avpkt)) < 0) {
+		AV(ff, packet_unref, ff->avpkt);
 
-		len = AVCODEC(ff, decode_audio4, ff->codecC, ff->frame, &got_frame, &pkt_c);
-		if (len < 0) {
-			LOG_ERROR("avcodec_decode_audio4 error: %i %s", len, av__err2str(len));
-			break; // exit loop, free the packet, and continue decoding
+		if (r == AVERROR_EOF) {
+			LOG_DEBUG("av_send_packet reports eof");
+			return DECODE_COMPLETE;
+		} else {
+			LOG_ERROR("av_send_packet error: %i %s", r, av__err2str(r));
+
+			// EAGAIN is treated as an unrecoverable error here since all pending output frames are processed below
+			if (r == AVERROR(EAGAIN) || r == AVERROR(EINVAL) || r == AVERROR(ENOMEM))
+				return DECODE_ERROR;
+
+			// retain existing behavior (continue decoding) for legitimate decoding errors
+			return DECODE_RUNNING;
 		}
-
-		pkt_c.data += len;
-		pkt_c.size -= len;
-		
-		if (got_frame) {
-			
+	} else {
+		// a single input packet can lead to multiple output frames - process all of them
+		while ((r = AVCODEC(ff, receive_frame, ff->codecC, ff->frame)) >= 0) {
 			s16_t *iptr16 = (s16_t *)ff->frame->data[0];
 			s32_t *iptr32 = (s32_t *)ff->frame->data[0];
 			s16_t *iptr16l = (s16_t *)ff->frame->data[0];
@@ -536,11 +528,21 @@ static decode_state ff_decode(void) {
 		}
 	}
 
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57,24,102)
 	AV(ff, packet_unref, ff->avpkt);
-#else
-	AV(ff, free_packet, ff->avpkt);
-#endif
+
+	if (r == AVERROR(EAGAIN)) {
+		// EAGAIN is expected if there are no more pending frames
+	} else if (r == AVERROR_EOF) {
+		LOG_DEBUG("av_receive_frame reports eof");
+		return DECODE_COMPLETE;
+	} else {
+		LOG_ERROR("av_receive_frame error: %i %s", r, av__err2str(r));
+
+		if (r == AVERROR(EINVAL))
+			return DECODE_ERROR;
+
+		// retain existing behavior (continue decoding) for legitimate decoding errors
+	}
 
 	return DECODE_RUNNING;
 }
@@ -565,31 +567,12 @@ static void _free_ff_data(void) {
 	}
 
 	if (ff->frame) {
-		// ffmpeg version dependant free function
-#if !LINKALL
-    #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55,28,1)
-		ff->av_frame_free ? AV(ff, frame_free, &ff->frame) : AV(ff, freep, &ff->frame);
-    #else
-		ff->avcodec_free_frame ? AVCODEC(ff, free_frame, &ff->frame) : AV(ff, freep, &ff->frame);
-    #endif
-#elif LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(54,28,0)
-    #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55,28,1)
 		AV(ff, frame_free, &ff->frame);
-    #else
-		AVCODEC(ff, free_frame, &ff->frame);
-    #endif
-#else
-		AV(ff, freep, &ff->frame);
-#endif
 		ff->frame = NULL;
 	}
 
 	if (ff->avpkt) {
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57,24,102)
 		AV(ff, packet_unref, ff->avpkt);
-#else
-		AV(ff, free_packet, ff->avpkt);
-#endif
 		AV(ff, freep, &ff->avpkt);
 		ff->avpkt = NULL;
 	}
@@ -661,23 +644,18 @@ static bool load_ff() {
 	ff->avcodec_version = dlsym(handle_codec, "avcodec_version");
 	ff->avcodec_find_decoder = dlsym(handle_codec, "avcodec_find_decoder");
 	ff->avcodec_open2 = dlsym(handle_codec, "avcodec_open2");
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55,28,1)
 	ff->av_frame_alloc = dlsym(handle_codec, "av_frame_alloc");
 	ff->av_frame_free = dlsym(handle_codec, "av_frame_free");
-#else
-	ff->avcodec_alloc_frame = dlsym(handle_codec, "avcodec_alloc_frame");
-	ff->avcodec_free_frame = dlsym(handle_codec, "avcodec_free_frame");
-#endif
-	ff->avcodec_decode_audio4 = dlsym(handle_codec, "avcodec_decode_audio4");
+	ff->avcodec_send_packet = dlsym(handle_codec, "avcodec_send_packet");
+	ff->avcodec_receive_frame = dlsym(handle_codec, "avcodec_receive_frame");
 	ff->avcodec_alloc_context3 = dlsym(handle_format, "avcodec_alloc_context3");
 	ff->avcodec_free_context = dlsym(handle_format, "avcodec_free_context");
 	ff->avcodec_parameters_to_context = dlsym(handle_format, "avcodec_parameters_to_context");
+	ff->av_packet_alloc = dlsym(handle_codec, "av_packet_alloc");
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58,133,100)
 	ff->av_init_packet = dlsym(handle_codec, "av_init_packet");
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57,24,102)
-	ff->av_packet_unref = dlsym(handle_codec, "av_packet_unref");
-#else
-	ff->av_free_packet = dlsym(handle_codec, "av_free_packet");
 #endif
+	ff->av_packet_unref = dlsym(handle_codec, "av_packet_unref");
 
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
@@ -694,7 +672,9 @@ static bool load_ff() {
 	ff->avio_alloc_context = dlsym(handle_format, "avio_alloc_context");
 	ff->av_read_frame = dlsym(handle_format, "av_read_frame");
 	ff->av_find_input_format= dlsym(handle_format, "av_find_input_format");
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(58,9,100)
 	ff->av_register_all = dlsym(handle_format, "av_register_all");
+#endif
 
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
@@ -761,8 +741,10 @@ struct codec *register_ff(const char *codec) {
 
 		AV(ff, log_set_callback, av_err_callback);
 
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(58,9,100)
 		AV(ff, register_all);
-		
+#endif
+
 		registered = true;
 	}
 
