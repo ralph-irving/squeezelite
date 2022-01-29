@@ -752,7 +752,7 @@ struct codec *register_ff(const char *codec) {
 
 		static struct codec ret = { 
 			'w',         // id
-			"wma,wmap",  // types
+			"wma,wmap,wmal", // types
 			READ_SIZE,   // min read
 			WRITE_SIZE,  // min space
 			ff_open_wma, // open
@@ -760,7 +760,7 @@ struct codec *register_ff(const char *codec) {
 			ff_decode,   // decode
 		};
 		
-		LOG_INFO("using ffmpeg to decode wma,wmap");
+		LOG_INFO("using ffmpeg to decode wma,wmap,wmal");
 		return &ret;
 	}
 
