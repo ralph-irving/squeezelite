@@ -1,15 +1,15 @@
 # Contributor: Carl Chave <online@chave.us>
 # Maintainer: Ralph Irving <ralph.irving@gmail.com>
 pkgname=squeezelite
-pkgver=1.9.7.1273
-pkgrel=1
+pkgver=1.9.9.1395
+pkgrel=0
 pkgdesc="Lightweight headless squeezebox player for Logitech Media Server"
 url="https://github.com/ralph-irving/squeezelite"
 arch="all"
 license="GPL-3.0-or-later3"
 options="!check" # No test suite
-depends="flac alsa-lib faad2 mpg123 libvorbis libmad soxr openssl opusfile libalac"
-makedepends="flac-dev alsa-lib-dev faad2-dev mpg123-dev libvorbis-dev libmad-dev soxr-dev openssl-dev opusfile-dev opus-dev libalac-dev"
+depends="flac alsa-lib faad2-libs mpg123-libs libvorbis libmad soxr openssl opusfile libalac lirc"
+makedepends="flac-dev alsa-lib-dev faad2-dev mpg123-dev libvorbis-dev libmad-dev soxr-dev openssl-dev opusfile-dev opus-dev libalac-dev lirc-dev"
 install="$pkgname.pre-install"
 subpackages="$pkgname-doc $pkgname-openrc"
 source="$pkgname-$pkgver.zip::https://github.com/ralph-irving/squeezelite/archive/master.zip load-libtremor-first.patch $pkgname.confd $pkgname.initd"
@@ -17,7 +17,7 @@ builddir="$srcdir/$pkgname-master"
 
 build() {
     cd "$builddir"
-    make OPTS="-DRESAMPLE -DDSD -DGPIO -DVISEXPORT -DUSE_SSL -DNO_SSLSYM -DOPUS -DALAC -I/usr/include/opus -I/usr/include/alac"
+    make OPTS="-DRESAMPLE -DDSD -DGPIO -DVISEXPORT -DUSE_SSL -DNO_SSLSYM -DOPUS -DALAC -DIR -I/usr/include/opus -I/usr/include/alac"
     gcc -Os -fomit-frame-pointer -fcommon -s -o find_servers tools/find_servers.c
     gcc -Os -fomit-frame-pointer -fcommon -s -o alsacap tools/alsacap.c -lasound
 }
