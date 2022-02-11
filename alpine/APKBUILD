@@ -1,7 +1,7 @@
 # Contributor: Carl Chave <online@chave.us>
 # Maintainer: Ralph Irving <ralph.irving@gmail.com>
 pkgname=squeezelite
-pkgver=1.9.9.1395
+pkgver=1.9.9.1401
 pkgrel=0
 pkgdesc="Lightweight headless squeezebox player for Logitech Media Server"
 url="https://github.com/ralph-irving/squeezelite"
