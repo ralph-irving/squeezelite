@@ -51,8 +51,12 @@ static int header_mlen;
 struct streamstate stream;
 
 #if USE_SSL
+#if WIN
+#define _last_error() WSAGetLastError()
+#define ERROR_WOULDBLOCK WSAEWOULDBLOCK
+#else
 #define _last_error() ERROR_WOULDBLOCK
-
+#endif
 static SSL_CTX *SSLctx;
 SSL *ssl;
 
