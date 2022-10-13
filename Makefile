@@ -5,26 +5,28 @@ LDADD	?= -lpthread -lm -lrt
 EXECUTABLE ?= squeezelite
 
 # passing one or more of these in $(OPTS) enables optional feature inclusion
-OPT_DSD     = -DDSD
-OPT_FF      = -DFFMPEG
-OPT_ALAC    = -DALAC
-OPT_LINKALL = -DLINKALL
-OPT_RESAMPLE= -DRESAMPLE
-OPT_VIS     = -DVISEXPORT
-OPT_IR      = -DIR
-OPT_GPIO    = -DGPIO
-OPT_RPI     = -DRPI
-OPT_NO_FAAD = -DNO_FAAD
-OPT_SSL	    = -DUSE_SSL
-OPT_NOSSLSYM= -DNO_SSLSYM
-OPT_OPUS    = -DOPUS
-OPT_PORTAUDIO = -DPORTAUDIO
+OPT_DSD        = -DDSD
+OPT_FF         = -DFFMPEG
+OPT_ALAC       = -DALAC
+OPT_LINKALL    = -DLINKALL
+OPT_RESAMPLE   = -DRESAMPLE
+OPT_VIS        = -DVISEXPORT
+OPT_IR         = -DIR
+OPT_GPIO       = -DGPIO
+OPT_RPI        = -DRPI
+OPT_NO_FAAD    = -DNO_FAAD
+OPT_NO_MAD     = -DNO_MAD
+OPT_NO_MPG123  = -DNO_MPG123
+OPT_SSL        = -DUSE_SSL
+OPT_NOSSLSYM   = -DNO_SSLSYM
+OPT_OPUS       = -DOPUS
+OPT_PORTAUDIO  = -DPORTAUDIO
 OPT_PULSEAUDIO = -DPULSEAUDIO
 
 SOURCES = \
 	main.c slimproto.c buffer.c stream.c utils.c \
 	output.c output_alsa.c output_pa.c output_stdout.c output_pack.c output_pulse.c decode.c \
-	flac.c pcm.c mad.c vorbis.c mpg.c
+	flac.c pcm.c vorbis.c
 
 SOURCES_DSD      = dsd.c dop.c dsd2pcm/dsd2pcm.c
 SOURCES_FF       = ffmpeg.c
@@ -37,6 +39,8 @@ SOURCES_RPI      = minimal_gpio.c
 SOURCES_FAAD     = faad.c
 SOURCES_SSL      = sslsym.c
 SOURCES_OPUS     = opus.c
+SOURCES_MAD      = mad.c
+SOURCES_MPG123   = mpg.c
 
 LINK_LINUX       = -ldl
 LINK_ALSA        = -lasound
@@ -45,12 +49,14 @@ LINK_PULSEAUDIO  = -lpulse
 LINK_SSL         = -lssl -lcrypto
 LINK_ALAC        = -lalac
 
-LINKALL          = -lmad -lmpg123 -lFLAC -lvorbisfile -lvorbis -logg
+LINKALL          = -lFLAC -lvorbisfile -lvorbis -logg
 LINKALL_FF       = -lavformat -lavcodec -lavutil
 LINKALL_RESAMPLE = -lsoxr
 LINKALL_IR       = -llirc_client
 LINKALL_FAAD     = -lfaad
 LINKALL_OPUS     = -lopusfile -lopus
+LINKALL_MAD      = -lmad
+LINKALL_MPG123   = -lmpg123
 
 DEPS             = squeezelite.h slimproto.h
 
@@ -98,6 +104,12 @@ endif
 ifneq (,$(findstring $(OPT_SSL), $(OPTS)))
 	SOURCES += $(SOURCES_SSL)
 endif
+ifeq (,$(findstring $(OPT_NO_MAD), $(OPTS)))
+	SOURCES += $(SOURCES_MAD)
+endif
+ifeq (,$(findstring $(OPT_NO_MPG123), $(OPTS)))
+	SOURCES += $(SOURCES_MPG123)
+endif
 
 # add optional link options
 ifneq (,$(findstring $(OPT_LINKALL), $(OPTS)))
@@ -119,6 +131,12 @@ ifeq (,$(findstring $(OPT_NO_FAAD), $(OPTS)))
 endif	
 ifneq (,$(findstring $(OPT_SSL), $(OPTS)))
 	LDADD += $(LINK_SSL)
+endif
+ifeq (,$(findstring $(OPT_NO_MAD), $(OPTS)))
+	LDADD += $(LINKALL_MAD)
+endif
+ifeq (,$(findstring $(OPT_NO_MPG123), $(OPTS)))
+	LDADD += $(LINKALL_MPG123)
 endif
 else
 # if not LINKALL and linux add LINK_LINUX
