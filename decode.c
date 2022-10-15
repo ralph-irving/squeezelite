@@ -183,6 +183,7 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 	if (!strstr(exclude_codecs, "pcm")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "pcm"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_pcm());
 
+#if !defined(NO_MAD) && !defined(NO_MPG123)
 	// try mad then mpg for mp3 unless command line option passed
 	if (!(strstr(exclude_codecs, "mp3") || strstr(exclude_codecs, "mad")) &&
 		(!include_codecs || (order_codecs = strstr(include_codecs, "mp3")) || (order_codecs = strstr(include_codecs, "mad"))))
@@ -190,6 +191,13 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 	else if (!(strstr(exclude_codecs, "mp3") || strstr(exclude_codecs, "mpg")) &&
 		(!include_codecs || (order_codecs = strstr(include_codecs, "mp3")) || (order_codecs = strstr(include_codecs, "mpg"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_mpg());
+#elif !defined(NO_MAD)
+	if (!strstr(exclude_codecs, "mp3") && (!include_codecs || (order_codecs = strstr(include_codecs, "mp3"))))
+		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_mad());
+#elif !defined(NO_MPG123)
+	if (!strstr(exclude_codecs, "mp3") && (!include_codecs || (order_codecs = strstr(include_codecs, "mp3"))))
+		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_mpg());
+#endif
 
 	LOG_DEBUG("include codecs: %s exclude codecs: %s", include_codecs ? include_codecs : "", exclude_codecs);
 

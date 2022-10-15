@@ -28,7 +28,7 @@
 
 #define TITLE "Squeezelite " VERSION ", Copyright 2012-2015 Adrian Smith, 2015-2021 Ralph Irving."
 
-#define CODECS_BASE "flac,pcm,mp3,ogg"
+#define CODECS_BASE "flac,pcm,ogg"
 #if NO_FAAD
 #define CODECS_AAC  ""
 #else
@@ -51,7 +51,13 @@
 #else
 #define CODECS_DSD  ""
 #endif
-#define CODECS_MP3  " (mad,mpg for specific mp3 codec)"
+#if !defined(NO_MAD) && !defined(NO_MPG123)
+#define CODECS_MP3  ",mp3 (mad,mpg for specific mp3 codec)"
+#elif defined(NO_MAD) && defined(NO_MPG123)
+#define CODECS_MP3  ""
+#else
+#define CODECS_MP3  ",mp3"
+#endif
 
 #define CODECS CODECS_BASE CODECS_AAC CODECS_FF CODECS_OPUS CODECS_DSD CODECS_MP3
 
@@ -220,6 +226,12 @@ static void usage(const char *argv0) {
 #endif
 #if NO_SSLSYM
                    " NO_SSLSYM"
+#endif
+#if NO_MPG123
+		   " NO_MPG123"
+#endif
+#if NO_MAD
+		   " NO_MAD"
 #endif
 #if LINKALL
 		   " LINKALL"
