@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
- 
+
 #include "squeezelite.h"
 
 #if USE_SSL && !LINKALL && !NO_SSLSYM
@@ -93,11 +93,18 @@ static char *LIBCRYPTO[] 	= {	"libcrypto.so",
 
 SYMDECL(SSL_read, int, 3, SSL*, s, void*, buf, int, len);
 SYMDECL(SSL_write, int, 3, SSL*, s, const void*, buf, int, len);
-SYMDECL(SSLv23_client_method, const SSL_METHOD*, 0);
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L)
 SYMDECL(TLS_client_method, const SSL_METHOD*, 0);
+SYMDECL(OPENSSL_init_ssl, int, 2, uint64_t, opts, const OPENSSL_INIT_SETTINGS*, settings);
+#else
+SYMDECL(SSLv23_client_method, const SSL_METHOD*, 0);
 SYMDECL(SSL_library_init, int, 0);
+#endif
 SYMDECL(SSL_CTX_new, SSL_CTX*, 1, const SSL_METHOD *, meth);
 SYMDECL(SSL_CTX_ctrl, long, 4, SSL_CTX *, ctx, int, cmd, long, larg, void*, parg);
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L)
+SYMDECL(SSL_CTX_set_options, unsigned long, 2, SSL_CTX*, ctx, unsigned long, op);
+#endif
 SYMDECL(SSL_new, SSL*, 1, SSL_CTX*, s);
 SYMDECL(SSL_connect, int, 1, SSL*, s);
 SYMDECL(SSL_shutdown, int, 1, SSL*, s);
@@ -117,14 +124,10 @@ static void *dlopen_try(char **filenames, int flag) {
 	return handle;
 }
 
-static int lambda(void) { 
-	return true;
-}
-
 bool load_ssl_symbols(void) {
 	CRYPThandle = dlopen_try(LIBCRYPTO, RTLD_NOW);
 	SSLhandle = dlopen_try(LIBSSL, RTLD_NOW);
-	
+
 	if (!SSLhandle || !CRYPThandle) {
 		free_ssl_symbols();
 		return false;
@@ -133,6 +136,9 @@ bool load_ssl_symbols(void) {
 	SYMLOAD(SSLhandle, SSL_CTX_new);
 	SYMLOAD(SSLhandle, SSL_CTX_ctrl);
 	SYMLOAD(SSLhandle, SSL_CTX_free);
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L)
+	SYMLOAD(SSLhandle, SSL_CTX_set_options);
+#endif
 	SYMLOAD(SSLhandle, SSL_ctrl);
 	SYMLOAD(SSLhandle, SSL_free);
 	SYMLOAD(SSLhandle, SSL_new);
@@ -144,16 +150,16 @@ bool load_ssl_symbols(void) {
 	SYMLOAD(SSLhandle, SSL_read);
 	SYMLOAD(SSLhandle, SSL_write);
 	SYMLOAD(SSLhandle, SSL_pending);
-	SYMLOAD(SSLhandle, SSLv23_client_method);
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L)
 	SYMLOAD(SSLhandle, TLS_client_method);
+	SYMLOAD(SSLhandle, OPENSSL_init_ssl);
+#else
+	SYMLOAD(SSLhandle, SSLv23_client_method);
 	SYMLOAD(SSLhandle, SSL_library_init);
+#endif
 
 	SYMLOAD(CRYPThandle, ERR_clear_error);
 	SYMLOAD(CRYPThandle, ERR_get_error);
-
-	// managed deprecated functions
-	if (!SYM(SSLv23_client_method)) SYM(SSLv23_client_method) = SYM(TLS_client_method);
-	if (!SYM(SSL_library_init)) SYM(SSL_library_init) = &lambda;
 
 	return true;
 }

@@ -172,6 +172,8 @@
 #endif
 
 #if defined (USE_SSL)
+#define OPENSSL_API_COMPAT 0x10000000L
+
 #undef USE_SSL
 #define USE_SSL 1
 #else
