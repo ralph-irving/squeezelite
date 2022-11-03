@@ -282,8 +282,13 @@ static decode_state flac_decode(void) {
 
 static bool load_flac() {
 #if !LINKALL
-	void *handle = dlopen(LIBFLAC, RTLD_NOW);
+	void *handle = NULL;
+	char name[30];
 	char *err;
+
+        sprintf(name, LIBFLAC, FLAC_API_VERSION_CURRENT < 12 ? 8 : 12);
+
+        handle = dlopen(name, RTLD_NOW);
 
 	if (!handle) {
 		LOG_INFO("dlerror: %s", dlerror());
@@ -305,7 +310,7 @@ static bool load_flac() {
 		return false;
 	}
 
-	LOG_INFO("loaded "LIBFLAC);
+	LOG_INFO("loaded %s", name);
 #endif
 
 	return true;
