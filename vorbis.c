@@ -54,7 +54,7 @@
 
 struct vorbis {
 	OggVorbis_File *vf;
-	bool opened;
+	bool opened, end;
 #if FRAME_BUF	
 	u8_t *write_buf;
 #endif	
@@ -140,7 +140,7 @@ static decode_state vorbis_decode(void) {
 
 	LOCK_S;
 
-	if (stream.state <= DISCONNECT && !_buf_used(streambuf)) {
+	if (stream.state <= DISCONNECT && v->end) {
 		UNLOCK_S;
 		return DECODE_COMPLETE;
 	}
@@ -204,6 +204,7 @@ static decode_state vorbis_decode(void) {
 	);
 	
 	bytes = frames * 2 * channels; // samples returned are 16 bits
+	v->end = frames == 0;
 
 	// write the decoded frames into outputbuf even though they are 16 bits per sample, then unpack them
 #ifdef TREMOR_ONLY	
@@ -311,6 +312,7 @@ static void vorbis_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 			v->opened = false;
 		}
 	}
+	v->end = false;
 }
 
 static void vorbis_close(void) {
