@@ -51,35 +51,36 @@ static int header_mlen;
 struct streamstate stream;
 
 #if USE_SSL
-#if WIN
-#define _last_error() WSAGetLastError()
-#define ERROR_WOULDBLOCK WSAEWOULDBLOCK
-#else
-#define _last_error() ERROR_WOULDBLOCK
-#endif
 static SSL_CTX *SSLctx;
-SSL *ssl;
+static SSL *ssl;
+static bool ssl_error;
 
-static int _recv(SSL *ssl, int fd, void *buffer, size_t bytes, int options) {
-	int n;
+static int _last_error(void) {
+	if (!ssl) return last_error();
+	return ssl_error ? ECONNABORTED : ERROR_WOULDBLOCK;
+}
+
+static int _recv(int fd, void *buffer, size_t bytes, int options) {
 	if (!ssl) return recv(fd, buffer, bytes, options);
-	n = SSL_read(ssl, (u8_t*) buffer, bytes);
-	if (n <= 0 && SSL_get_error(ssl, n) == SSL_ERROR_ZERO_RETURN) return 0;
+	int n = SSL_read(ssl, (u8_t*) buffer, bytes);
+	if (n <= 0) {
+		int err = SSL_get_error(ssl, n);
+		if (err == SSL_ERROR_ZERO_RETURN) return 0;
+		ssl_error = (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE);
+	}
 	return n;
 }
 
-static int _send(SSL *ssl, int fd, void *buffer, size_t bytes, int options) {
-	int n;
+static int _send(int fd, void *buffer, size_t bytes, int options) {
 	if (!ssl) return send(fd, buffer, bytes, options);
-	while (1) {
-		int err;
+	int n = 0;
+	do {
 		ERR_clear_error();
-		if ((n = SSL_write(ssl, (u8_t*) buffer, bytes)) >= 0) return n;
-		err = SSL_get_error(ssl, n);
-		if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) continue;
-		LOG_INFO("SSL write error %d", err );
-		return n;
-	}
+		if ((n = SSL_write(ssl, (u8_t*) buffer, bytes)) >= 0) break;
+		int err = SSL_get_error(ssl, n);
+		ssl_error = (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE);
+	} while (!ssl_error);
+	return n;
 }
 
 /*
@@ -88,7 +89,7 @@ can't mimic exactly poll as SSL is a real pain. Even if SSL_pending returns
 be no frame available. As well select (poll) < 0 does not mean that there is
 no data pending
 */
-static int _poll(SSL *ssl, struct pollfd *pollinfo, int timeout) {
+static int _poll(struct pollfd *pollinfo, int timeout) {
 	if (!ssl) return poll(pollinfo, 1, timeout);
 	if (pollinfo->events & POLLIN && SSL_pending(ssl)) {
 		if (pollinfo->events & POLLOUT) poll(pollinfo, 1, 0);
@@ -98,9 +99,9 @@ static int _poll(SSL *ssl, struct pollfd *pollinfo, int timeout) {
 	return poll(pollinfo, 1, timeout);
 }
 #else
-#define _recv(ssl, fc, buf, n, opt) recv(fd, buf, n, opt)
-#define _send(ssl, fd, buf, n, opt) send(fd, buf, n, opt)
-#define _poll(ssl, pollinfo, timeout) poll(pollinfo, 1, timeout)
+#define _recv(fd, buf, n, opt) recv(fd, buf, n, opt)
+#define _send(fd, buf, n, opt) send(fd, buf, n, opt)
+#define _poll(pollinfo, timeout) poll(pollinfo, 1, timeout)
 #define _last_error() last_error()
 #endif // USE_SSL
 
@@ -114,7 +115,7 @@ static bool send_header(void) {
 	int error;
 	
 	while (len) {
-		n = _send(ssl, fd, ptr, len, MSG_NOSIGNAL);
+		n = _send(fd, ptr, len, MSG_NOSIGNAL);
 		if (n <= 0) {
 			error = _last_error();
 #if WIN
@@ -262,7 +263,7 @@ static void *stream_thread() {
 
 		UNLOCK;
 
-		if (_poll(ssl, &pollinfo, 100)) {
+		if (_poll(&pollinfo, 100)) {
 
 			LOCK;
 
@@ -289,7 +290,7 @@ static void *stream_thread() {
 					char c;
 					static int endtok;
 
-					int n = _recv(ssl, fd, &c, 1, 0);
+					int n = _recv(fd, &c, 1, 0);
 					if (n <= 0) {
 						if (n < 0 && _last_error() == ERROR_WOULDBLOCK) {
 							UNLOCK;
@@ -350,7 +351,7 @@ static void *stream_thread() {
 					if (stream.meta_left == 0) {
 						// read meta length
 						u8_t c;
-						int n = _recv(ssl, fd, &c, 1, 0);
+						int n = _recv(fd, &c, 1, 0);
 						if (n <= 0) {
 							if (n < 0 && _last_error() == ERROR_WOULDBLOCK) {
 								UNLOCK;
@@ -367,7 +368,7 @@ static void *stream_thread() {
 					}
 
 					if (stream.meta_left) {
-						int n = _recv(ssl, fd, stream.header + stream.header_len, stream.meta_left, 0);
+						int n = _recv(fd, stream.header + stream.header_len, stream.meta_left, 0);
 						if (n <= 0) {
 							if (n < 0 && _last_error() == ERROR_WOULDBLOCK) {
 								UNLOCK;
@@ -404,7 +405,7 @@ static void *stream_thread() {
 						space = min(space, stream.meta_next);
 					}
 					
-					n = _recv(ssl, fd, streambuf->writep, space, 0);
+					n = _recv(fd, streambuf->writep, space, 0);
 					if (n == 0) {
 						LOG_INFO("end of stream (%u bytes)", stream.bytes);
 						_disconnect(DISCONNECT, DISCONNECT_OK);
