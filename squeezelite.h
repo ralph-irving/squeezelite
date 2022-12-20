@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "9"
-#define MICRO_VERSION "1414"
+#define MICRO_VERSION "1415"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -172,6 +172,8 @@
 #endif
 
 #if defined (USE_SSL)
+#define OPENSSL_API_COMPAT 0x10000000L
+
 #undef USE_SSL
 #define USE_SSL 1
 #else
