@@ -61,8 +61,9 @@ static int _last_error(void) {
 }
 
 static int _recv(int fd, void *buffer, size_t bytes, int options) {
+	int n;
 	if (!ssl) return recv(fd, buffer, bytes, options);
-	int n = SSL_read(ssl, (u8_t*) buffer, bytes);
+	n = SSL_read(ssl, (u8_t*) buffer, bytes);
 	if (n <= 0) {
 		int err = SSL_get_error(ssl, n);
 		if (err == SSL_ERROR_ZERO_RETURN) return 0;
@@ -72,12 +73,13 @@ static int _recv(int fd, void *buffer, size_t bytes, int options) {
 }
 
 static int _send(int fd, void *buffer, size_t bytes, int options) {
-	if (!ssl) return send(fd, buffer, bytes, options);
 	int n = 0;
+	int err;
+	if (!ssl) return send(fd, buffer, bytes, options);
 	do {
 		ERR_clear_error();
 		if ((n = SSL_write(ssl, (u8_t*) buffer, bytes)) >= 0) break;
-		int err = SSL_get_error(ssl, n);
+		err = SSL_get_error(ssl, n);
 		ssl_error = (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE);
 	} while (!ssl_error);
 	return n;

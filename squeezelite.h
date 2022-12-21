@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "9"
-#define MICRO_VERSION "1416"
+#define MICRO_VERSION "1417"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -367,6 +367,10 @@ typedef BOOL bool;
 #define open _open
 #define read _read
 #define snprintf _snprintf
+
+#if !defined(ECONNABORTED)
+#define ECONNABORTED	WSAECONNABORTED
+#endif
 
 #define in_addr_t u32_t
 #define socklen_t int
