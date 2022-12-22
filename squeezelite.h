@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "9"
-#define MICRO_VERSION "1417"
+#define MICRO_VERSION "1418"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -464,6 +464,7 @@ char *next_param(char *src, char c);
 u32_t gettime_ms(void);
 void get_mac(u8_t *mac);
 void set_nonblock(sockfd s);
+void set_recvbufsize(sockfd s);
 int connect_timeout(sockfd sock, const struct sockaddr *addr, socklen_t addrlen, int timeout);
 void server_addr(char *server, in_addr_t *ip_ptr, unsigned *port_ptr);
 void set_readwake_handles(event_handle handles[], sockfd s, event_event e);

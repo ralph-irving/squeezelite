@@ -172,6 +172,7 @@ static int connect_socket(bool use_ssl) {
 
 	set_nonblock(sock);
 	set_nosigpipe(sock);
+	set_recvbufsize(sock);
 
 	if (connect_timeout(sock, (struct sockaddr *) &addr, sizeof(addr), 10) < 0) {
 		LOG_INFO("unable to connect to server");
