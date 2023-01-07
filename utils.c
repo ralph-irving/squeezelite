@@ -499,7 +499,7 @@ void touch_memory(u8_t *buf, size_t size) {
 }
 #endif
 
-#if WIN
+#if WIN || SUN
 char *strcasestr(const char *haystack, const char *needle) {
 	size_t length_needle;
 	size_t length_haystack;
