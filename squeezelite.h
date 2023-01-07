@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "9"
-#define MICRO_VERSION "1421"
+#define MICRO_VERSION "1422"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -289,6 +289,7 @@
 #include <pthread.h>
 #include <signal.h>
 #if SUN
+#include <ctype.h>
 #include <sys/types.h>
 #endif /* SUN */
 
@@ -456,7 +457,7 @@ void logprint(const char *fmt, ...);
 
 // utils.c (non logging)
 typedef enum { EVENT_TIMEOUT = 0, EVENT_READ, EVENT_WAKE } event_type;
-#if WIN && USE_SSL
+#if WIN || SUN
 char* strcasestr(const char *haystack, const char *needle);
 #endif
 
