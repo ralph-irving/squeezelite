@@ -2,7 +2,7 @@
  *  Squeezelite - lightweight headless squeezebox emulator
  *
  *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
- *      Ralph Irving 2015-2021, ralph_irving@hotmail.com
+ *      Ralph Irving 2015-2023, ralph_irving@hotmail.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Additions (c) Paul Hermann, 2015-2021 under the same license terms
+ * Additions (c) Paul Hermann, 2015-2023 under the same license terms
  *   -Control of Raspberry pi GPIO for amplifier power
  *   -Launch script on power status change from LMS
  */
@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "9"
-#define MICRO_VERSION "1412"
+#define MICRO_VERSION "1422"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -172,6 +172,8 @@
 #endif
 
 #if defined (USE_SSL)
+#define OPENSSL_API_COMPAT 0x10000000L
+
 #undef USE_SSL
 #define USE_SSL 1
 #else
@@ -287,6 +289,7 @@
 #include <pthread.h>
 #include <signal.h>
 #if SUN
+#include <ctype.h>
 #include <sys/types.h>
 #endif /* SUN */
 
@@ -365,6 +368,10 @@ typedef BOOL bool;
 #define open _open
 #define read _read
 #define snprintf _snprintf
+
+#if !defined(ECONNABORTED)
+#define ECONNABORTED	WSAECONNABORTED
+#endif
 
 #define in_addr_t u32_t
 #define socklen_t int
@@ -450,7 +457,7 @@ void logprint(const char *fmt, ...);
 
 // utils.c (non logging)
 typedef enum { EVENT_TIMEOUT = 0, EVENT_READ, EVENT_WAKE } event_type;
-#if WIN && USE_SSL
+#if WIN || SUN
 char* strcasestr(const char *haystack, const char *needle);
 #endif
 
@@ -458,6 +465,7 @@ char *next_param(char *src, char c);
 u32_t gettime_ms(void);
 void get_mac(u8_t *mac);
 void set_nonblock(sockfd s);
+void set_recvbufsize(sockfd s);
 int connect_timeout(sockfd sock, const struct sockaddr *addr, socklen_t addrlen, int timeout);
 void server_addr(char *server, in_addr_t *ip_ptr, unsigned *port_ptr);
 void set_readwake_handles(event_handle handles[], sockfd s, event_event e);

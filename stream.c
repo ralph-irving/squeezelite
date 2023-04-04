@@ -2,7 +2,7 @@
  *  Squeezelite - lightweight headless squeezebox emulator
  *
  *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
- *      Ralph Irving 2015-2021, ralph_irving@hotmail.com
+ *      Ralph Irving 2015-2023, ralph_irving@hotmail.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -170,6 +170,7 @@ static int connect_socket(bool use_ssl) {
 
 	set_nonblock(sock);
 	set_nosigpipe(sock);
+	set_recvbufsize(sock);
 
 	if (connect_timeout(sock, (struct sockaddr *) &addr, sizeof(addr), 10) < 0) {
 		LOG_INFO("unable to connect to server");
