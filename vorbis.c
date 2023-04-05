@@ -54,7 +54,7 @@
 
 struct vorbis {
 	OggVorbis_File *vf;
-	bool opened, end;
+	bool opened;
 #if FRAME_BUF	
 	u8_t *write_buf;
 #endif	
@@ -114,10 +114,15 @@ extern int ov_read_tremor(); // needed to enable compilation, not linked
 static size_t _read_cb(void *ptr, size_t size, size_t nmemb, void *datasource) {
 	size_t bytes;
 
-	LOCK_S;
+	while (1) {
+		LOCK_S;
+		bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
+		bytes = min(bytes, size * nmemb);
+		if (bytes || stream.state <= DISCONNECT) break;
 
-	bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
-	bytes = min(bytes, size * nmemb);
+		UNLOCK_S;
+		usleep(50 * 1000);
+	}
 
 	memcpy(ptr, streambuf->readp, bytes);
 	_buf_inc_readp(streambuf, bytes);
@@ -138,15 +143,6 @@ static decode_state vorbis_decode(void) {
 	int bytes, s, n;
 	u8_t *write_buf;
 
-	LOCK_S;
-
-	if (stream.state <= DISCONNECT && v->end) {
-		UNLOCK_S;
-		return DECODE_COMPLETE;
-	}
-	
-	UNLOCK_S;
-	
 	if (decode.new_stream) {
 		ov_callbacks cbs;
 		int err;
@@ -204,7 +200,6 @@ static decode_state vorbis_decode(void) {
 	);
 	
 	bytes = frames * 2 * channels; // samples returned are 16 bits
-	v->end = frames == 0;
 
 	// write the decoded frames into outputbuf even though they are 16 bits per sample, then unpack them
 #ifdef TREMOR_ONLY	
@@ -276,7 +271,7 @@ static decode_state vorbis_decode(void) {
 	} else if (n == 0) {
 
 		if (stream.state <= DISCONNECT) {
-			LOG_INFO("partial decode");
+			LOG_INFO("end of decode");
 			UNLOCK_O_direct;
 			return DECODE_COMPLETE;
 		} else {
@@ -312,7 +307,6 @@ static void vorbis_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 			v->opened = false;
 		}
 	}
-	v->end = false;
 }
 
 static void vorbis_close(void) {
