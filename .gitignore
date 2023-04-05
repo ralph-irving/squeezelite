@@ -1,6 +1,12 @@
 .vscode/
 *.o
+*.bak
+Backup/
 squeezelite
 squeezelite-pulse
 tools/alsacap
 tools/find_servers
+Debug/
+Release/
+lib/
+MSVC2022/
