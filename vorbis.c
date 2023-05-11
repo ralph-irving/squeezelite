@@ -329,10 +329,12 @@ static bool load_vorbis() {
 	bool tremor = false;
 
 	if (!handle) {
+		err = dlerror();
 		handle = dlopen(LIBTREMOR, RTLD_NOW);
 		if (handle) {
 			tremor = true;
 		} else {
+			LOG_INFO("dlerror: %s", err);
 			LOG_INFO("dlerror: %s", dlerror());
 			return false;
 		}
@@ -343,12 +345,7 @@ static bool load_vorbis() {
 	v->ov_info = dlsym(handle, "ov_info");
 	v->ov_clear = dlsym(handle, "ov_clear");
 	v->ov_open_callbacks = dlsym(handle, "ov_open_callbacks");
-	
-	if ((err = dlerror()) != NULL) {
-		LOG_INFO("dlerror: %s", err);		
-		return false;
-	}
-	
+
 	LOG_INFO("loaded %s", tremor ? LIBTREMOR : LIBVORBIS);
 #endif
 
