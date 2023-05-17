@@ -102,12 +102,10 @@ SYMDECL(SSL_library_init, int, 0);
 #endif
 SYMDECL(SSL_CTX_new, SSL_CTX*, 1, const SSL_METHOD *, meth);
 SYMDECL(SSL_CTX_ctrl, long, 4, SSL_CTX *, ctx, int, cmd, long, larg, void*, parg);
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L)
-#if __WORDSIZE == 64
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+SYMDECL(SSL_CTX_set_options, uint64_t, 2, SSL_CTX*, ctx, uint64_t, op);
+#elif (OPENSSL_VERSION_NUMBER >= 0x10100000L)
 SYMDECL(SSL_CTX_set_options, unsigned long, 2, SSL_CTX*, ctx, unsigned long, op);
-#else
-SYMDECL(SSL_CTX_set_options, unsigned long long, 2, SSL_CTX*, ctx, unsigned long long, op);
-#endif
 #endif
 SYMDECL(SSL_new, SSL*, 1, SSL_CTX*, s);
 SYMDECL(SSL_connect, int, 1, SSL*, s);
