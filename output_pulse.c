@@ -422,6 +422,15 @@ static void * output_thread(void *arg) {
 	while (pulse.running) {
 		if (output_off) {
 			if (pulse.stream != NULL) {
+#if GPIO
+				//  Put Amp to Sleep
+				if (gpio_active){
+					relay(0);
+				}
+				if (power_script != NULL ){
+					relay_script(0);
+				}
+#endif
 				LOG_DEBUG("destroying PulseAudio playback stream");
 				pulse_stream_destroy(&pulse);
 			}
@@ -438,6 +447,15 @@ static void * output_thread(void *arg) {
 			}
 			
 			if (pulse.stream == NULL) {
+#if GPIO
+				// Wake up amp
+				if (gpio_active) {
+					relay(1);
+				}
+				if (power_script != NULL) {
+					relay_script(1);
+				}
+#endif
 				if (pulse_stream_create(&pulse)) {
 					LOG_DEBUG("PulseAudio playback stream on sink %s open", pulse.sink_name);
 
