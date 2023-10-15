@@ -142,8 +142,9 @@ above.
 .B \-f <logfile>
 Send logging output to a log file instead of standard output or standard error.
 .TP
-.B \-G <Rpi GPIO#>:<H/L>
-Specify the BCM GPIO# to use for Amp Power Relay and if the output
+.B \-G <GPIO Chip>:<GPIO#>:<H/L>
+Specify the kernel gpio chip number.
+Specify the GPIO Line# to use for Amp Power Relay and if the output
 should be Active High or Low. This cannot be used with the \fB-S\fR option.
 .TP
 .B \-i [<filename>]

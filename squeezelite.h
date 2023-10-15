@@ -774,21 +774,17 @@ struct codec *register_opus(void);
 #if GPIO
 void relay(int state);
 void relay_script(int state);
-int gpio_pin;
-bool gpio_active_low;
 bool gpio_active;
 char *power_script;
 
 #if RPI
-#define PI_INPUT  0
-#define PI_OUTPUT 1
-#define PI_LOW 0
-#define PI_HIGH 1
-void gpioSetMode(unsigned gpio, unsigned mode);
-void gpioWrite(unsigned gpio, unsigned level);
-int gpioInitialise(void);
-#endif
-#endif
+int gpio_chip;
+int gpio_pin;
+bool gpio_active_low;
+bool gpio_init();
+void gpio_close();
+#endif // RPI
+#endif //GPIO
 
 // ir.c
 #if IR
