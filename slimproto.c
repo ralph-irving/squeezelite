@@ -293,8 +293,7 @@ static void process_strm(u8_t *pkt, int len) {
 		break;
 	case 'f':
 		decode_flush();
-		output_flush();
-		status.frames_played = 0;
+		output_flush_streaming();
 		if (stream_disconnect()) {
 			sendSTAT("STMf", 0);
 		}
