@@ -452,12 +452,14 @@ void output_flush(void) {
 	UNLOCK;
 }
 
-void output_flush_streaming(void) {
+bool output_flush_streaming(void) {
 	LOG_INFO("flush output buffer (streaming)");
 	LOCK;
+	bool flushed = output.track_start != NULL;
 	if (output.track_start) {
 		outputbuf->writep = output.track_start;
 		output.track_start = NULL;
 	}
 	UNLOCK;
+	return flushed;
 }

@@ -688,7 +688,7 @@ struct outputstate {
 void output_init_common(log_level level, const char *device, unsigned output_buf_size, unsigned rates[], unsigned idle);
 void output_close_common(void);
 void output_flush(void);
-void output_flush_streaming(void);
+bool output_flush_streaming(void);
 // _* called with mutex locked
 frames_t _output_frames(frames_t avail);
 void _checkfade(bool);

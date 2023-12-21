@@ -291,14 +291,17 @@ static void process_strm(u8_t *pkt, int len) {
 		sendSTAT("STMf", 0);
 		buf_flush(streambuf);
 		break;
-	case 'f':
-		decode_flush();
-		output_flush_streaming();
-		if (stream_disconnect()) {
-			sendSTAT("STMf", 0);
+	case 'f': 
+		{
+			decode_flush();
+			// we can have fully finished the current streaming, that's still a flush
+			bool flushed = output_flush_streaming();
+			if (flushed || stream_disconnect()) {
+				sendSTAT("STMf", 0);
+			}
+			buf_flush(streambuf);
+			break;
 		}
-		buf_flush(streambuf);
-		break;
 	case 'p':
 		{
 			unsigned interval = unpackN(&strm->replay_gain);
