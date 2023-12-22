@@ -296,7 +296,7 @@ static void process_strm(u8_t *pkt, int len) {
 			decode_flush();
 			// we can have fully finished the current streaming, that's still a flush
 			bool flushed = output_flush_streaming();
-			if (flushed || stream_disconnect()) {
+			if (stream_disconnect() || flushed) {
 				sendSTAT("STMf", 0);
 			}
 			buf_flush(streambuf);
