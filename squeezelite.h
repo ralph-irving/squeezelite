@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "1.9"
 #define MINOR_VERSION "9"
-#define MICRO_VERSION "1457"
+#define MICRO_VERSION "1460"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -688,6 +688,7 @@ struct outputstate {
 void output_init_common(log_level level, const char *device, unsigned output_buf_size, unsigned rates[], unsigned idle);
 void output_close_common(void);
 void output_flush(void);
+bool output_flush_streaming(void);
 // _* called with mutex locked
 frames_t _output_frames(frames_t avail);
 void _checkfade(bool);
