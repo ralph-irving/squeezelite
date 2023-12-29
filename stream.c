@@ -742,7 +742,7 @@ void stream_sock(u32_t ip, u16_t port, bool use_ssl, char codec, const char *hea
 	stream.threshold = threshold;
 
 	stream.ogg.miss = stream.ogg.match = 0;
-	stream.ogg.state = (codec == 'o' || codec == 'p') ? STREAM_OGG_SYNC : STREAM_OGG_OFF;
+	stream.ogg.state = STREAM_OGG_SYNC;
 
 	UNLOCK;
 }
@@ -765,7 +765,7 @@ bool stream_disconnect(void) {
 	stream.state = STOPPED;
 	if (stream.ogg.state == STREAM_OGG_HEADER && stream.ogg.data) free(stream.ogg.data);
 	stream.ogg.data = NULL;
-	
+
 	UNLOCK;
 	return disc;
 }
