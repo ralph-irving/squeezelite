@@ -148,6 +148,8 @@ static bool running = true;
 static void _disconnect(stream_state state, disconnect_code disconnect) {
 	stream.state = state;
 	stream.disconnect = disconnect;
+	if (stream.ogg.state == STREAM_OGG_HEADER && stream.ogg.data) free(stream.ogg.data);
+	stream.ogg.data = NULL;
 #if USE_SSL
 	if (ssl) {
 		SSL_shutdown(ssl);
@@ -217,6 +219,129 @@ static int connect_socket(bool use_ssl) {
 #endif
 
 	return sock;
+}
+
+static u32_t inline itohl(u32_t littlelong) {
+#if SL_LITTLE_ENDIAN
+	return littlelong;
+#else
+	return __builtin_bswap32(littlelong);
+#endif
+}
+
+static u32_t memfind(const u8_t* haystack, u32_t n, const char* needle, u32_t len, u32_t *offset) {
+	int i;
+	for (i = 0; i < n && *offset != len; i++) *offset = (haystack[i] == needle[*offset]) ? *offset + 1 : 0;
+	return i;
+}
+
+static void stream_ogg(size_t n) {
+	if (stream.ogg.state == STREAM_OGG_OFF) return;
+	u8_t* p = streambuf->writep;
+
+	while (n) {
+		size_t consumed = min(stream.ogg.miss, n);
+
+		// copy as many bytes as possible and come back later if we do'nt have enough
+		if (stream.ogg.data) {
+			memcpy(stream.ogg.data + stream.ogg.want - stream.ogg.miss, p, consumed);
+			stream.ogg.miss -= consumed;
+			if (stream.ogg.miss) return;
+		}
+
+		// we have what we want, let's parse
+		switch (stream.ogg.state) {
+		case STREAM_OGG_SYNC: {
+			stream.ogg.miss -= consumed;
+			if (consumed) break;
+
+			// we have to memorize position in case any of last 3 bytes match...
+			int pos = memfind(p, n, "OggS", 4, &stream.ogg.match);
+			if (stream.ogg.match == 4) {
+				consumed = pos - stream.ogg.match;
+				stream.ogg.state = STREAM_OGG_HEADER;
+				stream.ogg.miss = stream.ogg.want = sizeof(stream.ogg.header);
+				stream.ogg.data = (u8_t*) &stream.ogg.header;
+				stream.ogg.match = 0;
+			} else {
+				LOG_INFO("OggS not at expected position");
+				return;
+			}
+			break;
+		}
+		case STREAM_OGG_HEADER:
+			if (!memcmp(stream.ogg.header.pattern, "OggS", 4)) {
+				stream.ogg.miss = stream.ogg.want = stream.ogg.header.count;
+				stream.ogg.data = malloc(stream.ogg.miss);
+				stream.ogg.state = STREAM_OGG_SEGMENTS;
+			} else {
+				stream.ogg.state = STREAM_OGG_SYNC;
+				stream.ogg.data = NULL;
+			}
+			break;
+		case STREAM_OGG_SEGMENTS:
+			// calculate size of page using lacing values
+			for (int i = 0; i < stream.ogg.want; i++) stream.ogg.miss += stream.ogg.data[i];
+			stream.ogg.want = stream.ogg.miss;
+			if (stream.ogg.header.granule == 0) {
+				// granule 0 means a new stream, so let's look into it
+				stream.ogg.state = STREAM_OGG_PAGE;
+				stream.ogg.data = realloc(stream.ogg.data, stream.ogg.want);
+			} else {
+				// otherwise, jump over data
+				stream.ogg.state = STREAM_OGG_SYNC;
+				free(stream.ogg.data);
+				stream.ogg.data = NULL;
+			}
+			break;
+		case STREAM_OGG_PAGE: {
+			u32_t offset = 0;
+
+			// try to find one of valid Ogg pattern (vorbis, opus)
+			for (char** tag = (char*[]) { "\x3vorbis", "OpusTags", NULL }; *tag; tag++, offset = 0) {
+				u32_t pos = memfind(stream.ogg.data, stream.ogg.want, *tag, strlen(*tag), &offset);
+				if (offset != strlen(*tag)) continue;
+				
+				// u32:len,char[]:vendorId, u32:N, N x (u32:len,char[]:comment)
+				char* p = (char*) stream.ogg.data + pos;
+				p += itohl(*p) + 4;
+				u32_t count = itohl(*p);
+				p += 4;
+
+				// LMS metadata format for Ogg is "Ogg", N x (u16:len,char[]:comment)
+				memcpy(stream.header, "Ogg", 3);
+				stream.header_len = 3;
+
+				for (u32_t len; count--; p += len) {
+					len = itohl(*p);
+					p += 4;
+
+					// only report what we use and don't overflow (network byte order)
+					if (!strncasecmp(p, "TITLE=", 6) || !strncasecmp(p, "ARTIST=", 7) || !strncasecmp(p, "ALBUM=", 6)) {
+						if (stream.header_len + len > MAX_HEADER) break;
+						stream.header[stream.header_len++] = len >> 8;
+						stream.header[stream.header_len++] = len;
+						memcpy(stream.header + stream.header_len, p, len);
+						stream.header_len += len;
+					}
+				}
+
+				stream.meta_send = true;
+				wake_controller();
+				LOG_INFO("Ogg meta len: %u", stream.header_len);
+				break;
+			}
+			free(stream.ogg.data);
+			stream.ogg.state = STREAM_OGG_SYNC;
+			break;
+		}
+		default: 
+			break;
+		}
+
+		p += consumed;
+		n -= consumed;
+	}
 }
 
 static void *stream_thread() {
@@ -422,6 +547,7 @@ static void *stream_thread() {
 					}
 					
 					if (n > 0) {
+						stream_ogg(n);
 						_buf_inc_writep(streambuf, n);
 						stream.bytes += n;
 						if (stream.meta_interval) {
@@ -564,7 +690,7 @@ void stream_file(const char *header, size_t header_len, unsigned threshold) {
 	UNLOCK;
 }
 
-void stream_sock(u32_t ip, u16_t port, bool use_ssl, const char *header, size_t header_len, unsigned threshold, bool cont_wait) {
+void stream_sock(u32_t ip, u16_t port, bool use_ssl, char codec, const char *header, size_t header_len, unsigned threshold, bool cont_wait) {
 	char *p;
 	int sock;
 
@@ -615,6 +741,9 @@ void stream_sock(u32_t ip, u16_t port, bool use_ssl, const char *header, size_t 
 	stream.bytes = 0;
 	stream.threshold = threshold;
 
+	stream.ogg.miss = stream.ogg.match = 0;
+	stream.ogg.state = (codec == 'o' || codec == 'p') ? STREAM_OGG_SYNC : STREAM_OGG_OFF;
+
 	UNLOCK;
 }
 
@@ -634,6 +763,9 @@ bool stream_disconnect(void) {
 		disc = true;
 	}
 	stream.state = STOPPED;
+	if (stream.ogg.state == STREAM_OGG_HEADER && stream.ogg.data) free(stream.ogg.data);
+	stream.ogg.data = NULL;
+	
 	UNLOCK;
 	return disc;
 }

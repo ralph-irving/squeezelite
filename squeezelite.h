@@ -490,6 +490,7 @@ void *dlopen(const char *filename, int flag);
 void *dlsym(void *handle, const char *symbol);
 char *dlerror(void);
 int poll(struct pollfd *fds, unsigned long numfds, int timeout);
+#define strncasecmp strnicmp
 #endif
 #if LINUX || FREEBSD
 void touch_memory(u8_t *buf, size_t size);
@@ -543,12 +544,26 @@ struct streamstate {
 	u32_t meta_next;
 	u32_t meta_left;
 	bool  meta_send;
+	struct {
+		enum { STREAM_OGG_OFF, STREAM_OGG_SYNC, STREAM_OGG_HEADER, STREAM_OGG_SEGMENTS, STREAM_OGG_PAGE } state;
+		u32_t want, miss, match;
+		u8_t* data;
+#pragma pack(push, 1)
+		struct {
+			char pattern[4];
+			u8_t version, type;
+			u64_t granule;
+			u32_t serial, page, checksum;
+			u8_t count;
+		} header;
+#pragma pack(pop)
+	} ogg;
 };
 
 void stream_init(log_level level, unsigned stream_buf_size);
 void stream_close(void);
 void stream_file(const char *header, size_t header_len, unsigned threshold);
-void stream_sock(u32_t ip, u16_t port, bool use_ssl, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
+void stream_sock(u32_t ip, u16_t port, bool use_ssl, char codec, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
 bool stream_disconnect(void);
 
 // decode.c
