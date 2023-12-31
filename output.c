@@ -453,9 +453,10 @@ void output_flush(void) {
 }
 
 bool output_flush_streaming(void) {
+	bool flushed;
 	LOG_INFO("flush output buffer (streaming)");
 	LOCK;
-	bool flushed = output.track_start != NULL;
+	flushed = output.track_start != NULL;
 	if (output.track_start) {
 		outputbuf->writep = output.track_start;
 		output.track_start = NULL;
