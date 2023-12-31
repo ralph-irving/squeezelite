@@ -275,6 +275,7 @@ void sendIR(u32_t code, u32_t ts) {
 #endif
 
 static void process_strm(u8_t *pkt, int len) {
+	bool flushed;
 	struct strm_packet *strm = (struct strm_packet *)pkt;
 
 	LOG_DEBUG("strm command %c", strm->command);
@@ -295,7 +296,7 @@ static void process_strm(u8_t *pkt, int len) {
 		{
 			decode_flush();
 			// we can have fully finished the current streaming, that's still a flush
-			bool flushed = output_flush_streaming();
+			flushed = output_flush_streaming();
 			if (stream_disconnect() || flushed) {
 				sendSTAT("STMf", 0);
 			}
