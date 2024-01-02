@@ -327,7 +327,7 @@ static void stream_ogg(size_t n) {
 
 				stream.meta_send = true;
 				wake_controller();
-				LOG_INFO("Ogg meta len: %u", stream.header_len);
+				LOG_INFO("Ogg metadata length: %u", stream.header_len - 3);
 				break;
 			}
 			free(stream.ogg.data);
