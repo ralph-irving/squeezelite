@@ -171,6 +171,13 @@
 #define LINKALL   0
 #endif
 
+#if defined(USE_LIBOGG)
+#undef USE_LIBOGG
+#define USE_LIBOGG 1
+#else
+#define USE_LIBOGG 0
+#endif
+
 #if defined (USE_SSL)
 #define OPENSSL_API_COMPAT 0x10000000L
 
@@ -196,6 +203,7 @@
 #define LIBMAD  "libmad.so.0"
 #define LIBMPG "libmpg123.so.0"
 #define LIBVORBIS "libvorbisfile.so.3"
+#define LIBOGG "libogg.so.0"
 #define LIBOPUS "libopusfile.so.0"
 #define LIBTREMOR "libvorbisidec.so.1"
 #define LIBFAAD "libfaad.so.2"
@@ -210,6 +218,7 @@
 #define LIBFLAC "libFLAC.%d.dylib"
 #define LIBMAD  "libmad.0.dylib"
 #define LIBMPG "libmpg123.0.dylib"
+#define LIBOGG "libogg.0.dylib"
 #define LIBVORBIS "libvorbisfile.3.dylib"
 #define LIBTREMOR "libvorbisidec.1.dylib"
 #define LIBOPUS "libopusfile.0.dylib"
@@ -224,6 +233,7 @@
 #define LIBFLAC "libFLAC.dll"
 #define LIBMAD  "libmad-0.dll"
 #define LIBMPG "libmpg123-0.dll"
+#define LIBOGG "libogg.dll"
 #define LIBVORBIS "libvorbisfile.dll"
 #define LIBOPUS "libopusfile-0.dll"
 #define LIBTREMOR "libvorbisidec.dll"
@@ -238,6 +248,7 @@
 #define LIBFLAC "libFLAC.so.%d"
 #define LIBMAD  "libmad.so.0"
 #define LIBMPG "libmpg123.so.0"
+#define LIBOGG "libogg.so.0"
 #define LIBVORBIS "libvorbisfile.so.3"
 #define LIBTREMOR "libvorbisidec.so.1"
 #define LIBOPUS "libopusfile.so.1"
@@ -544,20 +555,6 @@ struct streamstate {
 	u32_t meta_next;
 	u32_t meta_left;
 	bool  meta_send;
-	struct {
-		enum { STREAM_OGG_OFF, STREAM_OGG_SYNC, STREAM_OGG_HEADER, STREAM_OGG_SEGMENTS, STREAM_OGG_PAGE } state;
-		u32_t want, miss, match;
-		u8_t* data, segments[255];
-#pragma pack(push, 1)
-		struct {
-			char pattern[4];
-			u8_t version, type;
-			u64_t granule;
-			u32_t serial, page, checksum;
-			u8_t count;
-		} header;
-#pragma pack(pop)
-	} ogg;
 };
 
 void stream_init(log_level level, unsigned stream_buf_size);
