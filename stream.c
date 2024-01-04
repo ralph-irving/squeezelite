@@ -67,6 +67,7 @@ struct {
 	enum { STREAM_OGG_OFF, STREAM_OGG_SYNC, STREAM_OGG_HEADER, STREAM_OGG_SEGMENTS, STREAM_OGG_PAGE } state;
 	u32_t want, miss, match;
 	u8_t* data, segments[255];
+	u64_t granule;
 #pragma pack(push, 1)
 	struct {
 		char pattern[4];
@@ -346,7 +347,7 @@ static void stream_ogg(size_t n) {
 			// calculate size of page using lacing values
 			for (int i = 0; i < ogg.want; i++) ogg.miss += ogg.data[i];
 			ogg.want = ogg.miss;
-			if (ogg.header.granule == 0) {
+			if (ogg.header.granule == 0 || (ogg.header.granule == -1 && ogg.granule == 0)) {
 				// granule 0 means a new stream, so let's look into it
 				ogg.state = STREAM_OGG_PAGE;
 				ogg.data = malloc(ogg.want);
@@ -354,6 +355,7 @@ static void stream_ogg(size_t n) {
 				// otherwise, jump over data
 				ogg.state = STREAM_OGG_SYNC;
 				ogg.data = NULL;
+				ogg.granule = ogg.header.granule;
 			}
 			break;
 		case STREAM_OGG_PAGE: {
@@ -385,6 +387,7 @@ static void stream_ogg(size_t n) {
 						stream.header[stream.header_len++] = len;
 						memcpy(stream.header + stream.header_len, p, len);
 						stream.header_len += len;
+						LOG_INFO("metadata: %.*s", len, p);
 					}
 				}
 
@@ -394,6 +397,7 @@ static void stream_ogg(size_t n) {
 				break;
 			}
 			free(ogg.data);
+			ogg.data = NULL;
 			ogg.state = STREAM_OGG_SYNC;
 			break;
 		}
@@ -453,6 +457,7 @@ static void stream_ogg(size_t n) {
 						stream.header[stream.header_len++] = len;
 						memcpy(stream.header + stream.header_len, p, len);
 						stream.header_len += len;
+						LOG_INFO("metadata: %.*s", len, p);
 					}
 				}
 
