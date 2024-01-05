@@ -35,7 +35,6 @@ SOURCES_RESAMPLE = process.c resample.c
 SOURCES_VIS      = output_vis.c
 SOURCES_IR       = ir.c
 SOURCES_GPIO     = gpio.c
-SOURCES_RPI      = minimal_gpio.c
 SOURCES_FAAD     = faad.c
 SOURCES_SSL      = sslsym.c
 SOURCES_OPUS     = opus.c
@@ -46,6 +45,7 @@ LINK_LINUX       = -ldl
 LINK_ALSA        = -lasound
 LINK_PORTAUDIO   = -lportaudio
 LINK_PULSEAUDIO  = -lpulse
+LINK_RPI         = -lgpiod
 LINK_SSL         = -lssl -lcrypto
 LINK_ALAC        = -lalac
 
@@ -88,13 +88,10 @@ endif
 ifneq (,$(findstring $(OPT_GPIO), $(OPTS)))
 	SOURCES += $(SOURCES_GPIO)
 endif
-ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
-	SOURCES += $(SOURCES_RPI)
-endif
 # ensure GPIO is enabled with RPI
 ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
 ifeq (,$(findstring $(SOURCES_GPIO), $(SOURCES)))
-	CFLAGS += $(OPT_GPIO)
+	OPTS += $(OPT_GPIO)
 	SOURCES += $(SOURCES_GPIO)
 endif
 endif
@@ -128,7 +125,7 @@ ifneq (,$(findstring $(OPT_IR), $(OPTS)))
 endif
 ifeq (,$(findstring $(OPT_NO_FAAD), $(OPTS)))
 	LDADD += $(LINKALL_FAAD)
-endif	
+endif
 ifneq (,$(findstring $(OPT_SSL), $(OPTS)))
 	LDADD += $(LINK_SSL)
 endif
@@ -158,6 +155,10 @@ endif
 
 ifneq (,$(findstring $(OPT_ALAC), $(OPTS)))
 	LDADD += $(LINK_ALAC)
+endif
+
+ifneq (,$(findstring $(OPT_RPI), $(OPTS)))
+	LDADD += $(LINK_RPI)
 endif
 
 OBJECTS = $(addsuffix .o,$(basename $(SOURCES)))
