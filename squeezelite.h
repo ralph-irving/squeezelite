@@ -24,9 +24,9 @@
 
 // make may define: PORTAUDIO, SELFPIPE, RESAMPLE, RESAMPLE_MP, VISEXPORT, GPIO, IR, DSD, LINKALL to influence build
 
-#define MAJOR_VERSION "1.9"
-#define MINOR_VERSION "9"
-#define MICRO_VERSION "1463"
+#define MAJOR_VERSION "2.0"
+#define MINOR_VERSION "0"
+#define MICRO_VERSION "1464"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -775,21 +775,17 @@ struct codec *register_opus(void);
 #if GPIO
 void relay(int state);
 void relay_script(int state);
-int gpio_pin;
-bool gpio_active_low;
 bool gpio_active;
 char *power_script;
 
 #if RPI
-#define PI_INPUT  0
-#define PI_OUTPUT 1
-#define PI_LOW 0
-#define PI_HIGH 1
-void gpioSetMode(unsigned gpio, unsigned mode);
-void gpioWrite(unsigned gpio, unsigned level);
-int gpioInitialise(void);
-#endif
-#endif
+int gpio_chip;
+int gpio_pin;
+bool gpio_active_low;
+bool gpio_init();
+void gpio_close();
+#endif // RPI
+#endif //GPIO
 
 // ir.c
 #if IR
