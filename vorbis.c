@@ -118,7 +118,7 @@ static size_t _read_cb(void *ptr, size_t size, size_t nmemb, void *datasource) {
 		LOCK_S;
 		bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
 		bytes = min(bytes, size * nmemb);
-		if (bytes || stream.state <= DISCONNECT) break;
+		if (bytes || stream.state <= DISCONNECT || !decode.new_stream) break;
 
 		UNLOCK_S;
 		usleep(50 * 1000);
