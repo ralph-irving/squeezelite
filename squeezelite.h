@@ -560,7 +560,7 @@ struct streamstate {
 void stream_init(log_level level, unsigned stream_buf_size);
 void stream_close(void);
 void stream_file(const char *header, size_t header_len, unsigned threshold);
-void stream_sock(u32_t ip, u16_t port, bool use_ssl, char codec, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
+void stream_sock(u32_t ip, u16_t port, bool use_ssl, bool use_ogg, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
 bool stream_disconnect(void);
 
 // decode.c
