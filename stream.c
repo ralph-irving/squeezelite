@@ -349,6 +349,7 @@ static void stream_ogg(size_t n) {
 			// calculate size of page using lacing values
 			for (size_t i = 0; i < ogg.want; i++) ogg.miss += ogg.data[i];
 			ogg.want = ogg.miss;
+
 			if (ogg.header.granule == 0 || (ogg.header.granule == -1 && ogg.granule == 0)) {
 				// granule 0 means a new stream, so let's look into it
 				ogg.state = STREAM_OGG_PAGE;
@@ -440,7 +441,7 @@ static void stream_ogg(size_t n) {
 			size_t ofs = 0;
 
 			// if case of OggFlac, VorbisComment is a flac METADATA_BLOC as 2nd packet (4 bytes in)
-			if (ogg.flac) offset = 4;
+			if (ogg.flac) ofs = 4;
 			else if (!memcmp(ogg.packet.packet, "\x7f""FLAC", 5)) ogg.flac = true;
 			else for (char** tag = (char* []){ "\x3vorbis", "OpusTags", NULL }; *tag && !ofs; tag++) if (!memcmp(ogg.packet.packet, *tag, strlen(*tag))) ofs = strlen(*tag);
 
