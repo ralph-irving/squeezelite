@@ -42,6 +42,7 @@
 
 struct {
 	bool flac;
+	u64_t serial;
 #if USE_LIBOGG
 	bool active;
 	ogg_stream_state state;
@@ -69,7 +70,6 @@ struct {
 	enum { STREAM_OGG_OFF, STREAM_OGG_SYNC, STREAM_OGG_HEADER, STREAM_OGG_SEGMENTS, STREAM_OGG_PAGE } state;
 	size_t want, miss, match;
 	u8_t* data, segments[255];
-	u64_t granule;
 #pragma pack(push, 1)
 	struct {
 		char pattern[4];
@@ -291,17 +291,21 @@ static u32_t inline itohl(u32_t littlelong) {
 #endif
 }
 
+/* https://xiph.org/ogg/doc/framing.html 
+ * https://xiph.org/flac/ogg_mapping.html
+ * https://xiph.org/vorbis/doc/Vorbis_I_spec.html#x1-610004.2 */
+
+#if !USE_LIBOGG
 static size_t memfind(const u8_t* haystack, size_t n, const char* needle, size_t len, size_t* offset) {
 	size_t i;
 	for (i = 0; i < n && *offset != len; i++) *offset = (haystack[i] == needle[*offset]) ? *offset + 1 : 0;
 	return i;
 }
 
-/* https://xiph.org/ogg/doc/framing.html 
- * https://xiph.org/flac/ogg_mapping.html
- * https://xiph.org/vorbis/doc/Vorbis_I_spec.html#x1-610004.2 */
-
-#if !USE_LIBOGG
+/* this mode is made to save memory and CPU by not calling ogg decoding function and never having
+ * full packets (as a vorbis_comment can have a very large artwork. It works only at the page 
+ * level, which means there is a risk of missing the searched comment if they are not on the 
+ * first page of the vorbis_comment packet... nothing is perfect */
 static void stream_ogg(size_t n) {
 	if (ogg.state == STREAM_OGG_OFF) return;
 	u8_t* p = streambuf->writep;
@@ -340,6 +344,8 @@ static void stream_ogg(size_t n) {
 				ogg.miss = ogg.want = ogg.header.count;
 				ogg.data = ogg.segments;
 				ogg.state = STREAM_OGG_SEGMENTS;
+				// granule and page are also in little endian but that does not matter
+				ogg.header.serial = itohl(ogg.header.serial);
 			} else {
 				ogg.state = STREAM_OGG_SYNC;
 				ogg.data = NULL;
@@ -350,18 +356,21 @@ static void stream_ogg(size_t n) {
 			for (size_t i = 0; i < ogg.want; i++) ogg.miss += ogg.data[i];
 			ogg.want = ogg.miss;
 
-			if (ogg.header.granule == 0 || (ogg.header.granule == -1 && ogg.granule == 0)) {
-				// granule 0 means a new stream, so let's look into it
-				ogg.state = STREAM_OGG_PAGE;
-				ogg.data = malloc(ogg.want);
-			} else {
+			// acquire serial number when we are looking for headers and hit a bos
+			if (ogg.serial == ULLONG_MAX && (ogg.header.type & 0x02)) ogg.serial = ogg.header.serial;
+
+			// we have overshot and missed header, reset serial number to restart search (O and -1 are le/be)
+			if (ogg.header.serial == ogg.serial && ogg.header.granule && ogg.header.granule != -1) ogg.serial = ULLONG_MAX;
+
+			// not our serial (the above protected us from granule > 0)
+			if (ogg.header.serial != ogg.serial) {
 				// otherwise, jump over data
 				ogg.state = STREAM_OGG_SYNC;
 				ogg.data = NULL;
+			} else {
+				ogg.state = STREAM_OGG_PAGE;
+				ogg.data = malloc(ogg.want);
 			}
-
-			// memorize granule for next page
-			if (ogg.header.granule != -1) ogg.granule = ogg.header.granule;
 			break;
 		case STREAM_OGG_PAGE: {
 			char** tag = (char* []){ "\x3vorbis", "OpusTags", NULL };
@@ -401,9 +410,10 @@ static void stream_ogg(size_t n) {
 				}
 
 				ogg.flac = false;
+				ogg.serial = ULLONG_MAX;
 				stream.meta_send = true;
 				wake_controller();
-				LOG_INFO("Ogg metadata length: %u", stream.header_len - 3);
+				LOG_INFO("metadata length: %u", stream.header_len - 3);
 			}
 
 			free(ogg.data);
@@ -430,11 +440,23 @@ static void stream_ogg(size_t n) {
 
 	// extract a page from sync buffer
 	while (OG(&ogg.dl, sync_pageout, &ogg.sync, &ogg.page) > 0) {
-		// always set stream serialno if we have a new one
-		if (OG(&ogg.dl, page_bos, &ogg.page)) OG(&ogg.dl, stream_reset_serialno, &ogg.state, OG(&ogg.dl, page_serialno, &ogg.page));
+		uint32_t serial = OG(&ogg.dl, page_serialno, &ogg.page);
 
-		// bring new page in (there should be one) but we only care about granule 0 (not audio)
-		if (OG(&ogg.dl, stream_pagein, &ogg.state, &ogg.page) || OG(&ogg.dl, page_granulepos, &ogg.page)) continue;
+		// set stream serialno if we wait for a new one (no multiplexed streams)
+		if (ogg.serial == ULLONG_MAX && OG(&ogg.dl, page_bos, &ogg.page)) {
+			ogg.serial = serial;
+			OG(&ogg.dl, stream_reset_serialno, &ogg.state, serial);	
+		}
+
+		// if we overshot, restart searching for headers
+		int64_t granule = OG(&ogg.dl, page_granulepos, &ogg.page);
+		if (ogg.serial == serial && granule && granule != -1) ogg.serial = ULLONG_MAX;
+
+		// if we don't have a serial number or it's not us, don't bring page in to avoid build-up
+		if (ogg.serial != serial) continue;
+
+		// bring new page in (there should be one but multiplexed streams are not supported)
+		if (OG(&ogg.dl, stream_pagein, &ogg.state, &ogg.page)) continue;
 
 		// get a packet (there might be more than one in a page)
 		while (OG(&ogg.dl, stream_packetout, &ogg.state, &ogg.packet) > 0) {
@@ -472,11 +494,12 @@ static void stream_ogg(size_t n) {
 				}
 			}
 
-			// ogg_packet_clear does not need to be called
+			// ogg_packet_clear does not need to be called as metadata packets terminate a page
 			ogg.flac = false;
+			ogg.serial = ULLONG_MAX;
 			stream.meta_send = true;
 			wake_controller();
-			LOG_INFO("Ogg metadata length: %u", stream.header_len - 3);
+			LOG_INFO("metadata length: %u", stream.header_len - 3);
 
 			// return as we might have more than one metadata set but we want the first one
 			return;
@@ -917,6 +940,7 @@ void stream_sock(u32_t ip, u16_t port, bool use_ssl, bool use_ogg, const char* h
 	ogg.state = use_ogg ? STREAM_OGG_SYNC : STREAM_OGG_OFF;
 #endif
 	ogg.flac = false;
+	ogg.serial = ULLONG_MAX;
 
 	UNLOCK;
 }
