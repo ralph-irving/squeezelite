@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "2.0"
 #define MINOR_VERSION "0"
-#define MICRO_VERSION "1465"
+#define MICRO_VERSION "1466"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)
@@ -171,6 +171,13 @@
 #define LINKALL   0
 #endif
 
+#if defined(USE_LIBOGG)
+#undef USE_LIBOGG
+#define USE_LIBOGG 1
+#else
+#define USE_LIBOGG 0
+#endif
+
 #if defined (USE_SSL)
 #define OPENSSL_API_COMPAT 0x10000000L
 
@@ -196,6 +203,7 @@
 #define LIBMAD  "libmad.so.0"
 #define LIBMPG "libmpg123.so.0"
 #define LIBVORBIS "libvorbisfile.so.3"
+#define LIBOGG "libogg.so.0"
 #define LIBOPUS "libopusfile.so.0"
 #define LIBTREMOR "libvorbisidec.so.1"
 #define LIBFAAD "libfaad.so.2"
@@ -210,6 +218,7 @@
 #define LIBFLAC "libFLAC.%d.dylib"
 #define LIBMAD  "libmad.0.dylib"
 #define LIBMPG "libmpg123.0.dylib"
+#define LIBOGG "libogg.0.dylib"
 #define LIBVORBIS "libvorbisfile.3.dylib"
 #define LIBTREMOR "libvorbisidec.1.dylib"
 #define LIBOPUS "libopusfile.0.dylib"
@@ -224,6 +233,7 @@
 #define LIBFLAC "libFLAC.dll"
 #define LIBMAD  "libmad-0.dll"
 #define LIBMPG "libmpg123-0.dll"
+#define LIBOGG "libogg.dll"
 #define LIBVORBIS "libvorbisfile.dll"
 #define LIBOPUS "libopusfile-0.dll"
 #define LIBTREMOR "libvorbisidec.dll"
@@ -238,6 +248,7 @@
 #define LIBFLAC "libFLAC.so.%d"
 #define LIBMAD  "libmad.so.0"
 #define LIBMPG "libmpg123.so.0"
+#define LIBOGG "libogg.so.0"
 #define LIBVORBIS "libvorbisfile.so.3"
 #define LIBTREMOR "libvorbisidec.so.1"
 #define LIBOPUS "libopusfile.so.1"
@@ -490,6 +501,7 @@ void *dlopen(const char *filename, int flag);
 void *dlsym(void *handle, const char *symbol);
 char *dlerror(void);
 int poll(struct pollfd *fds, unsigned long numfds, int timeout);
+#define strncasecmp strnicmp
 #endif
 #if LINUX || FREEBSD
 void touch_memory(u8_t *buf, size_t size);
@@ -548,7 +560,7 @@ struct streamstate {
 void stream_init(log_level level, unsigned stream_buf_size);
 void stream_close(void);
 void stream_file(const char *header, size_t header_len, unsigned threshold);
-void stream_sock(u32_t ip, u16_t port, bool use_ssl, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
+void stream_sock(u32_t ip, u16_t port, bool use_ssl, bool use_ogg, const char *header, size_t header_len, unsigned threshold, bool cont_wait);
 bool stream_disconnect(void);
 
 // decode.c
