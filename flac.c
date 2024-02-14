@@ -71,6 +71,8 @@ struct flac {
 	);
 	FLAC__bool (* FLAC__stream_decoder_process_single)(FLAC__StreamDecoder *decoder);
 	FLAC__StreamDecoderState (* FLAC__stream_decoder_get_state)(const FLAC__StreamDecoder *decoder);
+	void (*FLAC__stream_decoder_set_metadata_respond)(FLAC__StreamDecoder* decoder, FLAC__MetadataType type);
+	FLAC__bool (*FLAC__stream_decoder_set_ogg_chaining)(FLAC__StreamDecoder* decoder, FLAC__bool allow);
 #endif
 };
 
@@ -108,6 +110,23 @@ extern struct processstate process;
 #define FLAC(h, fn, ...) (h)->FLAC__##fn(__VA_ARGS__)
 #define FLAC_A(h, a)     (h)->FLAC__ ## a
 #endif
+
+static void metadata_cb(const FLAC__StreamDecoder* decoder, const FLAC__StreamMetadata* metadata, void* client_data) {
+	switch (metadata->type) {
+	case FLAC__METADATA_TYPE_STREAMINFO:
+		LOG_INFO("stream parameters rate:%d, channels:%d, size:%d", metadata->data.stream_info.sample_rate, 
+				 metadata->data.stream_info.channels, metadata->data.stream_info.bits_per_sample);
+		break;
+	case FLAC__METADATA_TYPE_VORBIS_COMMENT: {
+		FLAC__StreamMetadata_VorbisComment_Entry* comment = metadata->data.vorbis_comment.comments;
+		for (int i = 0; i < metadata->data.vorbis_comment.num_comments; i++, comment++) {
+			LOG_INFO("stream metadata %*s", comment->length, comment->entry);
+		}
+	}
+	default:
+		break;
+	}
+}
 
 static FLAC__StreamDecoderReadStatus read_cb(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], size_t *want, void *client_data) {
 	size_t bytes;
@@ -258,7 +277,9 @@ static void flac_open(u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t en
 	
 	if ( f->container == 'o' ) {
 		LOG_INFO("ogg/flac container - using init_ogg_stream");
-		FLAC(f, stream_decoder_init_ogg_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
+		FLAC(f, stream_decoder_set_ogg_chaining, f->decoder, true);
+		FLAC(f, stream_decoder_set_metadata_respond, f->decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
+		FLAC(f, stream_decoder_init_ogg_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, &metadata_cb, &error_cb, NULL);
 	} else {
 		FLAC(f, stream_decoder_init_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, NULL, &error_cb, NULL);
 	}
@@ -305,6 +326,8 @@ static bool load_flac() {
 	f->FLAC__stream_decoder_init_ogg_stream = dlsym(handle, "FLAC__stream_decoder_init_ogg_stream");
 	f->FLAC__stream_decoder_process_single = dlsym(handle, "FLAC__stream_decoder_process_single");
 	f->FLAC__stream_decoder_get_state = dlsym(handle, "FLAC__stream_decoder_get_state");
+	f->FLAC__stream_decoder_set_metadata_respond = dlsym(handle, "FLAC__stream_decoder_set_metadata_respond");
+	f->FLAC__stream_decoder_set_ogg_chaining = dlsym(handle, "FLAC__stream_decoder_set_ogg_chaining");
 
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
