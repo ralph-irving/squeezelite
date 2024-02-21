@@ -23,6 +23,10 @@
 
 #include <FLAC/stream_decoder.h>
 
+#if !WIN && LINKALL
+FLAC_API FLAC__bool __attribute__((weak)) FLAC__stream_decoder_set_ogg_chaining(FLAC__StreamDecoder* decoder, FLAC__bool value) { };
+#endif
+
 #if BYTES_PER_FRAME == 4		
 #define ALIGN8(n) 	(n << 8)		
 #define ALIGN16(n) 	(n)
@@ -277,7 +281,11 @@ static void flac_open(u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t en
 	
 	if ( f->container == 'o' ) {
 		LOG_INFO("ogg/flac container - using init_ogg_stream");
-		FLAC(f, stream_decoder_set_ogg_chaining, f->decoder, true);
+#if !LINKALL
+		if (f->FLAC__stream_decoder_set_ogg_chaining) f->FLAC__stream_decoder_set_ogg_chaining(f->decoder, true);
+#else
+		FLAC__stream_decoder_set_ogg_chaining(f->decoder, true);
+#endif
 		FLAC(f, stream_decoder_set_metadata_respond, f->decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
 		FLAC(f, stream_decoder_init_ogg_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, &metadata_cb, &error_cb, NULL);
 	} else {
@@ -327,12 +335,14 @@ static bool load_flac() {
 	f->FLAC__stream_decoder_process_single = dlsym(handle, "FLAC__stream_decoder_process_single");
 	f->FLAC__stream_decoder_get_state = dlsym(handle, "FLAC__stream_decoder_get_state");
 	f->FLAC__stream_decoder_set_metadata_respond = dlsym(handle, "FLAC__stream_decoder_set_metadata_respond");
-	f->FLAC__stream_decoder_set_ogg_chaining = dlsym(handle, "FLAC__stream_decoder_set_ogg_chaining");
 
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
 		return false;
 	}
+
+	// ignore error for this new API
+	f->FLAC__stream_decoder_set_ogg_chaining = dlsym(handle, "FLAC__stream_decoder_set_ogg_chaining");
 
 	LOG_INFO("loaded %s", name);
 #endif
