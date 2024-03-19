@@ -90,6 +90,8 @@ struct buffer *streambuf = &buf;
 #define LOCK   mutex_lock(streambuf->mutex)
 #define UNLOCK mutex_unlock(streambuf->mutex)
 
+#define PTR_U32(p)	((u32_t) (*(u32_t*)p))
+
 static sockfd fd;
 static struct sockaddr_in addr;
 static char host[256];
@@ -386,8 +388,8 @@ static void stream_ogg(size_t n) {
 			if (ofs) {
 				// u32:len,char[]:vendorId, u32:N, N x (u32:len,char[]:comment)
 				char* p = (char*) ogg.data + ofs;
-				p += itohl(*p) + 4;
-				u32_t count = itohl(*p);
+				p += itohl(PTR_U32(p)) + 4;
+				u32_t count = itohl(PTR_U32(p));
 				p += 4;
 
 				// LMS metadata format for Ogg is "Ogg", N x (u16:len,char[]:comment)
@@ -395,7 +397,7 @@ static void stream_ogg(size_t n) {
 				stream.header_len = 3;
 
 				for (u32_t len; count--; p += len) {
-					len = itohl(*p);
+					len = itohl(PTR_U32(p));
 					p += 4;
 
 					// only report what we use and don't overflow (network byte order)
@@ -471,8 +473,8 @@ static void stream_ogg(size_t n) {
 
 			// u32:len,char[]:vendorId, u32:N, N x (u32:len,char[]:comment)
 			char* p = (char*)ogg.packet.packet + ofs;
-			p += itohl(*p) + 4;
-			u32_t count = itohl(*p);
+			p += itohl(PTR_U32(p)) + 4;
+			u32_t count = itohl(PTR_U32(p));
 			p += 4;
 
 			// LMS metadata format for Ogg is "Ogg", N x (u16:len,char[]:comment)
@@ -480,7 +482,7 @@ static void stream_ogg(size_t n) {
 			stream.header_len = 3;
 
 			for (u32_t len; count--; p += len) {
-				len = itohl(*p);
+				len = itohl(PTR_U32(p));
 				p += 4;
 
 				// only report what we use and don't overflow (network byte order)
