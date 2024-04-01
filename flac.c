@@ -347,9 +347,10 @@ static bool load_flac() {
 		return false;
 	}
 
+#if USE_LIBOGG
 	// ignore error for this new API
 	f->FLAC__stream_decoder_set_ogg_chaining = dlsym(handle, "FLAC__stream_decoder_set_ogg_chaining");
-
+#endif
 	LOG_INFO("loaded %s", name);
 #endif
 
