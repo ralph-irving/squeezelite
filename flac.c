@@ -350,7 +350,7 @@ static bool load_flac() {
 	}
 	
 	LOG_INFO("loaded %s", name);
-#elif !defined FLAG__OGG_CHAINING
+#elif !defined(FLAC__OGG_CHAINING)
 	LOG_WARN("OggFlac chaining disabled");
 #endif
 
