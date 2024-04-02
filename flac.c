@@ -346,12 +346,12 @@ static bool load_flac() {
 	// ignore error for this new API
 	f->FLAC__stream_decoder_set_ogg_chaining = dlsym(handle, "FLAC__stream_decoder_set_ogg_chaining");
 	if (!f->FLAC__stream_decoder_set_ogg_chaining) {
-		LOG_WARN("OggFlac chaining disabled");
+		LOG_INFO("OggFlac chaining disabled");
 	}
 	
 	LOG_INFO("loaded %s", name);
 #elif !defined(FLAC__OGG_CHAINING)
-	LOG_WARN("OggFlac chaining disabled");
+	LOG_INFO("OggFlac chaining disabled");
 #endif
 
 	return true;
