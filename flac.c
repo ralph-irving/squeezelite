@@ -23,12 +23,6 @@
 
 #include <FLAC/stream_decoder.h>
 
-#if USE_LIBOGG
-#if !WIN && LINKALL
-FLAC_API FLAC__bool __attribute__((weak)) FLAC__stream_decoder_set_ogg_chaining(FLAC__StreamDecoder* decoder, FLAC__bool value) { };
-#endif
-#endif
-
 #if BYTES_PER_FRAME == 4		
 #define ALIGN8(n) 	(n << 8)		
 #define ALIGN16(n) 	(n)
@@ -78,9 +72,7 @@ struct flac {
 	FLAC__bool (* FLAC__stream_decoder_process_single)(FLAC__StreamDecoder *decoder);
 	FLAC__StreamDecoderState (* FLAC__stream_decoder_get_state)(const FLAC__StreamDecoder *decoder);
 	void (*FLAC__stream_decoder_set_metadata_respond)(FLAC__StreamDecoder* decoder, FLAC__MetadataType type);
-#if USE_LIBOGG
 	FLAC__bool (*FLAC__stream_decoder_set_ogg_chaining)(FLAC__StreamDecoder* decoder, FLAC__bool allow);
-#endif
 #endif
 };
 
@@ -285,12 +277,16 @@ static void flac_open(u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t en
 	
 	if ( f->container == 'o' ) {
 		LOG_INFO("ogg/flac container - using init_ogg_stream");
-#if USE_LIBOGG
-#if !LINKALL
-		if (f->FLAC__stream_decoder_set_ogg_chaining) f->FLAC__stream_decoder_set_ogg_chaining(f->decoder, true);
-#else
+#if LINKALL
+#ifdef FLAC__OGG_CHAINING
 		FLAC__stream_decoder_set_ogg_chaining(f->decoder, true);
+#else 
+#pragma message ("OggFlac library does not support chaining") 
 #endif
+#else
+		if (f->FLAC__stream_decoder_set_ogg_chaining) {
+			f->FLAC__stream_decoder_set_ogg_chaining(f->decoder, true);
+		}
 #endif
 		FLAC(f, stream_decoder_set_metadata_respond, f->decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
 		FLAC(f, stream_decoder_init_ogg_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, &metadata_cb, &error_cb, NULL);
@@ -347,11 +343,15 @@ static bool load_flac() {
 		return false;
 	}
 
-#if USE_LIBOGG
 	// ignore error for this new API
 	f->FLAC__stream_decoder_set_ogg_chaining = dlsym(handle, "FLAC__stream_decoder_set_ogg_chaining");
-#endif
+	if (!f->FLAC__stream_decoder_set_ogg_chaining) {
+		LOG_INFO("OggFlac chaining disabled");
+	}
+	
 	LOG_INFO("loaded %s", name);
+#elif !defined(FLAC__OGG_CHAINING)
+	LOG_INFO("OggFlac chaining disabled");
 #endif
 
 	return true;
