@@ -4,7 +4,7 @@
 .\" First parameter, NAME, should be all caps
 .\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
 .\" other parameters are allowed: see man(7), man(1)
-.TH SQUEEZELITE 1 "2020-07-16" "Debian Project"
+.TH SQUEEZELITE 1 "2024-04-03" "Debian Project"
 .\" Please adjust this date whenever revising the manpage.
 .\"
 .\" Some roff macros, for reference:
@@ -303,19 +303,16 @@ to max device rate.
 The second optional argument to \fB\-u\fR allows the user to specify the
 following arguments (taken from the \fIsoxr.h\fR header file), in hex:
 .sp
+.nf
 #define SOXR_ROLLOFF_SMALL     0u  /* <= 0.01 dB */
-.br
 #define SOXR_ROLLOFF_MEDIUM    1u  /* <= 0.35 dB */
-.br
 #define SOXR_ROLLOFF_NONE      2u  /* For Chebyshev bandwidth. */
-.sp
+
 #define SOXR_MAINTAIN_3DB_PT   4u  /* Reserved for internal use. */
-.br
 #define SOXR_HI_PREC_CLOCK     8u  /* Increase 'irrational' ratio accuracy. */
-.br
 #define SOXR_DOUBLE_PRECISION 16u  /* Use D.P. calcs even if precision <= 20. */
-.br
 #define SOXR_VR               32u  /* Experimental, variable-rate resampling. */
+.fi
 .TP
 .B Examples
 .B \-u :2
