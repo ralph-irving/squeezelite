@@ -3,7 +3,7 @@
 
 # Configuration for /etc/init.d/squeezelite
 
-# IP address of Logitech Media Server; leave this blank to try to
+# IP address of Lyrion Music Server; leave this blank to try to
 # locate the server via auto-discovery.
 # If you fill this in then include "-s" before the IP address, eg:
 #  SL_SERVER_IP="-s 1.2.3.4"

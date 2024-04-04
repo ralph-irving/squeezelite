@@ -27,7 +27,7 @@ squeezelite \- Lightweight headless Squeezebox emulator
 is a small headless Logitech Squeezebox emulator. It is aimed at supporting high
 quality audio including USB DAC based output at multiple sample rates.
 .PP
-The player is controlled using, and media is streamed from, a Logitech Media
+The player is controlled using, and media is streamed from, a Lyrion Music
 Server instance running somewhere on the local network.
 .SH OPTIONS
 This program supports the following options:
@@ -36,7 +36,7 @@ This program supports the following options:
 Show a summary of the available command-line options.
 .TP
 .B \-s <server>[:<port>]
-Connect to the specified Logitech Media Server, otherwise uses automatic
+Connect to the specified Lyrion Music Server, otherwise uses automatic
 discovery to find server on the local network. This option should only be needed
 if automatic discovery does not work, or the server is not on the local network
 segment (e.g. behind a router).
@@ -164,7 +164,7 @@ Override the player's hardware model name. The default value is
 .IR SqueezeLite .
 .TP
 .B \-n <name>
-Set the player name. This name is used by the Logitech Media Server to refer to
+Set the player name. This name is used by the Lyrion Music Server to refer to
 the player by name. This option is mututally exclusive with
 .BR \-N .
 .TP
@@ -370,7 +370,7 @@ specifies linear phase.
 .TP
 http://wiki.slimdevices.com/index.php/Squeezelite
 .TP
-http://wiki.slimdevices.com/index.php/Logitech_Media_Server
+https://lyrion.org/
 .TP
 sox(1)
 for further information about resampling.
