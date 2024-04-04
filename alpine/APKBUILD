@@ -3,7 +3,7 @@
 pkgname=squeezelite
 pkgver=1.9.9.1401
 pkgrel=0
-pkgdesc="Lightweight headless squeezebox player for Logitech Media Server"
+pkgdesc="Lightweight headless squeezebox player for Lyrion Music Server"
 url="https://github.com/ralph-irving/squeezelite"
 arch="all"
 license="GPL-3.0-or-later3"
