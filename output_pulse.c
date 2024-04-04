@@ -210,9 +210,9 @@ static bool pulse_stream_create(struct pulse *p) {
 
 	pa_proplist *proplist = pa_proplist_new();
 	pa_proplist_sets(proplist, PA_PROP_MEDIA_ROLE, "music");
-	pa_proplist_sets(proplist, PA_PROP_MEDIA_SOFTWARE, "Logitech Media Server");
+	pa_proplist_sets(proplist, PA_PROP_MEDIA_SOFTWARE, "Lyrion Music Server");
 
-	p->stream = pa_stream_new_with_proplist(pulse_connection_get_context(&p->conn), "Logitech Media Server stream", &p->sample_spec, (const pa_channel_map *)NULL, proplist);
+	p->stream = pa_stream_new_with_proplist(pulse_connection_get_context(&p->conn), "Lyrion Music Server stream", &p->sample_spec, (const pa_channel_map *)NULL, proplist);
 	pa_proplist_free(proplist);
 	if (p->stream == NULL)
 		return false;
