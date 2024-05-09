@@ -32,6 +32,8 @@
 // FIXME - do we need to align these params as per ffmpeg on i386? 
 #define attribute_align_arg
 
+#define HAVE_CH_LAYOUT (LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(57, 28, 100))
+
 struct ff_s {
 	// state for ffmpeg decoder
 	bool wma;
@@ -416,9 +418,13 @@ static decode_state ff_decode(void) {
 			float *iptrfr = (float *)ff->frame->data[1];
 
 			frames_t frames = ff->frame->nb_samples;
-
+#if HAVE_CH_LAYOUT
+			LOG_SDEBUG("got audio channels: %u samples: %u format: %u", ff->codecC->ch_layout.nb_channels, ff->frame->nb_samples,
+					   ff->codecC->sample_fmt);
+#else
 			LOG_SDEBUG("got audio channels: %u samples: %u format: %u", ff->codecC->channels, ff->frame->nb_samples,
 					   ff->codecC->sample_fmt);
+#endif
 			
 			LOCK_O_direct;
 
@@ -442,7 +448,11 @@ static decode_state ff_decode(void) {
 
 				count = f;
 				
+#if HAVE_CH_LAYOUT
+				if (ff->codecC->ch_layout.nb_channels == 2) {
+#else
 				if (ff->codecC->channels == 2) {
+#endif
 					if (ff->codecC->sample_fmt == AV_SAMPLE_FMT_S16) {
 						while (count--) {
 							*optr++ = *iptr16++ << 16;
@@ -477,7 +487,11 @@ static decode_state ff_decode(void) {
 					} else {
 						LOG_WARN("unsupported sample format: %u", ff->codecC->sample_fmt);
 					}
+#if HAVE_CH_LAYOUT
+				} else if (ff->codecC->ch_layout.nb_channels == 1) {
+#else
 				} else if (ff->codecC->channels == 1) {
+#endif
 					if (ff->codecC->sample_fmt == AV_SAMPLE_FMT_S16) {
 						while (count--) {
 							*optr++ = *iptr16   << 16;
