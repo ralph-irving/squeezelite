@@ -1,8 +1,6 @@
-Index: vorbis.c
-===================================================================
---- squeezelite/vorbis.c	(revision 1213)
+--- squeezelite/vorbis.c	(revision 1465)
 +++ squeezelite/vorbis.c	(working copy)
-@@ -320,14 +320,14 @@
+@@ -324,15 +324,15 @@
  
  static bool load_vorbis() {
  #if !LINKALL
@@ -13,11 +11,12 @@ Index: vorbis.c
 +	bool tremor = true;
  
  	if (!handle) {
+ 		err = dlerror();
 -		handle = dlopen(LIBTREMOR, RTLD_NOW);
 +		handle = dlopen(LIBVORBIS, RTLD_NOW);
  		if (handle) {
 -			tremor = true;
 +			tremor = false;
  		} else {
+ 			LOG_INFO("dlerror: %s", err);
  			LOG_INFO("dlerror: %s", dlerror());
- 			return false;

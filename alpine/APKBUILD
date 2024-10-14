@@ -1,7 +1,7 @@
 # Contributor: Carl Chave <online@chave.us>
 # Maintainer: Ralph Irving <ralph.irving@gmail.com>
 pkgname=squeezelite
-pkgver=1.9.9.1401
+pkgver=2.0.0.1488
 pkgrel=0
 pkgdesc="Lightweight headless squeezebox player for Lyrion Music Server"
 url="https://github.com/ralph-irving/squeezelite"
@@ -17,7 +17,7 @@ builddir="$srcdir/$pkgname-master"
 
 build() {
     cd "$builddir"
-    make OPTS="-DRESAMPLE -DDSD -DGPIO -DVISEXPORT -DUSE_SSL -DNO_SSLSYM -DOPUS -DALAC -DIR -I/usr/include/opus -I/usr/include/alac"
+    make OPTS="-DRESAMPLE -DDSD -DGPIO -DVISEXPORT -DUSE_SSL -DOPUS -DALAC -DIR -I/usr/include/opus -I/usr/include/alac"
     gcc -Os -fomit-frame-pointer -fcommon -s -o find_servers tools/find_servers.c
     gcc -Os -fomit-frame-pointer -fcommon -s -o alsacap tools/alsacap.c -lasound
 }
@@ -38,6 +38,9 @@ package() {
         "$pkgdir"/etc/init.d/squeezelite
 }
 
-sha512sums="93d7695abb0bf670590cef73c2d9d484771e63acca39864b60cd819bf4b42fff87f9a82f7d419acce469c493d6bedfaba1207e646dde151bc76af959874f16cd  load-libtremor-first.patch
-ff552fcbbbf2b2291958fa1c61057f54ba0d9b19620666036dd1e19897b5d7bcc543c40699c3ee53b2eec7a38b9cf46cb9205c2048f7d5488c23085d9904f114  squeezelite.confd
-fdc0358c10c56772d5e70178eac88f62729c22965c530ad989ebcc8aa4af8c871085bdeb8b4ccd96d8cf2e87388258180054d908719f81f2745d97654f6d60eb  squeezelite.initd"
+sha512sums="
+76f8c51679f49e50d13aeb537ddc5be22fc54ccf9589cef874a8b9d444a75fd6325a1795b66c4e4855df0353f65adf518471a39e30b62ac5edf73f61f5e326c3  squeezelite-2.0.0.1488.zip
+3bec519987cf077f75f7a7a9883e5c9c87f8f8253615e4e625fc919417ac74fd75f60d7c145751726ce0879f2956c5ca0c63df6359db21afcaf581bb6d70059d  load-libtremor-first.patch
+dd2af05993bcf72b01c5d1f90b98d36a8a43f00da43f64fc78bf1431ddd406d33dee22816f633b4f8743e45884f0691b94fda1db10b7cfb22d157a8d6a37a12d  squeezelite.confd
+3d29ca3d1a1a68beaa0f79aa2913d8c853a7700eff7bede8c4c4aebe8659a4cd974ed5577a63cfea4f9086b3fdb01c7b978531cba940283a133b3871fea9deb8  squeezelite.initd
+"
