@@ -206,6 +206,9 @@ static void usage(const char *argv0) {
 #if USE_LIBOGG
 		   " OGGMETA"
 #endif
+#if defined(TREMOR_ONLY)
+		   " TREMOR"
+#endif
 #if NO_FAAD
 		   " NO_FAAD"
 #endif
