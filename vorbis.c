@@ -203,7 +203,7 @@ static decode_state vorbis_decode(void) {
 
 	// write the decoded frames into outputbuf even though they are 16 bits per sample, then unpack them
 #ifdef TREMOR_ONLY	
-	n = OV(v, read, v->vf, (char *)write_buf, bytes, &s);
+	n = OV(v, read_tremor, v->vf, (char *)write_buf, bytes, &s);
 #else
 	if (!TREMOR(v)) {
 #if SL_LITTLE_ENDIAN
