@@ -458,14 +458,10 @@ int main(int argc, char **argv) {
 			{
 				int byte = 0;
 				char *tmp;
-				if (!strncmp(optarg, "00:04:20", 8)) {
-					LOG_ERROR("ignoring mac address from hardware player range 00:04:20:**:**:**");
-				} else {
-					char *t = strtok(optarg, ":");
-					while (t && byte < 6) {
-						mac[byte++] = (u8_t)strtoul(t, &tmp, 16);
-						t = strtok(NULL, ":");
-					}
+				char *t = strtok(optarg, ":");
+				while (t && byte < 6) {
+					mac[byte++] = (u8_t)strtoul(t, &tmp, 16);
+					t = strtok(NULL, ":");
 				}
 			}
 			break;
