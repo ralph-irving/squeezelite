@@ -47,7 +47,7 @@
 #define OV_EXCLUDE_STATIC_CALLBACKS
 
 #ifdef TREMOR_ONLY
-#include <ivorbisfile.h>
+#include <tremor/ivorbisfile.h>
 #else
 #include <vorbis/vorbisfile.h>
 #endif
