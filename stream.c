@@ -510,7 +510,7 @@ static void stream_ogg(size_t n) {
 }
 #endif
 
-static void *stream_thread() {
+static void *stream_thread(void *vargp) {
 	while (running) {
 
 		struct pollfd pollinfo;

@@ -103,7 +103,7 @@ extern struct processstate process;
 #define OV(h, fn, ...) (ov_ ## fn)(__VA_ARGS__)
 #define TREMOR(h)      0
 #if !WIN
-extern int ov_read_tremor(); // needed to enable compilation, not linked
+extern int ov_read_tremor(OggVorbis_File *, char *, int, int *); // needed to enable compilation, not linked
 #endif
 #else
 #define OV(h, fn, ...) (h)->ov_##fn(__VA_ARGS__)

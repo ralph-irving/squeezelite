@@ -53,7 +53,7 @@ static bool running = true;
 #define MAY_PROCESS(x)
 #endif
 
-static void *decode_thread() {
+static void *decode_thread(void *vargp) {
 
 	while (running) {
 		size_t bytes, space, min_space;
