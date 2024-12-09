@@ -82,7 +82,7 @@ static int _stdout_write_frames(frames_t out_frames, bool silence, s32_t gainL, 
 	return (int)out_frames;
 }
 
-static void *output_thread() {
+static void *output_thread(void *vargp) {
 
 	LOCK;
 
