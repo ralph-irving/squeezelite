@@ -2,7 +2,7 @@
  *  Squeezelite - lightweight headless squeezebox emulator
  *
  *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
- *      Ralph Irving 2015-2024, ralph_irving@hotmail.com
+ *      Ralph Irving 2015-2025, ralph_irving@hotmail.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Additions (c) Paul Hermann, 2015-2024 under the same license terms
+ * Additions (c) Paul Hermann, 2015-2025 under the same license terms
  *   -Control of Raspberry pi GPIO for amplifier power
  *   -Launch script on power status change from LMS
  */
@@ -26,7 +26,7 @@
 
 #define MAJOR_VERSION "2.0"
 #define MINOR_VERSION "0"
-#define MICRO_VERSION "1517"
+#define MICRO_VERSION "1518"
 
 #if defined(CUSTOM_VERSION)
 #define VERSION MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION STR(CUSTOM_VERSION)

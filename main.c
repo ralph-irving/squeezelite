@@ -2,7 +2,7 @@
  *  Squeezelite - lightweight headless squeezebox emulator
  *
  *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
- *      Ralph Irving 2015-2024, ralph_irving@hotmail.com
+ *      Ralph Irving 2015-2025, ralph_irving@hotmail.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Additions (c) Paul Hermann, 2015-2024 under the same license terms
+ * Additions (c) Paul Hermann, 2015-2025 under the same license terms
  *   -Control of Raspberry pi GPIO for amplifier power
  *   -Launch script on power status change from LMS
  */
@@ -26,7 +26,7 @@
 
 #include <signal.h>
 
-#define TITLE "Squeezelite " VERSION ", Copyright 2012-2015 Adrian Smith, 2015-2024 Ralph Irving."
+#define TITLE "Squeezelite " VERSION ", Copyright 2012-2015 Adrian Smith, 2015-2025 Ralph Irving."
 
 #define CODECS_BASE "flac,pcm,ogg"
 #if NO_FAAD
@@ -278,11 +278,11 @@ static void license(void) {
 		   "<https://sourceforge.net/projects/lmsclients/files/source/>\n"
 #endif
 #if OPUS
-		   "\nOpus decoder support (c) Philippe 2018-2024, philippe_44@outlook.com\n"
+		   "\nOpus decoder support (c) Philippe 2018-2025, philippe_44@outlook.com\n"
 #endif
 #if ALAC	
 		   "\nContains Apple Lossless (ALAC) decoder. Apache License Version 2.0\n"
-		   "Apple ALAC decoder support (c) Philippe 2018-2024, philippe_44@outlook.com\n"
+		   "Apple ALAC decoder support (c) Philippe 2018-2025, philippe_44@outlook.com\n"
 #endif
 		   "\n"
 		   );
