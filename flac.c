@@ -23,6 +23,14 @@
 
 #include <FLAC/stream_decoder.h>
 
+/*
+ * Error if philippe44 patched libFLAC 1.4.3 ogg chaining support
+ * found as the API is different in the 1.5+ release.
+ */
+#if defined(FLAC__OGG_CHAINING) && (FLAC_API_VERSION_CURRENT == 14)
+#error "Upgrade to libFLAC 1.5+ for OggFlac chaining support"
+#endif
+
 #if BYTES_PER_FRAME == 4		
 #define ALIGN8(n) 	(n << 8)		
 #define ALIGN16(n) 	(n)
@@ -72,7 +80,9 @@ struct flac {
 	FLAC__bool (* FLAC__stream_decoder_process_single)(FLAC__StreamDecoder *decoder);
 	FLAC__StreamDecoderState (* FLAC__stream_decoder_get_state)(const FLAC__StreamDecoder *decoder);
 	void (*FLAC__stream_decoder_set_metadata_respond)(FLAC__StreamDecoder* decoder, FLAC__MetadataType type);
-	FLAC__bool (*FLAC__stream_decoder_set_ogg_chaining)(FLAC__StreamDecoder* decoder, FLAC__bool allow);
+#if FLAC_API_VERSION_CURRENT >= 14
+	FLAC__bool (*FLAC__stream_decoder_set_decode_chained_stream)(FLAC__StreamDecoder* decoder, FLAC__bool allow);
+#endif
 #endif
 };
 
@@ -277,16 +287,16 @@ static void flac_open(u8_t sample_size, u8_t sample_rate, u8_t channels, u8_t en
 	
 	if ( f->container == 'o' ) {
 		LOG_INFO("ogg/flac container - using init_ogg_stream");
+
+#if FLAC_API_VERSION_CURRENT >= 14
 #if LINKALL
-#ifdef FLAC__OGG_CHAINING
-		FLAC__stream_decoder_set_ogg_chaining(f->decoder, true);
-#else 
-#pragma message ("OggFlac library does not support chaining") 
-#endif
+		FLAC__stream_decoder_set_decode_chained_stream(f->decoder, true);
 #else
-		if (f->FLAC__stream_decoder_set_ogg_chaining) {
-			f->FLAC__stream_decoder_set_ogg_chaining(f->decoder, true);
-		}
+		FLAC(f, stream_decoder_set_decode_chained_stream, f->decoder, true);
+#endif
+		LOG_INFO("using chained stream decoding");
+#else
+		#pragma message ("OggFlac library does not support chaining") 
 #endif
 		FLAC(f, stream_decoder_set_metadata_respond, f->decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
 		FLAC(f, stream_decoder_init_ogg_stream, f->decoder, &read_cb, NULL, NULL, NULL, NULL, &write_cb, &metadata_cb, &error_cb, NULL);
@@ -318,7 +328,7 @@ static bool load_flac() {
 	char name[30];
 	char *err;
 
-        sprintf(name, LIBFLAC, FLAC_API_VERSION_CURRENT < 12 ? 8 : 12);
+	sprintf(name, LIBFLAC, FLAC_API_VERSION_CURRENT < 12 ? 8 : FLAC_API_VERSION_CURRENT);
 
         handle = dlopen(name, RTLD_NOW);
 
@@ -337,23 +347,17 @@ static bool load_flac() {
 	f->FLAC__stream_decoder_process_single = dlsym(handle, "FLAC__stream_decoder_process_single");
 	f->FLAC__stream_decoder_get_state = dlsym(handle, "FLAC__stream_decoder_get_state");
 	f->FLAC__stream_decoder_set_metadata_respond = dlsym(handle, "FLAC__stream_decoder_set_metadata_respond");
+#if FLAC_API_VERSION_CURRENT >= 14
+	f->FLAC__stream_decoder_set_decode_chained_stream = dlsym(handle, "FLAC__stream_decoder_set_decode_chained_stream");
+#endif
 
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
 		return false;
 	}
 
-	// ignore error for this new API
-	f->FLAC__stream_decoder_set_ogg_chaining = dlsym(handle, "FLAC__stream_decoder_set_ogg_chaining");
-	if (!f->FLAC__stream_decoder_set_ogg_chaining) {
-               if ((err = dlerror()) != NULL) {
-                       LOG_INFO("dlerror: %s", err);
-               }
-		LOG_INFO("OggFlac chaining disabled");
-	}
-
 	LOG_INFO("loaded %s", name);
-#elif !defined(FLAC__OGG_CHAINING)
+#elif FLAC_API_VERSION_CURRENT < 14
 	LOG_INFO("OggFlac chaining disabled");
 #endif
 
