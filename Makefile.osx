@@ -1,7 +1,59 @@
 # OSX build - adjust -I to point to header files for codecs and portaudio
-CFLAGS  = -arch x86_64 -arch i386 -Wall -fPIC -O2 -I./include $(OPTS)
-LDFLAGS = -arch x86_64 -arch i386 -lpthread libportaudio.a -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon
+# Use ARCHS variable to control architectures for multi-arch (fat) binary
+# For Intel-only: ARCHS="x86_64 i386"
+# For Universal: ARCHS="x86_64 arm64"
+# For single arch: ARCHS="arm64" or ARCHS="x86_64"
+ARCHS ?= arm64
+ARCH_FLAGS = $(foreach arch,$(ARCHS),-arch $(arch))
+
+# Determine Homebrew path dynamically
+BREW_PATH ?= $(shell brew --prefix 2>/dev/null)
+INCLUDE_PATHS = -I./include
+LIB_PATHS =
+
+ifdef BREW_PATH
+  INCLUDE_PATHS += -I$(BREW_PATH)/include
+  LIB_PATHS += -L$(BREW_PATH)/lib
+endif
+
+# Add /usr/local as fallback if it exists
+ifneq ($(wildcard /usr/local/include),)
+  INCLUDE_PATHS += -I/usr/local/include
+  LIB_PATHS += -L/usr/local/lib
+endif
+
+# Use pkg-config for all libraries (except portaudio which is handled by macOS frameworks)
+LIRC_CFLAGS := $(shell pkg-config --cflags lirc)
+LIRC_LIBS := $(shell pkg-config --libs lirc)
+
+FLAC_CFLAGS := $(shell pkg-config --cflags flac)
+FLAC_LIBS := $(shell pkg-config --libs flac)
+
+OGG_VORBIS_CFLAGS := $(shell pkg-config --cflags vorbis vorbisfile ogg)
+OGG_VORBIS_LIBS := $(shell pkg-config --libs vorbis vorbisfile ogg)
+
+SOXR_CFLAGS := $(shell pkg-config --cflags soxr)
+SOXR_LIBS := $(shell pkg-config --libs soxr)
+
+FFMPEG_CFLAGS := $(shell pkg-config --cflags libavformat libavcodec libavutil)
+FFMPEG_LIBS := $(shell pkg-config --libs libavformat libavcodec libavutil)
+
+SSL_CFLAGS := $(shell pkg-config --cflags openssl)
+SSL_LIBS := $(shell pkg-config --libs openssl)
+
+# For portaudio we use the framework approach which is handled in the LDADD variable
+PORTAUDIO_CFLAGS := $(shell pkg-config --cflags portaudio-2.0)
+
+PKG_CFLAGS := $(LIRC_CFLAGS) $(FLAC_CFLAGS) $(OGG_VORBIS_CFLAGS) $(SOXR_CFLAGS) $(FFMPEG_CFLAGS) $(SSL_CFLAGS) $(PORTAUDIO_CFLAGS)
+PKG_LIBS := $(LIRC_LIBS) $(FLAC_LIBS) $(OGG_VORBIS_LIBS) $(SOXR_LIBS) $(FFMPEG_LIBS) $(SSL_LIBS)
+
+OPTS ?= -DOSSX -DPORTAUDIO -DSELFPIPE -DRESAMPLE -DFF -DVISEXPORT -DDSD -DIR -DUSE_SSL
+CFLAGS  = $(ARCH_FLAGS) -Wall -fPIC -O2 $(INCLUDE_PATHS) $(PKG_CFLAGS) $(OPTS)
+CXXFLAGS = $(ARCH_FLAGS) -Wall -fPIC -O2 $(INCLUDE_PATHS) $(PKG_CFLAGS) $(OPTS)
+LDFLAGS = $(ARCH_FLAGS) $(LIB_PATHS)
+LDADD   = -lpthread -lm -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon $(PKG_LIBS)
 
 EXECUTABLE ?= squeezelite-osx
+
 
 include Makefile
