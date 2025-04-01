@@ -3,7 +3,7 @@
 # For Intel-only: ARCHS="x86_64 i386"
 # For Universal: ARCHS="x86_64 arm64"
 # For single arch: ARCHS="arm64" or ARCHS="x86_64"
-ARCHS ?= arm64
+ARCHS ?= $(shell uname -m)
 ARCH_FLAGS = $(foreach arch,$(ARCHS),-arch $(arch))
 
 # Determine Homebrew path dynamically
