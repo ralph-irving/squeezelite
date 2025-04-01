@@ -23,8 +23,19 @@ ifneq ($(wildcard /usr/local/include),)
 endif
 
 # Use pkg-config for all libraries (except portaudio which is handled by macOS frameworks)
-LIRC_CFLAGS := $(shell pkg-config --cflags lirc)
-LIRC_LIBS := $(shell pkg-config --libs lirc)
+# Check if lirc is available
+LIRC_AVAILABLE := $(shell pkg-config --exists lirc && echo yes || echo no)
+ifeq ($(LIRC_AVAILABLE),yes)
+  LIRC_CFLAGS := $(shell pkg-config --cflags lirc)
+  LIRC_LIBS := $(shell pkg-config --libs lirc)
+  ENABLE_IR := -DIR
+  $(info IR support enabled - lirc found)
+else
+  LIRC_CFLAGS :=
+  LIRC_LIBS :=
+  ENABLE_IR :=
+  $(info IR support disabled - lirc not found)
+endif
 
 FLAC_CFLAGS := $(shell pkg-config --cflags flac)
 FLAC_LIBS := $(shell pkg-config --libs flac)
@@ -47,7 +58,7 @@ PORTAUDIO_CFLAGS := $(shell pkg-config --cflags portaudio-2.0)
 PKG_CFLAGS := $(LIRC_CFLAGS) $(FLAC_CFLAGS) $(OGG_VORBIS_CFLAGS) $(SOXR_CFLAGS) $(FFMPEG_CFLAGS) $(SSL_CFLAGS) $(PORTAUDIO_CFLAGS)
 PKG_LIBS := $(LIRC_LIBS) $(FLAC_LIBS) $(OGG_VORBIS_LIBS) $(SOXR_LIBS) $(FFMPEG_LIBS) $(SSL_LIBS)
 
-OPTS ?= -DOSSX -DPORTAUDIO -DSELFPIPE -DRESAMPLE -DFF -DVISEXPORT -DDSD -DIR -DUSE_SSL
+OPTS ?= -DOSSX -DPORTAUDIO -DSELFPIPE -DRESAMPLE -DFF -DVISEXPORT -DDSD $(ENABLE_IR) -DUSE_SSL
 CFLAGS  = $(ARCH_FLAGS) -Wall -fPIC -O2 $(INCLUDE_PATHS) $(PKG_CFLAGS) $(OPTS)
 CXXFLAGS = $(ARCH_FLAGS) -Wall -fPIC -O2 $(INCLUDE_PATHS) $(PKG_CFLAGS) $(OPTS)
 LDFLAGS = $(ARCH_FLAGS) $(LIB_PATHS)
