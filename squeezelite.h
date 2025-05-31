@@ -299,6 +299,9 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #include <signal.h>
+#if FREEBSD
+#include <stdint.h>
+#endif /* FREEBSD */
 #if SUN
 #include <ctype.h>
 #include <sys/types.h>
