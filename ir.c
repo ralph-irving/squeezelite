@@ -166,7 +166,7 @@ static u32_t ir_key_map(const char *c, const char *r) {
 	return 0;
 }
 
-static void *ir_thread() {
+static void *ir_thread(void *vargp) {
 	char *code;
 	
 	while (fd > 0 && LIRC(i, nextcode, &code) == 0) {
