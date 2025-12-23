@@ -141,6 +141,7 @@ static void usage(const char *argv0) {
 		   "  -U <control>\t\tUnmute ALSA control and set to full volume (not supported with -V)\n"
 		   "  -V <control>\t\tUse ALSA control for volume adjustment, otherwise use software volume adjustment\n"
 		   "  -X \t\t\tUse linear volume adjustments instead of in terms of dB (only for hardware volume control)\n"
+           "  -F \t\t\tFix software volume at 100%%. Ignore volume changes from server\n"
 #endif
 #if LINUX || FREEBSD || SUN
 		   "  -z \t\t\tDaemonize\n"
@@ -325,6 +326,7 @@ int main(int argc, char **argv) {
 	char *output_mixer = NULL;
 	bool output_mixer_unmute = false;
 	bool linear_volume = false;
+    bool fixed_volume = false;
 #endif
 #if DSD
 	unsigned dsd_delay = 0;
@@ -372,7 +374,7 @@ int main(int argc, char **argv) {
 			optind += 2;
 		} else if (strstr("ltz?W"
 #if ALSA
-						  "LX"
+						  "LXF"
 #endif
 #if RESAMPLE
 						  "uR"
@@ -601,13 +603,24 @@ int main(int argc, char **argv) {
 			break;
 		case 'U':
 			output_mixer_unmute = true;
-		case 'V':
-			if (output_mixer) {
-				fprintf(stderr, "-U and -V option should not be used at same time\n");
-				exit(1);
-			}
-			output_mixer = optarg;
-			break;
+        case 'V':
+            if (output_mixer || fixed_volume) {
+                fprintf(
+                    stderr,
+                    "-U, -V, and -F option should not be used at same time\n");
+                exit(1);
+            }
+            output_mixer = optarg;
+            break;
+        case 'F':
+            if (output_mixer) {
+                fprintf(
+                    stderr,
+                    "-U, -V, and -F option should not be used at same time\n");
+                exit(1);
+            }
+            fixed_volume = true;
+            break;
 #endif
 #if IR
 		case 'i':
@@ -781,7 +794,7 @@ int main(int argc, char **argv) {
 	} else {
 #if ALSA
 		output_init_alsa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, rt_priority, idle, mixer_device, output_mixer,
-						 output_mixer_unmute, linear_volume);
+						 output_mixer_unmute, linear_volume, fixed_volume);
 #endif
 #if PORTAUDIO
 		output_init_pa(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);

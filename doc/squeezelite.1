@@ -232,6 +232,7 @@ Unmute the given ALSA
 at daemon startup and set it to full volume. Use software volume adjustment for
 playback. This option is mutually exclusive with the \fB\-V\fR option. Only
 applicable when using ALSA output.
+
 .TP
 .B \-V <control>
 Use the given ALSA
@@ -241,6 +242,11 @@ control within \fBsqueezelite\fR. This option is mutually exclusive with the
 \fB\-U\fR option. If neither \fB\-U\fR nor \fB\-V\fR options are provided,
 no ALSA controls are adjusted while running \fBsqueezelite\fR and software
 volume control is used instead. Only applicable when using ALSA output.
+.TP
+.B \-F
+Fix software volume control at 100% and ignore gain adjustment commands from the
+server. This option is mutually exlusive with the \fB\-U\fR and \fB\-V\fR options.
+Only applicable when using ALSA output.
 .TP
 .B \-X
 Use linear volume adjustments instead of in terms of dB (only for

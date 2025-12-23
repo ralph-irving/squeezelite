@@ -66,6 +66,7 @@ static struct {
 	snd_mixer_t *mixer_handle;
 	long mixer_min;
 	long mixer_max;
+    bool fixed_volume;
 } alsa;
 
 static snd_pcm_t *pcmp = NULL;
@@ -228,6 +229,11 @@ static void set_mixer(bool setmax, float ldB, float rdB) {
 
 void set_volume(unsigned left, unsigned right) {
 	float ldB, rdB;
+
+    if(alsa.fixed_volume) {
+        LOG_DEBUG("ignoring gain adjustment command");
+        return;
+    }
 
 	if (!alsa.volume_mixer_name) {
 		LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
@@ -908,7 +914,7 @@ int mixer_init_alsa(const char *device, const char *mixer, int mixer_index) {
 
 static pthread_t thread;
 
-void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, bool mixer_unmute, bool mixer_linear) {
+void output_init_alsa(log_level level, const char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned rt_priority, unsigned idle, char *mixer_device, char *volume_mixer, bool mixer_unmute, bool mixer_linear, bool fixed_volume) {
 
 	unsigned alsa_buffer = ALSA_BUFFER_TIME;
 	unsigned alsa_period = ALSA_PERIOD_COUNT;
@@ -992,6 +998,13 @@ void output_init_alsa(log_level level, const char *device, unsigned output_buf_s
 		set_mixer(true, 0, 0);
 		alsa.volume_mixer_name = NULL;
 	}
+
+    alsa.fixed_volume = fixed_volume;
+    if(fixed_volume) {
+        // Set initial gains
+        output.gainL = FIXED_ONE;
+        output.gainR = FIXED_ONE;
+    }
 
 #if LINUX
 	// RT linux - aim to avoid pagefaults by locking memory: 
