@@ -112,7 +112,7 @@ static void usage(const char *argv0) {
 #endif
 		   "  -r <rates>[:<delay>]\tSample rates supported, allows output to be off when squeezelite is started; rates = <maxrate>|<minrate>-<maxrate>|<rate1>,<rate2>,<rate3>; delay = optional delay switching rates in ms\n"
 #if GPIO
-			"  -S <Power Script>\tAbsolute path to script to launch on power commands from LMS\n"
+			"  -S <power script>\tAbsolute path to script that launches on power commands from LMS\n"
 #endif
 #if RESAMPLE
 		   "  -R -u [params]\tResample, params = <recipe>:<flags>:<attenuation>:<precision>:<passband_end>:<stopband_start>:<phase_response>,\n" 
@@ -140,6 +140,7 @@ static void usage(const char *argv0) {
 		   "  -L \t\t\tList volume controls for output device\n"
 		   "  -U <control>\t\tUnmute ALSA control and set to full volume (not supported with -V)\n"
 		   "  -V <control>\t\tUse ALSA control for volume adjustment, otherwise use software volume adjustment\n"
+		   "  -w <volume script>\t\tAbsolute path to script that launches on volume commands from LMS (passes 0-100 as first argument, not supported with -V)\n"
 		   "  -X \t\t\tUse linear volume adjustments instead of in terms of dB (only for hardware volume control)\n"
 #endif
 #if LINUX || FREEBSD || SUN
@@ -295,6 +296,9 @@ static void sighandler(int signum) {
 	signal(signum, SIG_DFL);
 }
 
+// Global variable for external volume script
+char *volume_script = NULL;
+
 int main(int argc, char **argv) {
 	char *server = NULL;
 	char *output_device = "default";
@@ -365,7 +369,7 @@ int main(int argc, char **argv) {
 		char *opt = argv[optind] + 1;
 		if (strstr("oabcCdefmMnNpPrsZ"
 #if ALSA
-				   "UVO"
+				   "UVwO"
 #endif
 				   , opt) && optind < argc - 1) {
 			optarg = argv[optind + 1];
@@ -609,6 +613,17 @@ int main(int argc, char **argv) {
 			output_mixer = optarg;
 			break;
 #endif
+		case 'w':
+			if (output_mixer_unmute) {
+				fprintf(stderr, "-U and -w option should not be used at same time\n");
+				exit(1);
+			}
+			if (output_mixer) {
+				fprintf(stderr, "-V and -w option should not be used at same time\n");
+				exit(1);
+			}
+			volume_script = optarg;
+			break;
 #if IR
 		case 'i':
 			if (optind < argc && argv[optind] && argv[optind][0] != '-') {

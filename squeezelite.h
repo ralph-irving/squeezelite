@@ -821,3 +821,5 @@ void free_ssl_symbols(void);
 bool ssl_loaded;
 #endif
 
+// External volume script path (set by -w option)
+extern char *volume_script;
