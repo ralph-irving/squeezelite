@@ -42,7 +42,7 @@ struct ff_s {
 	u8_t wma_metadatastream;
 	u8_t *readbuf;
 	bool end_of_stream;
-	AVInputFormat *input_format;
+	const AVInputFormat *input_format;
 	AVFormatContext *formatC;
 	AVCodecContext *codecC;
 	AVCodecParameters *codecP;
@@ -67,7 +67,11 @@ struct ff_s {
 	unsigned (* avformat_version)(void);
 	AVFormatContext * (* avformat_alloc_context)(void);
 	void (* avformat_free_context)(AVFormatContext *);
+#if LIBAVFORMAT_VERSION_INT >= AV_VERSION_INT(59,0,0)
+	int (* avformat_open_input)(AVFormatContext **, const char *, const AVInputFormat *, AVDictionary **);
+#else
 	int (* avformat_open_input)(AVFormatContext **, const char *, AVInputFormat *, AVDictionary **);
+#endif
 	int (* avformat_find_stream_info)(AVFormatContext *, AVDictionary **);
 	AVIOContext * (* avio_alloc_context)(unsigned char *, int, int,	void *,
 		int (*read_packet)(void *, uint8_t *, int), int (*write_packet)(void *, uint8_t *, int), int64_t (*seek)(void *, int64_t, int));
@@ -269,7 +273,7 @@ static decode_state ff_decode(void) {
 
 		AVIOContext *avio;
 		AVStream *av_stream;
-		AVCodec *codec;
+		const AVCodec *codec;
 		int o;
 		int audio_stream = -1;
 
@@ -291,7 +295,11 @@ static decode_state ff_decode(void) {
 		ff->formatC->pb = avio;
 		ff->formatC->flags |= AVFMT_FLAG_CUSTOM_IO | AVFMT_FLAG_NOPARSE;
 
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(59,0,0)
+		o = AVFORMAT(ff, open_input, &ff->formatC, "", (AVInputFormat *)ff->input_format, NULL);
+#else
 		o = AVFORMAT(ff, open_input, &ff->formatC, "", ff->input_format, NULL);
+#endif
 		if (o < 0) {
 			LOG_WARN("avformat_open_input: %d %s", o, av__err2str(o));
 			return DECODE_ERROR;
