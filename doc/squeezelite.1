@@ -242,6 +242,10 @@ control within \fBsqueezelite\fR. This option is mutually exclusive with the
 no ALSA controls are adjusted while running \fBsqueezelite\fR and software
 volume control is used instead. Only applicable when using ALSA output.
 .TP
+.B \-w <volume script>
+Absolute path to script that launches on volume commands from LMS (passes 0-100
+as first argument). This cannot be used with the \fB-V\fR option.
+.TP
 .B \-X
 Use linear volume adjustments instead of in terms of dB (only for
 hardware volume control).

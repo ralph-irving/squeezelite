@@ -229,6 +229,53 @@ static void set_mixer(bool setmax, float ldB, float rdB) {
 void set_volume(unsigned left, unsigned right) {
 	float ldB, rdB;
 
+	// if external volume script is set, call it
+	if (volume_script) {
+		char cmd[256];
+
+		// Fix official Boom/SqueezePlay curve glitches, works perfectly with 2% volume steps
+		if (left == 2048){ // 39 --> 40
+			left = 2146;
+		} else if (left == 2304){ // 41 --> 42
+			left = 2406;
+		} else if (left == 2816){ // 45 --> 44
+			left = 2689;
+		}
+
+		// use left channel as the main volume value
+		ldB = 20 * log10( left  / 65536.0F );
+
+		// Choose a floor that matches typical LMS low end (~ -72 dB from the table’s 1% value)
+		const double dB_min = -49.510895;
+		const double dB_max = 0.0;
+
+		int vol = 0;
+		if (ldB <= dB_min){
+			vol = 0;
+		} else if (ldB >= dB_max){
+			vol = 100;
+		} else {
+			vol = (int)lround( (ldB - dB_min) * 100.0 / (dB_max - dB_min) );
+		}
+		LOG_DEBUG("left: %u, ldB:%f vol: %u", left, ldB, vol);
+
+		// Run the external script asynchronously to avoid blocking
+	#if defined(_WIN32) || defined(_WIN64)
+		snprintf(cmd, sizeof(cmd), "start /B %s %u", volume_script, vol);
+	#else
+		snprintf(cmd, sizeof(cmd), "%s %u &", volume_script, vol);
+	#endif
+		int ret = system(cmd);
+		if (ret != 0) {
+			LOG_ERROR("external volume script failed: %s", cmd);
+		}
+		LOCK;
+		output.gainL = FIXED_ONE;
+		output.gainR = FIXED_ONE;
+		UNLOCK;
+		return;
+	}
+
 	if (!alsa.volume_mixer_name) {
 		LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
 		LOCK;
