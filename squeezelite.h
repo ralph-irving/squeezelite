@@ -147,7 +147,7 @@
 #define VISEXPORT 0
 #endif
 
-#if LINUX && defined(IR)
+#if (LINUX || OSX) && defined(IR)
 #undef IR
 #define IR 1
 #else
@@ -227,6 +227,7 @@
 #define LIBAVCODEC  "libavcodec.%d.dylib"
 #define LIBAVFORMAT "libavformat.%d.dylib"
 #define LIBSOXR "libsoxr.0.dylib"
+#define LIBLIRC "liblirc_client.0.dylib"
 #endif
 
 #if WIN
