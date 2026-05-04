@@ -26,6 +26,8 @@
 
 #include <signal.h>
 
+char *volume_script = NULL;
+
 #define TITLE "Squeezelite " VERSION ", Copyright 2012-2015 Adrian Smith, 2015-2025 Ralph Irving."
 
 #define CODECS_BASE "flac,pcm,ogg"
@@ -104,6 +106,7 @@ static void usage(const char *argv0) {
 		   "  -n <name>\t\tSet the player name\n"
 		   "  -N <filename>\t\tStore player name in filename to allow server defined name changes to be shared between servers (not supported with -n)\n"
 		   "  -W\t\t\tRead wave and aiff format from header, ignore server parameters\n"
+		   "  -w <script>\t\tAbsolute path to script to launch on volume commands from LMS (not supported with -V)\n"
 #if ALSA
 		   "  -p <priority>\t\tSet real time priority of output thread (1-99)\n"
 #endif
@@ -296,9 +299,6 @@ static void sighandler(int signum) {
 	signal(signum, SIG_DFL);
 }
 
-// Global variable for external volume script
-char *volume_script = NULL;
-
 int main(int argc, char **argv) {
 	char *server = NULL;
 	char *output_device = "default";
@@ -367,7 +367,7 @@ int main(int argc, char **argv) {
 
 	while (optind < argc && strlen(argv[optind]) >= 2 && argv[optind][0] == '-') {
 		char *opt = argv[optind] + 1;
-		if (strstr("oabcCdefmMnNpPrsZ"
+		if (strstr("oabcCdefmMnNpPrsZw"
 #if ALSA
 				   "UVwO"
 #endif
@@ -614,15 +614,18 @@ int main(int argc, char **argv) {
 			break;
 #endif
 		case 'w':
-			if (output_mixer_unmute) {
-				fprintf(stderr, "-U and -w option should not be used at same time\n");
-				exit(1);
-			}
+#if ALSA
 			if (output_mixer) {
-				fprintf(stderr, "-V and -w option should not be used at same time\n");
+				fprintf(stderr, "-V and -w options cannot be used at same time\n");
 				exit(1);
 			}
+#endif
 			volume_script = optarg;
+			if (access(volume_script, R_OK|X_OK) == -1) {
+				fprintf(stderr, "Script %s not found or not executable\n\n", volume_script);
+				usage(argv[0]);
+				exit(1);
+			}
 			break;
 #if IR
 		case 'i':

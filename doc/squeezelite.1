@@ -222,6 +222,13 @@ process this to create visualisations.
 .B \-W
 Read wave and aiff format from header, ignoring server parameters.
 .TP
+.B \-w <script>
+Absolute path to an executable script to invoke on volume commands from LMS.
+The script is passed a single integer argument in the range 0\-100, where 0 is
+silence and 100 is full volume, mapped from the LMS dB range (\-72..0 dB) using
+the same linear scale as the ALSA volume control. This option is mutually
+exclusive with the \fB\-V\fR option.
+.TP
 .B \-L
 List available volume controls for the output device. Only applicable when
 using ALSA output.

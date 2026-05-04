@@ -22,6 +22,7 @@
 // Common output function
 
 #include "squeezelite.h"
+#include <math.h>
 
 static log_level loglevel;
 
@@ -286,6 +287,35 @@ frames_t _output_frames(frames_t avail) {
 	LOG_SDEBUG("wrote %u frames", frames);
 
 	return frames;
+}
+
+void call_volume_script(unsigned left) {
+	char cmd[256];
+	float ldB;
+	int vol;
+
+	LOCK;
+	if (output.state == OUTPUT_OFF) {
+		UNLOCK;
+		return;
+	}
+	UNLOCK;
+
+	ldB = 20.0f * log10f((float)left / FIXED_ONE);
+	vol = (int)lroundf((ldB > -72.0f ? 72.0f + ldB : 0.0f) / 72.0f * 100.0f);
+	LOG_DEBUG("volume script left: %u ldB: %.1f vol: %u", left, ldB, vol);
+#if defined(_WIN32) || defined(_WIN64)
+	snprintf(cmd, sizeof(cmd), "start /B %s %u", volume_script, vol);
+#else
+	snprintf(cmd, sizeof(cmd), "%s %u &", volume_script, vol);
+#endif
+	if (system(cmd) != 0) {
+		LOG_ERROR("external volume script failed: %s", cmd);
+	}
+	LOCK;
+	output.gainL = FIXED_ONE;
+	output.gainR = FIXED_ONE;
+	UNLOCK;
 }
 
 void _checkfade(bool start) {
