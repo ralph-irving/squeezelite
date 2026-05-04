@@ -229,6 +229,11 @@ static void set_mixer(bool setmax, float ldB, float rdB) {
 void set_volume(unsigned left, unsigned right) {
 	float ldB, rdB;
 
+	if (volume_script) {
+		call_volume_script(left);
+		return;
+	}
+
 	if (!alsa.volume_mixer_name) {
 		LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
 		LOCK;

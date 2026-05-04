@@ -108,6 +108,10 @@ void list_devices(void) {
 }
 
 void set_volume(unsigned left, unsigned right) {
+	if (volume_script) {
+		call_volume_script(left);
+		return;
+	}
 	LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
 	LOCK;
 	output.gainL = left;

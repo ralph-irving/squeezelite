@@ -319,6 +319,11 @@ static void pulse_set_volume(struct pulse *p, unsigned left, unsigned right) {
 void set_volume(unsigned left, unsigned right) {
 	bool adjust_sink_input = false;
 
+	if (volume_script) {
+		call_volume_script(left);
+		return;
+	}
+
 	LOCK;
 	adjust_sink_input = (left != output.gainL) || (right != output.gainR);
 	output.gainL = left;
