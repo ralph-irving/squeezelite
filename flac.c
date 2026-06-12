@@ -233,7 +233,12 @@ static FLAC__StreamDecoderWriteStatus write_cb(const FLAC__StreamDecoder *decode
 				*optr++ = ALIGN16(*lptr++);
 				*optr++ = ALIGN16(*rptr++);
 			}
-		} else if (bits_per_sample == 24) {
+		} else if (bits_per_sample == 20) {
+			while (count--) {
+				*optr++ = ALIGN24(*lptr++ << 4);
+				*optr++ = ALIGN24(*rptr++ << 4);
+			}
+		} else if ( bits_per_sample == 24) {
 			while (count--) {
 				*optr++ = ALIGN24(*lptr++);
 				*optr++ = ALIGN24(*rptr++);
