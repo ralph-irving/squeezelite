@@ -82,6 +82,7 @@ struct flac {
 	void (*FLAC__stream_decoder_set_metadata_respond)(FLAC__StreamDecoder* decoder, FLAC__MetadataType type);
 #if FLAC_API_VERSION_CURRENT >= 14
 	FLAC__bool (*FLAC__stream_decoder_set_decode_chained_stream)(FLAC__StreamDecoder* decoder, FLAC__bool allow);
+	FLAC__bool (*FLAC__stream_decoder_finish_link)(FLAC__StreamDecoder* decoder);
 #endif
 #endif
 };
@@ -318,6 +319,17 @@ static decode_state flac_decode(void) {
 		LOG_INFO("flac error: %s", FLAC_A(f, StreamDecoderStateString)[state]);
 	};
 	
+#if FLAC_API_VERSION_CURRENT >= 14
+	if (state == FLAC__STREAM_DECODER_END_OF_LINK) {
+		if (!FLAC(f, stream_decoder_finish_link, f->decoder)) {
+			LOG_INFO("flac error: could not finish chained link");
+			return DECODE_ERROR;
+		}
+
+		return DECODE_RUNNING;
+	}
+#endif
+
 	if (state == FLAC__STREAM_DECODER_END_OF_STREAM) {
 		return DECODE_COMPLETE;
 	} else if (state > FLAC__STREAM_DECODER_END_OF_STREAM) {
@@ -354,6 +366,7 @@ static bool load_flac() {
 	f->FLAC__stream_decoder_set_metadata_respond = dlsym(handle, "FLAC__stream_decoder_set_metadata_respond");
 #if FLAC_API_VERSION_CURRENT >= 14
 	f->FLAC__stream_decoder_set_decode_chained_stream = dlsym(handle, "FLAC__stream_decoder_set_decode_chained_stream");
+	f->FLAC__stream_decoder_finish_link = dlsym(handle, "FLAC__stream_decoder_finish_link");
 #endif
 
 	if ((err = dlerror()) != NULL) {
