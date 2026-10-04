@@ -90,7 +90,13 @@ struct buffer *streambuf = &buf;
 #define LOCK   mutex_lock(streambuf->mutex)
 #define UNLOCK mutex_unlock(streambuf->mutex)
 
-#define PTR_U32(p)	((u32_t) (*(u32_t*)p))
+static inline u32_t read_le32(const void *src) {
+    const u8_t *p = src;
+    return (u32_t)p[0]
+         | (u32_t)p[1] << 8
+         | (u32_t)p[2] << 16
+         | (u32_t)p[3] << 24;
+}
 
 static sockfd fd;
 static struct sockaddr_in addr;
@@ -402,7 +408,7 @@ static void stream_ogg(size_t n) {
 
 					// only report what we use and don't overflow (network byte order)
 					if (!strncasecmp(p, "TITLE=", 6) || !strncasecmp(p, "ARTIST=", 7) || !strncasecmp(p, "ALBUM=", 6)) {
-						if (stream.header_len + len > MAX_HEADER) break;
+						if (stream.header_len + len + 2 > MAX_HEADER) break;
 						stream.header[stream.header_len++] = len >> 8;
 						stream.header[stream.header_len++] = len;
 						memcpy(stream.header + stream.header_len, p, len);
@@ -473,8 +479,8 @@ static void stream_ogg(size_t n) {
 
 			// u32:len,char[]:vendorId, u32:N, N x (u32:len,char[]:comment)
 			char* p = (char*)ogg.packet.packet + ofs;
-			p += itohl(PTR_U32(p)) + 4;
-			u32_t count = itohl(PTR_U32(p));
+			p += read_le32(p) + 4;
+			u32_t count = read_le32(p);
 			p += 4;
 
 			// LMS metadata format for Ogg is "Ogg", N x (u16:len,char[]:comment)
@@ -482,12 +488,12 @@ static void stream_ogg(size_t n) {
 			stream.header_len = 3;
 
 			for (u32_t len; count--; p += len) {
-				len = itohl(PTR_U32(p));
+				len = read_le32(p);
 				p += 4;
 
 				// only report what we use and don't overflow (network byte order)
 				if (!strncasecmp(p, "TITLE=", 6) || !strncasecmp(p, "ARTIST=", 7) || !strncasecmp(p, "ALBUM=", 6)) {
-					if (stream.header_len + len > MAX_HEADER) break;
+					if (stream.header_len + len + 2 > MAX_HEADER) break;
 					stream.header[stream.header_len++] = len >> 8;
 					stream.header[stream.header_len++] = len;
 					memcpy(stream.header + stream.header_len, p, len);
