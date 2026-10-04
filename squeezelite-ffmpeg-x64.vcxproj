@@ -132,7 +132,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>include\alac;include\opus;include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;RESAMPLE;DSD;FFMPEG;OPUS;USE_SSL;FLAC__NO_DLL;LINKALL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;RESAMPLE;DSD;USE_LIBOGG;FFMPEG;OPUS;USE_SSL;FLAC__NO_DLL;LINKALL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>
       </PrecompiledHeader>
@@ -142,7 +142,7 @@
     </ClCompile>
     <Link>
       <AdditionalOptions>/NODEFAULTLIB:LIBCMT %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>ws2_32.lib;crypt32.lib;lib\portaudio.lib;lib\libogg.lib;lib\libvorbisfile.lib;lib\libvorbis.lib;lib\libmad.lib;lib\libFLAC.lib;lib\libfaad.lib;lib\libmpg123.lib;lib\libsoxr.lib;lib\libavformat.a;lib\libavcodec.a;lib\libavutil.a;lib\libssl.lib;lib\libcrypto.lib;lib\opus.lib;lib\opusfile.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ws2_32.lib;crypt32.lib;lib\portaudio.lib;lib\libogg.lib;lib\libvorbisfile.lib;lib\libvorbis.lib;lib\libmad.lib;lib\libFLAC.lib;lib\utf8.lib;lib\win_utf8_io.lib;lib\libfaad.lib;lib\libmpg123.lib;lib\libsoxr.lib;lib\libavformat.a;lib\libavcodec.a;lib\libavutil.a;lib\libssl.lib;lib\libcrypto.lib;lib\opus.lib;lib\opusfile.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).exe</OutputFile>
       <ModuleDefinitionFile>
       </ModuleDefinitionFile>

@@ -5,7 +5,7 @@
 .\" First parameter, NAME, should be all caps
 .\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
 .\" other parameters are allowed: see man(7), man(1)
-.TH SQUEEZELITE 1 "2026-03-01" "Debian Project"
+.TH SQUEEZELITE 1 "2026-08-18" "Debian Project"
 .\" Please adjust this date whenever revising the manpage.
 .\"
 .\" Some roff macros, for reference:
@@ -154,6 +154,13 @@ Enable LIRC remote control support. If the optional
 is not provided,
 .I ~/.lircrc
 is used instead.
+.TP
+.B \-k
+Terminate if MAC address contains all zeros.  Overrides default behaviour
+which sets 00:00:00:00:00:00 as the MAC address and connects to a server.
+.TP
+.B \-K
+Wait until MAC address is not all zeros.
 .TP
 .B \-m <mac addr>
 Override the player's MAC address. The format must be colon-delimited

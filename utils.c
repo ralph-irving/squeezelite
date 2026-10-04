@@ -120,6 +120,16 @@ u32_t gettime_ms(void) {
 #endif
 }
 
+bool is_mac_nz(u8_t* mac) {
+	int ix;
+	for(ix=0; ix<6; ++ix) {
+		if (mac[ix]) {
+			return true;
+		}
+	}
+	return false;
+}
+
 // mac address
 #if LINUX && !defined(SUN)
 // search first 4 interfaces returned by IFCONF
