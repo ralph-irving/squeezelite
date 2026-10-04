@@ -96,7 +96,7 @@ static decode_state mpg_decode(void) {
 		write_buf = outputbuf->writep;
 	);
 	IF_PROCESS(
-		space = process.max_in_frames;
+		space = process.max_in_frames * BYTES_PER_FRAME;
 		write_buf = process.inbuf;
 	);
 
