@@ -283,6 +283,13 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 			}
 		}
 
+		// a box shorter than its own 8 byte header (e.g. length 0) can never be consumed and would
+		// make this loop spin forever holding the streambuf lock, so give up on the stream instead
+		if (len < 8) {
+			LOG_ERROR("invalid mp4 box %s with length %u", type, len);
+			return -1;
+		}
+
 		// default to consuming entire box
 		consume = len;
 
