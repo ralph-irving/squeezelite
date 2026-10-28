@@ -661,6 +661,17 @@ static void *output_thread(void *arg) {
 
 		// wait until device returns - to allow usb audio devices to be turned off
 		if (probe_device) {
+#if GPIO
+			// wake up amp first: the relay or power script may be what powers the
+			// device, or what makes another user release it, so don't wait for the
+			// device before running it
+			if (gpio_active) {
+				relay(1);
+			}
+			if (power_script != NULL) {
+				relay_script(1);
+			}
+#endif
 			while (!pcm_probe(output.device)) {
 				LOG_DEBUG("waiting for device %s to return", output.device);
 				sleep(5);
