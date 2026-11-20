@@ -444,6 +444,10 @@ void _pa_open(void) {
 #endif
 #if WIN
 		monitor_thread = CreateThread(NULL, OUTPUT_THREAD_STACK_SIZE, (LPTHREAD_START_ROUTINE)&pa_monitor, NULL, 0, NULL);
+		if (monitor_thread) {
+			CloseHandle(monitor_thread);
+			monitor_thread = NULL;
+		}
 #endif
 	}
 
