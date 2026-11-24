@@ -86,6 +86,8 @@ static struct {
 
 int autostart;
 bool sentSTMu, sentSTMo, sentSTMl;
+// set by strm-p, cleared by strm-u/q or a new server session: holds autostart
+static bool server_paused;
 u32_t new_server;
 char *new_server_cap;
 #define PLAYER_NAME_LEN 64
@@ -287,6 +289,7 @@ static void process_strm(u8_t *pkt, int len) {
 	case 'q':
 		decode_flush();
 		output_flush();
+		server_paused = false;
 		status.frames_played = 0;
 		stream_disconnect();
 		sendSTAT("STMf", 0);
@@ -314,6 +317,7 @@ static void process_strm(u8_t *pkt, int len) {
 				output.state = OUTPUT_STOPPED;
 				output.stop_time = gettime_ms();
 			}
+			if (!interval) server_paused = true;
 			UNLOCK_O;
 			if (!interval) sendSTAT("STMp", 0);
 			LOG_DEBUG("pause interval: %u", interval);
@@ -335,6 +339,7 @@ static void process_strm(u8_t *pkt, int len) {
 			LOCK_O;
 			output.state = jiffies ? OUTPUT_START_AT : OUTPUT_RUNNING;
 			output.start_at = jiffies;
+			server_paused = false;
 			UNLOCK_O;
 
 			LOG_DEBUG("unpause at: %u now: %u", jiffies, gettime_ms());
@@ -710,7 +715,7 @@ static void slimproto_run() {
 				output.pa_reopen = false;
 			}
 #endif
-			if (_start_output && (output.state == OUTPUT_STOPPED || output.state == OUTPUT_OFF)) {
+			if (_start_output && !server_paused && (output.state == OUTPUT_STOPPED || output.state == OUTPUT_OFF)) {
 				output.state = OUTPUT_BUFFER;
 			}
 			if (output.state == OUTPUT_RUNNING && !sentSTMu && status.output_full == 0 && status.stream_state <= DISCONNECT &&
@@ -961,6 +966,7 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 				new_server_cap = NULL;
 			}
 
+			if (!reconnect) server_paused = false;
 			sendHELO(reconnect, fixed_cap, var_cap, mac);
 
 			slimproto_run();
