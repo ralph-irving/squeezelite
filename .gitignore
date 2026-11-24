@@ -2,5 +2,6 @@
 *.o
 squeezelite
 squeezelite-pulse
+squeezelite-osx
 tools/alsacap
 tools/find_servers
