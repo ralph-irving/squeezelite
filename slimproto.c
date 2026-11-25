@@ -25,6 +25,13 @@
 #include "squeezelite.h"
 #include "slimproto.h"
 
+#if LINUX
+#include <sys/ioctl.h>
+#ifndef SIOCOUTQ
+#define SIOCOUTQ TIOCOUTQ // bytes in a TCP socket's send queue the peer hasn't acknowledged yet
+#endif
+#endif
+
 static log_level loglevel;
 
 #define SQUEEZENETWORK "mysqueezebox.com:3483"
@@ -86,6 +93,27 @@ static struct {
 
 int autostart;
 bool sentSTMu, sentSTMo, sentSTMl;
+
+// A track start (STMs) or "ready for the next track" (STMd) sent while the connection was already dead (e.g. WiFi or
+// mobile data gone silent just before a track change) never reaches the server, and its reconnect handling only looks
+// at the stream's byte count: it keeps showing the previous track and doesn't send the next one, so playback stops at
+// the end of the current track. Once nothing is left in the socket's send queue, the server's TCP stack has
+// acknowledged them. If the connection ends before that, they are sent again after the reconnect, unless the server
+// sends a stream command first (then it is already moving on, and a repeated STMs could make it drop the playing song).
+static bool stms_unacked, stmd_unacked;
+static bool resend_stms, resend_stmd;
+static u32_t resend_at;
+
+static void check_acked(void) {
+#if LINUX && defined(SIOCOUTQ)
+	int queued;
+	if ((stms_unacked || stmd_unacked) && ioctl(sock, SIOCOUTQ, &queued) == 0 && queued == 0) {
+		stms_unacked = stmd_unacked = false;
+	}
+#else
+	stms_unacked = stmd_unacked = false; // can't tell: never resend
+#endif
+}
 u32_t new_server;
 char *new_server_cap;
 #define PLAYER_NAME_LEN 64
@@ -279,6 +307,16 @@ static void process_strm(u8_t *pkt, int len) {
 	struct strm_packet *strm = (struct strm_packet *)pkt;
 
 	LOG_DEBUG("strm command %c", strm->command);
+
+	if (strm->command != 't') {
+		// the server acted (e.g. the next track's strm s answers STMd): it has what was sent before, or it no longer matters
+		stms_unacked = stmd_unacked = false;
+		if (resend_at) {
+			LOG_INFO("not sending STMs/STMd again: server sent strm %c after the reconnect", strm->command);
+			resend_at = 0;
+			resend_stms = resend_stmd = false;
+		}
+	}
 
 	switch(strm->command) {
 	case 't':
@@ -752,11 +790,33 @@ static void slimproto_run() {
 
 			// send packets once locks released as packet sending can block
 			if (_sendDSCO) sendDSCO(disconnect_code);
-			if (_sendSTMs) sendSTAT("STMs", 0);
-			if (_sendSTMd) sendSTAT("STMd", 0);
+			if (_sendSTMs) {
+				sendSTAT("STMs", 0);
+				stms_unacked = true;
+			}
+			if (_sendSTMd) {
+				sendSTAT("STMd", 0);
+				stmd_unacked = true;
+			}
 			if (_sendSTMt) sendSTAT("STMt", 0);
 			if (_sendSTMl) sendSTAT("STMl", 0);
 			if (_sendSTMu) sendSTAT("STMu", 0);
+			if (resend_at && now - resend_at < 0x80000000) {
+				// after a reconnect, the server sent no stream command: it didn't get them
+				resend_at = 0;
+				if (resend_stms) {
+					LOG_INFO("sending STMs again: not acknowledged before the connection dropped");
+					sendSTAT("STMs", 0);
+					stms_unacked = true;
+				}
+				if (resend_stmd) {
+					LOG_INFO("sending STMd again: not acknowledged before the connection dropped");
+					sendSTAT("STMd", 0);
+					stmd_unacked = true;
+				}
+				resend_stms = resend_stmd = false;
+			}
+			check_acked();
 			if (_sendSTMo) sendSTAT("STMo", 0);
 			if (_sendSTMn) sendSTAT("STMn", 0);
 			if (_sendRESP) sendRESP(header, header_len);
@@ -963,7 +1023,20 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 
 			sendHELO(reconnect, fixed_cap, var_cap, mac);
 
+			if (reconnect && (resend_stms || resend_stmd)) {
+				resend_at = gettime_ms() + 1500;
+			}
+
 			slimproto_run();
+
+			// sent but not acknowledged by the server: send them again after the reconnect (not to another server)
+			resend_stms = stms_unacked && !new_server;
+			resend_stmd = stmd_unacked && !new_server;
+			stms_unacked = stmd_unacked = false;
+			resend_at = 0;
+			if (resend_stms || resend_stmd) {
+				LOG_INFO("connection dropped before the server acknowledged %s%s", resend_stms ? "STMs " : "", resend_stmd ? "STMd" : "");
+			}
 
 			if (!reconnect) {
 				reconnect = true;
