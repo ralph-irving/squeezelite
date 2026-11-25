@@ -344,6 +344,12 @@ void _checkfade(bool start) {
 			// if default setting used and nothing in buffer attempt to resize to provide full crossfade support
 			LOG_INFO("resize outputbuf for crossfade");
 			_buf_resize(outputbuf, OUTPUTBUF_SIZE_CROSSFADE);
+			// the decoder has already set track_start into the old, now freed, buffer; as the buffer
+			// was empty it pointed at the start, so move it to the start of the new one - otherwise
+			// it never matches readp and STMs is never sent for the first track
+			if (output.track_start) {
+				output.track_start = outputbuf->writep;
+			}
 #if LINUX || FREEBSD
 			touch_memory(outputbuf->buf, outputbuf->size);
 #endif			
